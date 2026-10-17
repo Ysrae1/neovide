@@ -9,9 +9,10 @@ parser.add_argument('--output', required=True)
 args = parser.parse_args()
 out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
-name = 'Neovide-Glow-20261017'
+stack_id = json.loads((ROOT / 'manifest.json').read_text())['stack_id']
+name = 'Neovide-Glow-' + stack_id.removeprefix('neovide-glow-')
 files = []
-for item in ('README.md', 'DEPLOY.md', 'manifest.json', 'install.sh', 'install.ps1', 'scripts', 'payload', 'licenses'):
+for item in ('README.md', 'DEPLOY.md', 'CHANGELOG.md', 'manifest.json', 'install.sh', 'install.ps1', 'scripts', 'payload', 'licenses'):
     path = ROOT / item
     if path.is_file(): files.append(path)
     else: files.extend(p for p in sorted(path.rglob('*')) if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc')

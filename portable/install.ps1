@@ -262,7 +262,7 @@ Write-Host "Rust $rustVersion / $target; Linux environment: $Distro (WSL2)"
 Write-Host "Output directory: $InstallRoot"
 foreach ($entry in $detectedTools.GetEnumerator()) { Write-Host ('{0,-15} {1}' -f $entry.Key, $entry.Value) }
 if ($Plan) {
-    Write-Host 'Plan only: install missing Windows build prerequisites through interactive WinGet; ensure WSL2 and a non-root Ubuntu user; run the shared pinned Linux installer; install the downloaded fonts for this Windows user; build the exact Glow commit with cargo --locked plus the approved icon overlay; write a separate runnable directory, configuration and launcher.'
+    Write-Host 'Plan only: install missing Windows build prerequisites through interactive WinGet; ensure WSL2 and a non-root Ubuntu user; run the shared pinned Linux installer (it downloads its own locked Neovim, so no preinstalled Windows or Linux Neovim is needed); install the downloaded fonts for this Windows user; build the exact Glow commit with cargo --locked plus the approved icon overlay; write a separate runnable directory, configuration and launcher.'
     Write-Host 'No files, packages, default distro, running apps, or settings were changed.'
     return
 }

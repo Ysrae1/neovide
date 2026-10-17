@@ -120,8 +120,8 @@ class Installer:
 
     def instructions(self):
         if self.is_mac:
-            return 'Install missing prerequisites explicitly: xcode-select --install; brew install python@3.12 git pkgconf ncurses rustup go openjdk. Follow rustup setup instructions; this installer never changes your default Rust toolchain.'
-        return 'Ubuntu 24.04 prerequisites (run yourself): sudo apt update && sudo apt install -y python3 git curl build-essential pkg-config libncurses-dev libssl-dev libclang-dev golang-go default-jre unzip xz-utils. Install rustup from https://rustup.rs separately, then reopen the shell. No apt package is installed automatically.'
+            return 'Install missing prerequisites explicitly: complete xcode-select --install; install native ARM Homebrew from https://brew.sh if missing; brew install python git pkgconf ncurses rustup go openjdk@21. Follow Homebrew Python, Java and rustup PATH setup in DEPLOY.md; this installer never changes your default Rust toolchain. No preinstalled Neovim is needed.'
+        return 'Ubuntu 24.04 prerequisites (run yourself): sudo apt update && sudo apt install -y python3 python3-venv git curl build-essential pkg-config libncurses-dev libssl-dev libclang-dev golang-go openjdk-21-jre-headless unzip xz-utils. Install rustup from https://rustup.rs separately, then reopen the shell. No apt package is installed automatically. No preinstalled Neovim is needed.'
 
     def plan(self):
         say(f'Stack: {self.stack_id}\nTarget: {self.target}\nIsolated root: {self.root}\nStage: {self.args.stage}')
@@ -130,6 +130,7 @@ class Installer:
             if entry:
                 say(f'  {key} {tool["version"]}: {entry["filename"]} / SHA256 {entry["sha256"]}')
         say(f'{len(self.plugins)} plugin checkouts are pinned. Config, data, state and cache stay inside the isolated root.')
+        say('No preinstalled Neovim is needed: tools downloads and verifies the locked Neovim first; later stages use only the isolated launcher.')
         say('Stages: tools (runtimes/config/fonts), plugins (exact sources/native builds/ACP/formula converter), languages (frozen parsers/Mason/health).')
         say('macOS keeps DMG drag installation. Windows uses install.ps1 for its native GUI; this script manages the WSL profile.')
         say('Optional features not installed: MarkdownPreview, Peek, full TeX/PDF toolchain, rich video/PDF/image previews. Codex login remains local and is never copied.')
@@ -157,7 +158,7 @@ class Installer:
                 failures.append('stage marker has a different manifest: ' + stage)
             else:
                 say(stage + ': completed for this manifest')
-        for relative in ('bin/nvim', 'bin/yazi', 'bin/tree-sitter', 'bin/cmatrix', 'bin/unimatrix', 'runtime/bin/node', 'runtime/bin/python-app', 'runtime/bin/python3'):
+        for relative in ('bin/nvim', 'bin/yazi', 'bin/tree-sitter', 'bin/cmatrix', 'bin/cmatrix-gm', 'bin/cmatrix-uni', 'bin/unimatrix', 'runtime/bin/node', 'runtime/bin/python-app', 'runtime/bin/python3'):
             path = self.root / relative
             if not path.is_file() or not os.access(path, os.X_OK):
                 failures.append(f'not installed/executable: {path}')
@@ -560,6 +561,7 @@ end
                 launcher.unlink()  # Only our previous isolated build link.
         self.link('cmatrix', binary)
         self.wrapper('cmatrix-uni', binary, arguments='--unimatrix "$@"')
+        self.wrapper('cmatrix-gm', binary, arguments='--unimatrix --gomatrix "$@"')
 
     def source_input(self, plugin):
         return fingerprint({'commit': plugin['commit'], 'url': plugin['url'], 'patches': [sha(self.payload / p) for p in plugin.get('patches', [])], 'submodules': plugin.get('submodules', [])})

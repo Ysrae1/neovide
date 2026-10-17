@@ -14,7 +14,7 @@ vim.cmd([[highlight FloatingWindow guibg=#2E3440]])
 vim.cmd([[highlight FloatingBorder guifg=#81A1C1 guibg=#2E3440]])
 
 -- This is a GUI decoration only. Missing animation tools must not block startup.
-if not vim.g.neovide or vim.fn.executable("cmatrix-uni") ~= 1 then
+if not vim.g.neovide or vim.fn.executable("cmatrix-gm") ~= 1 then
   return
 end
 
@@ -68,7 +68,7 @@ local function open_intro()
     return
   end
   intro.win = win
-  local started, job = pcall(vim.fn.jobstart, { "cmatrix-uni", "-o", "-s", "98", "-l", "m", "-a" }, {
+  local started, job = pcall(vim.fn.jobstart, { "cmatrix-gm", "--intro", "--fps", "60", "--fade", "4", "-o" }, {
     term = true,
     on_exit = function()
       vim.schedule(cleanup)

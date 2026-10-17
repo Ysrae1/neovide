@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "stack_id": "neovide-glow-20261017",
+  "stack_id": "neovide-glow-20261017-gm1",
   "neovide": {
     "repo": "https://github.com/Ysrae1/neovide.git",
     "commit": "6c152c4d4761b5eda75f67dbd82beaa3a0afb59f",
@@ -12,7 +12,7 @@
       "minimum_macos": "11.0",
       "native_layered_icon_macos": "26+",
       "notarized": false,
-      "url": "https://github.com/Ysrae1/neovide/releases/download/glow-stack-20261017/Neovide-Glow-macOS-arm64.dmg"
+      "url": "https://github.com/Ysrae1/neovide/releases/download/glow-stack-20261017-gm1/Neovide-Glow-macOS-arm64.dmg"
     }
   },
   "runtimes": {
@@ -253,7 +253,15 @@
       },
       "source_patch": {
         "path": "payload/patches/cmatrix-unimatrix.patch",
-        "sha256": "1d8fd93355b0849c70d964c1ee9fb006546cdaf06b4585d658cb4101b62ef662"
+        "sha256": "c9097061d89de9dc657deac51cd89f8dca648706235e5d81703761db071d5d0d"
+      },
+      "variant": {
+        "name": "cmatrix-gm",
+        "version": "2026.10.17-gm1",
+        "repo": "https://github.com/Ysrae1/cmatrix-gm.git",
+        "commit": "f48f363c4dcbdd37d842b17e82711f869d759950",
+        "tag": "cmatrix-gm-20261017",
+        "upstream_base": "dc71361"
       }
     },
     "node": {

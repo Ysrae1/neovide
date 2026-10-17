@@ -2,7 +2,9 @@
 
 保留自定义 Glow、浅色原生分层图标、Neovim 外观、快捷键和 Avante Codex 侧栏的可迁移快照。支持 Apple Silicon Mac，以及 Windows x64 原生 Neovide 搭配 Ubuntu 24.04 WSL2。
 
-先阅读 [部署说明](DEPLOY.md)。把整个安装包解压到一处，保留 `install.sh`、`install.ps1`、`scripts`、`payload` 和 `manifest.json` 的相对位置。
+不需要预先安装 Neovim、Yazi 或字母雨程序。安装器会下载并校验清单锁定的 Neovim 与运行库，再安装配置和插件；已有系统 Neovim 也不会被替换。全新电脑仍需先按部署说明准备系统编译工具与启动安装器的 Python；Windows 还需完成 WSL2／Ubuntu 首次设置。
+
+先阅读 [部署说明](DEPLOY.md) 和 [冻结版本记录](CHANGELOG.md)。把整个安装包解压到一处，保留 `install.sh`、`install.ps1`、`scripts`、`payload` 和 `manifest.json` 的相对位置。
 
 ```sh
 # Apple Silicon Mac：只查看计划
@@ -24,4 +26,4 @@ Mac 仍需要打开生成的 DMG，把 Neovide 拖入 Applications。安装器�
 
 Windows 入口和平台适配已经编写，但必须在 Windows 机器上完成编译和交互验收；不要将 Mac 的检查结果理解为 Windows 已通过。Apple 的 Liquid Glass 分层图标只在 macOS 适用，Windows 使用同一设计的静态浅色图标。
 
-远程固定快照：[glow-stack-20261017](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017)。仓库源码中的 `portable/` 目录也可直接运行入口；Mac DMG 若未放在本地，会从该固定发行版获取并核对 SHA256。各组件保留各自许可证，CMatrix 与 Unimatrix 衍生部分见 `licenses/CMatrix-Unimatrix-GPL3.txt`。
+远程固定快照：[glow-stack-20261017-gm1](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017-gm1)。仓库源码中的 `portable/` 目录也可直接运行入口；Mac DMG 若未放在本地，会从该固定发行版获取并核对 SHA256。各组件保留各自许可证，CMatrix 与 Unimatrix 衍生部分见 `licenses/CMatrix-Unimatrix-GPL3.txt`。

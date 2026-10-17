@@ -127,8 +127,8 @@ return {
           {
             section = "terminal",
             -- cmd = "cmatrix -a -b -u 1",
-            -- The GUI panel keeps its 50 ms refresh interval and mixed charset.
-            cmd = vim.g.neovide and "cmatrix-uni -o -s 95 -l m -a -b" or "cmatrix -a -b -u 5 -o",
+            -- The GUI panel uses longer virtual streams with the Gomatrix charset.
+            cmd = vim.g.neovide and "cmatrix-gm --fps 60 --fade 4 --length 9:13 -o" or "cmatrix -a -b -u 5 -o",
             random = 10,
             pane = 1,
             height = 6,

@@ -4,6 +4,8 @@
 
 适用范围是 Apple Silicon Mac，以及 Windows x64 原生 Neovide 加 Ubuntu 24.04 WSL2。Windows ARM64、Intel Mac 和原生 Windows Neovim 后端不在本版范围内。不同系统的字体回退、透明材质、GPU 驱动和窗口装饰仍可能有差别。
 
+**从未安装过 Neovim 也可以部署。** 安装器先取得清单锁定的 Neovim 0.12.3，核对 SHA256，放入独立版本目录，再用该目录的 Neovim 安装和检查插件；不调用系统中其他版本的 Neovim，也无需先用 Homebrew、apt 或 WinGet 安装 Neovim。Node.js、应用 Python、Yazi 和字母雨等同样由固定清单提供。下面列出的系统编译工具、引导 Python 与 WSL 首次设置仍需先完成；它们不等于预装这套编辑器。
+
 ## 安装包中的文件
 
 | 文件 | 用途 |
@@ -14,10 +16,10 @@
 | `payload/nvim` | 经整理的 Neovim 配置，保留外观、侧栏与快捷键 |
 | `payload/plugins.json` | 插件的精确来源、提交和构建方式 |
 | `payload/mason.json` | 语言工具顶层版本及固定 registry |
-| `payload/patches` | 必须保留的 LuaSnip 和 Treesitter 兼容修复 |
+| `payload/patches` | 必须保留的 LuaSnip、Treesitter 兼容修复及 CMatrix 原生字母雨扩展 |
 | `payload/Neovide.dmg` | Mac 的 Glow App、分层图标和拖拽安装界面 |
 | `scripts` | 安装和版本维护所需代码 |
-| `licenses` | Neovide 与图标来源和授权说明 |
+| `licenses` | Neovide、图标和字母雨上游的来源与授权说明 |
 
 请整体解压，不能只单独复制 `install.sh` 或 `install.ps1`。单文件 Mac 安装器已经将这些内容封装在内部，可以整体移动到另一台 Apple Silicon Mac。首次安装需要访问 GitHub、Node.js、Python 包源和 Rust 包源；没有把他人的登录凭据打进安装包。
 
@@ -33,11 +35,13 @@
 xcode-select --install
 ```
 
-如果使用 Homebrew，请使用 Apple Silicon 的 `/opt/homebrew` 版本；不要为了这个安装包移除其他项目仍在使用的 Intel Homebrew。缺少前置工具时可通过 Homebrew 安装：
+以下步骤使用 Apple Silicon 的 `/opt/homebrew` 版 Homebrew；尚未安装时，先按 [Homebrew 官网](https://brew.sh/) 的步骤安装，完成其提示的 shell 环境设置，再打开新终端。不要为了这个安装包移除其他项目仍在使用的 Intel Homebrew。缺少前置工具时安装：
 
 ```sh
 brew install python git pkgconf ncurses rustup go openjdk@21
 ```
+
+这里的 Python 用来启动安装器；不使用 macOS 自带的旧 Python。先用 `python3 --version` 确认至少为 3.12；若仍显示旧版本，检查 Homebrew 的 shell 环境设置。Rustup 安装后按提示让 `rustup`、`cargo` 出现在 PATH 中；工具链由安装器按清单安装，不需要预先修改默认工具链。
 
 Java 如未出现在 PATH，可在本次终端设置：
 
@@ -60,7 +64,7 @@ bash install.sh
 默认环境在：
 
 ```text
-~/.local/share/neovide-glow/stacks/neovide-glow-20261017/
+~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm1/
 ```
 
 下载会核对清单中的 SHA256。安装器把 Neovim、配置、插件、运行库和缓存放进这个版本目录；失败时保留结果并退出，可以在处理具体错误后重跑同一命令。首次源码构建需要联网和一定磁盘空间；构建耗时取决于网络和电脑，不能把仍在编译误判为无响应。
@@ -78,7 +82,7 @@ bash install.sh
 
 ```sh
 bash install.sh --doctor
-~/.local/share/neovide-glow/stacks/neovide-glow-20261017/bin/nvim --version
+~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm1/bin/nvim --version
 ```
 
 再启动 GUI，确认字体完整、Glow 正常、启动字母雨能结束、首页和侧栏正常。打开一个 Lua 或 Python 文件，确认没有启动报错并检查对应 LSP。详细检查项见后面的验收清单。
@@ -103,6 +107,8 @@ sudo apt install -y python3 python3-venv git curl build-essential pkg-config lib
 ```
 
 WSL 中也需要 Rustup；Windows 的 Rust 不代替 Linux 的 Rust。若尚未安装，可从 [Rust 官方安装入口](https://www.rust-lang.org/tools/install) 下载并按提示安装。共享安装器会使用清单指定的 Rust 工具链，不会更换其他项目的默认工具链。
+
+Ubuntu 24.04 的系统 Python 3.12 可以启动安装器。无需在 Windows 或 Ubuntu 中另外安装 Neovim：共享安装器会在 WSL 用户目录下载固定的 Linux Neovim，Windows 窗口通过生成的启动器连接它。系统依赖安装需要 Ubuntu 的 sudo 密码；安装器不会自动执行 apt 或代替你完成首次用户创建。
 
 ### 安装 Windows 窗口和后端
 
@@ -133,7 +139,7 @@ Windows 使用同一 Glow 源码与静态浅色图标，Apple `.icon/Assets.car`
 
 ## AI 登录和公式
 
-AI 仍使用 Avante 原侧栏与原快捷键，通过固定版本的 Codex ACP 适配器连接。首次使用时在这套环境中启动登录流程，使用自己的 ChatGPT 账号完成浏览器授权，例如在 Mac 或 WSL 终端运行 `~/.local/share/neovide-glow/stacks/neovide-glow-20261017/bin/codex login`；已有宿主电脑的登录不会自动复制到另一台机器。WSL 后端需要在 WSL 里完成登录，Windows 宿主的登录文件不等于 Linux 后端的登录。
+AI 仍使用 Avante 原侧栏与原快捷键，通过固定版本的 Codex ACP 适配器连接。首次使用时在这套环境中启动登录流程，使用自己的 ChatGPT 账号完成浏览器授权，例如在 Mac 或 WSL 终端运行 `~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm1/bin/codex login`；已有宿主电脑的登录不会自动复制到另一台机器。WSL 后端需要在 WSL 里完成登录，Windows 宿主的登录文件不等于 Linux 后端的登录。
 
 不要把 `auth.json`、密钥、会话和账号目录发到 GitHub 或交给其他用户。部署说明可以交给 Codex，账号登录仍由账号本人完成。
 
@@ -144,7 +150,28 @@ Markdown 和 AI 侧栏中的公式转换使用固定 `pylatexenc`。这与完整
 - `空格 t f`：FFF 快速找文件；首页 `f` 找文件，`c` 找配置。
 - `空格 t a`：保留 Telescope 的全部文件入口，适合查隐藏文件或通常被忽略的文件。
 - 其他原有 leader、Ctrl 快捷键及 AI 侧栏入口保留。Command 快捷键只在 Mac 启用；Windows/WSL 使用普通 leader 和 Ctrl 入口。
-- Neovide 全屏启动字母雨与首页动画统一使用 C 原生 `cmatrix-uni`，显式选择混合字符集 `-l m`。全屏动画仍为两秒、20ms 刷新；首页为 50ms 刷新。两处均开启 `-a`，每列随机选择不同下落节奏。终端 Neovim 首页继续使用原 CMatrix。原 Unimatrix 仍安装保留，可用于对照。
+- Neovide 全屏启动字母雨与首页动画使用 C 原生 `cmatrix-gm`，复现 Gomatrix 的逐串定时、混合字符与亮头效果。全屏动画仍为两秒，使用 `--intro` 在首次显示前后台快速预演，从已经铺开的中间帧开始，之后始终以正常速率的 2.5 倍匀速下落；屏幕上不显示高速铺开或减速过程。`--fps 60` 只控制刷新上限，每条雨串独立下落。终端 Neovim 首页继续使用原 CMatrix。`cmatrix-uni` 保留原 Unimatrix 模式；原 Python Unimatrix 也仍安装保留，可用于对照。
+
+单独运行新模式：
+
+```sh
+cmatrix-gm --fps 60
+```
+
+两秒开场与 6 行首页可分别使用：
+
+```sh
+cmatrix-gm --intro --fps 60 --fade 4 -o -t 2
+cmatrix-gm --fps 60 --fade 4 --length 9:13 -o
+```
+
+`--intro` 是可选开场参数，不改变普通运行的默认效果；它在后台快速预演生成已经铺开的中间帧，首次显示后固定以正常速率的 2.5 倍匀速运行，不显示预演期间的高速过程。`--length MIN:MAX` 单独指定雨串长度参数（范围 2～128 格），允许虚拟雨串超过视口高度。Neovide 全屏开场已启用 `--intro`；6 行 GUI 首页使用 `--length 9:13`，避免加入渐隐后雨串过短。
+
+它也可通过 `cmatrix-uni --gomatrix --fps 60 -o` 调用。默认字符集与固定 Gomatrix 源码一致，共 125 个字符：63 个半角日文字符／标点和 62 个大小写英文字母／数字。其中包含日文半角句号 `｡`、逗号 `､` 和中点 `･`；没有另加 ASCII 句点 `.`。可用 `-l g` 显式选择这套完整字符集；其他 `-l` 参数沿用 C 版的 Unimatrix 字符集含义。
+
+每条新雨串分别随机选择 30～139ms 的每格步长、13～21 格的长度参数，以及生成前 0～8999ms 的等待。同列后续雨串会重新抽取速度；长度比 Go 原版的 10～17 格适度加长，在正常高度下对应约 12～20 格可见雨串，平均约 16 格。未指定长度时，6 行等小高度仍按可用高度缩短（6 行为 5～7 的长度参数）；显式 `--length` 不会被裁短，雨串在屏幕外继续推进并正常清尾。头部每步随机为白色（约 67%）或银灰（约 33%），随后转成两级绿色；真彩色可用时保留 Go 原版的色值。尾部默认以 4 格绿色亮度递减的方式渐隐，`--fade 0` 恢复 Go 原版的直接擦除，`--fade 0..8` 调整长度；这是字符颜色变化，不是真实像素 alpha。两种半角浊音符采用单格载体显示，避免终端把它们附到前一格、重复堆积。雨幕默认和清尾前景色也固定为绿色，避免继承主题里的黄绿色。背景沿用终端默认背景，保留 Neovim 的透明效果。刷新与下落时间分开控制，提高 `--fps` 不会加快雨串。
+
+Gomatrix 的调度与字符行为参考固定提交 `cfb8e3310c1f`，以 C 实现并共用 ncurses 绘制；不依赖 Go 运行时。上游 BSD 两条款版权与许可保留在 `licenses/Gomatrix-BSD-2-Clause.txt`；CMatrix／Unimatrix 衍生部分仍适用 `licenses/CMatrix-Unimatrix-GPL3.txt`。
 
 Unimatrix 默认字符包含半角片假名、数字和符号；`unimatrix -l k` 可单独查看半角片假名。`ｱ` 是一格宽，`ア` 是两格宽，不能只靠切换等宽字体让全角字占一格。原版 CMatrix 2.0 不能仅靠参数完全复刻这套字符与下落细节，故本包保留两个程序，并另带一个修改版 CMatrix 的独立 `--unimatrix` 模式。修改版将纵向长度区间、生成／擦除交替、白头概率、列间距和异步调度公式与原 Python 版对齐；同步／异步各 50 帧受控事件对照一致。可运行 `cmatrix-uni -o -s 98` 对比；`cmatrix-uni -o -s 98 -l k` 为纯半角片假名。它不是把 Python 放在后台运行，也不声称随机序列或所有 Unimatrix 可选字符集逐项完全相同。
 
@@ -187,7 +214,7 @@ Mason 清单共有 22 项工具。Mac ARM 跳过旧版 Hadolint 2.12.0：固定 
 
 1. `--doctor` 无必需组件缺失；Neovim 版本与清单一致。
 2. GUI 能启动，字体图标正常，侧栏与常用快捷键可用。
-3. 启动的 cmatrix-uni 全屏动画正常结束，GUI 首页 cmatrix-uni 正常；没有遗留动画进程。
+3. 启动的 cmatrix-gm 全屏动画正常结束，GUI 首页 cmatrix-gm 正常；没有遗留动画进程。
 4. FFF 能搜索并打开文件，隐藏文件需求可通过原全部文件入口完成。
 5. Lua／Python 文件打开后没有插件启动错误，所需 LSP 能连接；LaTeX／Markdown 公式能转换。
 6. AI 侧栏在本人登录后能回应；不要把未登录当作程序启动故障。
@@ -200,7 +227,7 @@ Mason 清单共有 22 项工具。Mac ARM 跳过旧版 Hadolint 2.12.0：固定 
 
 Mac 已在独立目录完成工具安装、68 个固定插件及其原生库构建、56 个语法解析器和本平台 21 个语言工具安装，整体 Doctor 检查通过。插件源码检查使用本机 Git 对象缓存建立干净提交副本；运行库和工具使用清单里的官方发行文件，未复制原电脑的登录或运行状态。
 
-空主题缓存的终端启动与 Neovide 配置分支检查通过；后者是 headless 源码分支检查，不代表打开了新的 GUI 窗口。CMatrix 旧首页模式在 Neovim 的 6 行和 12 行终端中未留下异常分隔列字符。Lua 首文件自然识别为 Lua 且 LuaLS 成功连接，Python／Ruff 与 Texlab 连接和公式转换通过。新开场动画实际使用 cmatrix-uni 混合字符，约两秒后进程、浮窗和缓冲区清理通过。实际 GUI 的外观和账号登录，仍按目标电脑上的验收清单完成。
+空主题缓存的终端启动与 Neovide 配置分支检查通过；后者是 headless 源码分支检查，不代表打开了新的 GUI 窗口。CMatrix 旧首页模式在 Neovim 的 6 行和 12 行终端中未留下异常分隔列字符。Lua 首文件自然识别为 Lua 且 LuaLS 成功连接，Python／Ruff 与 Texlab 连接和公式转换通过。新开场动画实际使用 cmatrix-gm 混合字符，约两秒后进程、浮窗和缓冲区清理通过。CMatrix 完整源补丁已在固定官方 2.0 归档上应用并编译为原生 arm64，源码与本机对应文件一致，补丁 SHA256 与清单一致。实际 GUI 的外观和账号登录，仍按目标电脑上的验收清单完成。
 
 Windows 入口经官方 PowerShell 运行时解析，语法错误数为 0；本次没有 Windows 真机，原生 Windows 编译、WSL 连接、字体、剪贴板和 GPU 尚未验收。
 
@@ -210,6 +237,8 @@ Windows 入口经官方 PowerShell 运行时解析，语法错误数为 0；本�
 
 ```text
 请部署当前文件夹中的 Neovide Glow 固定快照。先完整读取 DEPLOY.md、README.md、manifest.json 和对应平台入口，并确认目标系统是否在支持范围内。
+
+把它当作可能从未安装过 Neovim 的新电脑处理。不要要求我先安装 Neovim、Yazi、Node.js 或字母雨；这些组件应使用本包清单的固定下载。先完成文档明确列出的系统前置依赖和引导 Python，再运行安装器。
 
 先运行只读计划。使用安装包现有版本、完整提交和 SHA256，不把任何下载改成 latest，不重新解析或覆盖锁文件。使用独立的版本目录，不覆盖我的原 Neovim 配置、shellrc、其他 WSL 发行版或已安装 App，不终止正在运行的编辑器。
 
@@ -231,5 +260,7 @@ Windows 入口经官方 PowerShell 运行时解析，语法错误数为 0；本�
 - [Microsoft WSL 安装](https://learn.microsoft.com/windows/wsl/install)
 - [Microsoft WSL 基本命令](https://learn.microsoft.com/windows/wsl/basic-commands)
 - [Unimatrix 固定源码](https://github.com/will8211/unimatrix/blob/dff519f972103f91384f360f270614184de8aa92/unimatrix.py)
+- [Gomatrix 固定源码](https://github.com/GeertJohan/gomatrix/tree/cfb8e3310c1f)
+- [cmatrix-gm 冻结源码](https://github.com/Ysrae1/cmatrix-gm/tree/cmatrix-gm-20261017)
 - [CMatrix 2.0 源码](https://github.com/abishekvashok/cmatrix/tree/v2.0)
 - [自定义 Neovide Glow 源码](https://github.com/Ysrae1/neovide/tree/glow-preview)
