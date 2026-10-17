@@ -61,6 +61,11 @@ if [ "$GENERATE_BUNDLE_APP" == "true" ]; then
   touch -r "${APP_BINARY}" "${APP_DIR}/${APP_NAME}"
   echo "Created '${APP_NAME}' in '${APP_DIR}'"
 
+  # Compile the layered icon only into the generated bundle, before signing.
+  if [ -d "${ASSETS_DIR}/Neovide.icon" ]; then
+    ./macos-builder/make-native-icon "${APP_DIR}/${APP_NAME}" "${ASSETS_DIR}/Neovide.icon"
+  fi
+
   # Useful to use `codesign` for local signing using local keychain certificates
   # In case our pipeline fails, we are still able to sign the app manually
   if [ -n "$DEVELOPER_ID" ]; then

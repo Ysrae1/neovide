@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+[ "$#" -eq 2 ] || {
+  echo "Usage: $0 APP_BUNDLE ICON_SOURCE.icon" >&2
+  exit 2
+}
+
+app_bundle="$1"
+icon_source="$2"
+info_plist="$app_bundle/Contents/Info.plist"
+resources_dir="$app_bundle/Contents/Resources"
+
+fail() { echo "Native Neovide icon: $*" >&2; exit 1; }
+[ -f "$info_plist" ] || fail "Missing app Info.plist: $info_plist"
+[ -f "$icon_source/icon.json" ] || fail "Missing Icon Composer source: $icon_source/icon.json"
+command -v xcrun >/dev/null 2>&1 || fail "Xcode's xcrun is required to compile the layered icon."
+xcrun --find actool >/dev/null 2>&1 || fail "actool is unavailable; select an Xcode installation with Icon Composer support."
+
+minimum_system_version="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$info_plist")" \
+  || fail "Cannot read the app's minimum macOS version."
+[ -n "$minimum_system_version" ] || fail "The app's minimum macOS version is empty."
+icon_name="$(basename "$icon_source" .icon)"
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/neovide-native-icon.XXXXXX")"
+trap 'rm -rf "$work_dir"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+mkdir -p "$work_dir/compiled"
+
+echo "Compiling layered icon '$icon_name' for macOS $minimum_system_version and later..."
+if ! xcrun actool \
+  --compile "$work_dir/compiled" \
+  --platform macosx \
+  --minimum-deployment-target "$minimum_system_version" \
+  --app-icon "$icon_name" \
+  --output-partial-info-plist "$work_dir/partial-info.plist" \
+  "$icon_source"; then
+  fail "actool failed; the app will not be signed or packaged with an incomplete icon."
+fi
+
+[ -s "$work_dir/compiled/Assets.car" ] || fail "actool did not produce Assets.car."
+[ -s "$work_dir/partial-info.plist" ] || fail "actool did not produce the icon Info.plist fields."
+compiled_icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$work_dir/partial-info.plist")" \
+  || fail "actool did not provide CFBundleIconName."
+[ -n "$compiled_icon_name" ] || fail "actool provided an empty CFBundleIconName."
+
+mkdir -p "$resources_dir"
+cp -fp "$work_dir/compiled/Assets.car" "$resources_dir/Assets.car"
+# Keep the existing high-resolution Neovide.icns as the legacy fallback.
+# Only the asset-catalog name is merged; all other app metadata stays intact.
+if /usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$info_plist" >/dev/null 2>&1; then
+  plutil -replace CFBundleIconName -string "$compiled_icon_name" "$info_plist"
+else
+  plutil -insert CFBundleIconName -string "$compiled_icon_name" "$info_plist"
+fi
+
+assets_dir="$(dirname "$icon_source")"
+for notice in Icon-LICENSE.txt Icon-Attribution.txt; do
+  if [ -f "$assets_dir/$notice" ]; then
+    cp -fp "$assets_dir/$notice" "$resources_dir/$notice"
+  fi
+done
+echo "Added the native layered icon; the existing ICNS fallback is preserved."
