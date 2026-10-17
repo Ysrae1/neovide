@@ -1,5 +1,11 @@
 # Neovide
 
+> **Neovide Glow — personal customized fork:** adjustable native bloom and a pinned portable setup,
+> based on [Neovide](https://github.com/neovide/neovide).
+> [Live showcase](https://neovide-glow.windygrass17.chatgpt.site/) ·
+> [Download the gm2 release](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017-gm2) ·
+> [Deployment guide](https://github.com/Ysrae1/neovide/blob/glow-preview/portable/DEPLOY.md)
+
 > **Experimental glow branch:** this fork adds adjustable native bloom while preserving the
 > full-resolution base rendering. See [GLOW.md](GLOW.md) for settings, build instructions, tested
 > platforms, and how to merge future upstream updates. The upstream project is
@@ -61,4 +67,4 @@ Licensed under [MIT](./LICENSE).
 
 ## Pinned personal environment
 
-The [portable setup](portable/README.md) contains the locked Neovim configuration, native cmatrix-uni adaptation, Mac and Windows/WSL entry points, and a [deployment guide](portable/DEPLOY.md) suitable for users or Codex. Download the [2026-10-17 snapshot](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017) for the self-contained Mac installer or the cross-platform ZIP. Mac installation preserves the DMG drag-to-Applications workflow. Windows runtime validation is pending. Components retain their individual licenses.
+The [portable setup](portable/README.md) contains the locked Neovim configuration, native cmatrix-gm adaptation, Mac and Windows/WSL entry points, and a [deployment guide](portable/DEPLOY.md) suitable for users or Codex. Download the [2026-10-17 snapshot](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017-gm2) for the self-contained Mac installer or the cross-platform ZIP. Mac installation preserves the DMG drag-to-Applications workflow. Windows runtime validation is pending. Components retain their individual licenses.
