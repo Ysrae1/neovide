@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "registry": {
+    "provider": "github:mason-org/mason-registry",
+    "version": "2026-05-22-fiscal-eon",
+    "checksums": {
+      "registry.json": "7132918cf547231086faf82921c0ca9b93c63f0c896e22f5d41cae6f4b6f1ba1",
+      "registry.json.zip": "1fa8c259f1b181fc7e51acb276b7ffe230de87c2a4a801e8292a8505f2f22fe9"
+    }
+  },
+  "packages": [
+    {
+      "name": "pyright",
+      "version": "1.1.394",
+      "source": "pkg:npm/pyright@1.1.394",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "clangd",
+      "version": "19.1.2",
+      "source": "pkg:github/clangd/clangd@19.1.2",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "texlab",
+      "version": "v5.22.1",
+      "source": "pkg:github/latex-lsp/texlab@v5.22.1",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "ltex-ls",
+      "version": "16.0.0",
+      "source": "pkg:github/valentjn/ltex-ls@16.0.0",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "debugpy",
+      "version": "1.8.12",
+      "source": "pkg:pypi/debugpy@1.8.12",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "black",
+      "version": "25.1.0",
+      "source": "pkg:pypi/black@25.1.0",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "mypy",
+      "version": "1.15.0",
+      "source": "pkg:pypi/mypy@1.15.0",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "ruff",
+      "version": "0.9.6",
+      "source": "pkg:pypi/ruff@0.9.6",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "clang-format",
+      "version": "19.1.7",
+      "source": "pkg:pypi/clang-format@19.1.7",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "gofumpt",
+      "version": "v0.7.0",
+      "source": "pkg:golang/mvdan.cc/gofumpt@v0.7.0",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "prettierd",
+      "version": "0.26.1",
+      "source": "pkg:npm/%40fsouza/prettierd@0.26.1",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "stylua",
+      "version": "v2.0.2",
+      "source": "pkg:github/johnnymorganz/stylua@v2.0.2",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "jq",
+      "version": "jq-1.7",
+      "source": "pkg:github/stedolan/jq@jq-1.7",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "shfmt",
+      "version": "v3.10.0",
+      "source": "pkg:github/mvdan/sh@v3.10.0",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "isort",
+      "version": "6.0.0",
+      "source": "pkg:pypi/isort@6.0.0",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "hadolint",
+      "version": "v2.12.0",
+      "source": "pkg:github/hadolint/hadolint@v2.12.0",
+      "source_type": "registry+v1",
+      "secondary_sources": [],
+      "platforms": [
+        "linux-x86_64"
+      ],
+      "reason": "v2.12.0 frozen registry has no macos-arm64 artifact; optional Dockerfile lint omitted on this platform"
+    },
+    {
+      "name": "yamllint",
+      "version": "1.35.1",
+      "source": "pkg:pypi/yamllint@1.35.1",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "lua-language-server",
+      "version": "3.13.6",
+      "source": "pkg:github/luals/lua-language-server@3.13.6",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "json-lsp",
+      "version": "4.10.0",
+      "source": "pkg:npm/vscode-langservers-extracted@4.10.0",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "markdown-toc",
+      "version": "1.2.0",
+      "source": "pkg:npm/markdown-toc@1.2.0",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "markdownlint-cli2",
+      "version": "0.17.2",
+      "source": "pkg:npm/markdownlint-cli2@0.17.2",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "marksman",
+      "version": "2024-12-18",
+      "source": "pkg:github/artempyanykh/marksman@2024-12-18",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    }
+  ],
+  "optional_not_frozen_because_not_installed": [
+    "goimports",
+    "luacheck"
+  ],
+  "registry_snapshot": "mason-registry/registry.json"
+}

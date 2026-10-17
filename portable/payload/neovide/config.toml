@@ -1,0 +1,8 @@
+# Stable Finder and terminal startup, preserving the custom window appearance.
+neovim-bin = "/opt/homebrew/bin/nvim"
+frame = "buttonless"
+title-hidden = true
+
+[font]
+normal = ["FiraCode Nerd Font Mono"]
+size = 16.0

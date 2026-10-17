@@ -1,0 +1,71 @@
+Portable Neovim payload — 2026-10-17
+
+Profile layout: STACK/config/nvim, STACK/data/nvim, STACK/state/nvim,
+STACK/cache/nvim, with XDG_CONFIG_HOME=STACK/config etc. NVIM_APPNAME=nvim.
+The installer must never copy credentials, old sessions, node_modules or macOS
+native libraries from the source machine. This payload contains source/config only.
+
+Plugin sources
+Read plugins.json. Clone each URL, check out its exact commit (detached), then
+apply any listed patch with git apply --binary from that plugin directory. For
+LuaSnip explicitly check out the listed submodule commits; its patch preserves
+tracked local changes including the jsregexp override. The extra jsregexp006
+.gitmodules reference is historical and is not a required build input.
+
+Build actions
+- none: no build.
+- fff: download the official v0.11.0 binary matching the target architecture, or
+  cargo build --release --locked at the pinned commit. No nightly version lookup.
+- telescope-fzf-native: make from that fixed checkout, using the local C compiler.
+- luasnip: compile optional transform support from the pinned deps/jsregexp:
+  make -C deps/jsregexp INCLUDE_DIR=-I../lua51_include
+  then copy deps/jsregexp/jsregexp.lua to lua/luasnip-jsregexp.lua and the generated
+  jsregexp.so to deps/luasnip-jsregexp.so. Use target-native compiler. Do not run
+  the historical whole LuaSnip Makefile that also mentions jsregexp006.
+- avante: build from this exact source, not an unversioned release binary. Run
+  cargo build --release --locked --features=luajit -p avante-tokenizers
+  and likewise avante-templates, avante-repo-map, avante-html2md, then copy each
+  target/release/libavante_*.so or .dylib to build/avante_*.so or .dylib. This
+  duplicates the upstream Makefile's source-build actions with --locked added.
+- treesitter: use scripts/bootstrap-plugins.lua, phase=parsers. The frozen plugin
+  lockfile and treesitter-lock.json fix grammar source revisions. Compile the
+  56 names in treesitter.json locally using a C/C++ compiler and tree-sitter CLI.
+- base46: normally creates its cache on first theme load. In the isolated profile
+  load base46 and call require('base46').load_all_highlights() if prewarming.
+- markdown-preview (optional): npm ci in app/ when package-lock exists, otherwise
+  yarn install --frozen-lockfile using its tracked yarn.lock; never install latest.
+- peek (optional): deno task --quiet build:fast, respecting tracked lock. Deno and
+  a browser runtime are separate optional prerequisites; omitted preview builds
+  must be reported by the installer rather than treated as failed core setup.
+
+Mason
+mason.json records exact versions read from installed receipts, the registry
+release 2026-05-22-fiscal-eon and the original source PURLs. It omits historical
+unused tools. goimports and luacheck were not installed on the source machine and
+remain optional; no version is guessed. Registry JSON is bundled and checked.
+Use scripts/bootstrap-plugins.lua phase=mason after the plugin source install.
+This installs pinned top-level package versions for the target platform; the
+old receipt format does not freeze all downstream npm/PyPI/Go dependencies.
+No startup handler installs/upgrades plugins, Mason tools or parsers automatically.
+
+Auxiliary runtime
+Copy codex-acp/{package.json,package-lock.json} into STACK/data/nvim/codex-acp,
+then npm ci. The adapter is @agentclientprotocol/codex-acp@2.2.2. Authentication
+is done locally by the user with Codex; no auth.json/token is shipped.
+Create STACK/data/nvim/latex2text-venv with Python and install
+requirements-latex.txt (pylatexenc==2.11). Do not copy the source-machine venv.
+
+Cross-platform behavior
+Command mappings and Skim are enabled only on macOS. WSL/Linux retains ordinary
+leader/Ctrl shortcuts, node uses PATH, and PDF viewing uses wslview or xdg-open.
+A missing optional template simply returns; provide one at
+config/nvim/templates/template_assignment.tex or set NVIM_LATEX_TEMPLATE.
+Neovide styling/intro stay guarded by vim.g.neovide. Terminal Neovim transparency
+is separate. Yazi uses its built-in previewers; the old unreachable custom rules
+and unused plugins are omitted, while the currently active ayu-dark theme stays.
+
+Bootstrap invocation (the installer supplies XDG variables):
+NEOVIDE_BUNDLE_PAYLOAD=/absolute/payload NVIM_BUNDLE_PHASE=parsers
+nvim --headless -u NONE -l /absolute/scripts/bootstrap-plugins.lua
+Run again with phase=mason, then phase=health. These phases may download/build
+but have not been run against a new machine during payload creation.

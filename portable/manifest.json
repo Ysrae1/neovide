@@ -1,0 +1,392 @@
+{
+  "schema_version": 1,
+  "stack_id": "neovide-glow-20261017",
+  "neovide": {
+    "repo": "https://github.com/Ysrae1/neovide.git",
+    "commit": "6c152c4d4761b5eda75f67dbd82beaa3a0afb59f",
+    "rust_toolchain": "1.99.1",
+    "macos_dmg": {
+      "path": "payload/Neovide.dmg",
+      "sha256": "955442c7e01b5477abf3e030312af6910fac3d86b108a1b476c49393a8e843d9",
+      "architecture": "arm64",
+      "minimum_macos": "11.0",
+      "native_layered_icon_macos": "26+",
+      "notarized": false,
+      "url": "https://github.com/Ysrae1/neovide/releases/download/glow-stack-20261017/Neovide-Glow-macOS-arm64.dmg"
+    }
+  },
+  "runtimes": {
+    "python": "3.14.6",
+    "mason_python": "3.12.2"
+  },
+  "assets": {
+    "nvim": {
+      "version": "0.12.3",
+      "source": "https://github.com/neovim/neovim",
+      "release": "https://github.com/neovim/neovim/releases/tag/v0.12.3",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/neovim/neovim/releases/download/v0.12.3/nvim-macos-arm64.tar.gz",
+          "filename": "nvim-macos-arm64.tar.gz",
+          "format": "tar.gz",
+          "binary": "nvim",
+          "sha256": "532da1d00e465a660fa01c3d4991333d09c52107dce7df937368545daca0a14e",
+          "checksum_source": "official-release-sha256",
+          "download_size": 9629569
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/neovim/neovim/releases/download/v0.12.3/nvim-linux-x86_64.tar.gz",
+          "filename": "nvim-linux-x86_64.tar.gz",
+          "format": "tar.gz",
+          "binary": "nvim",
+          "sha256": "c441b547142860bf01bcce39e36cbed185c41112813e15443b16e5237750724d",
+          "checksum_source": "official-release-sha256",
+          "download_size": 11406398
+        }
+      }
+    },
+    "yazi": {
+      "version": "26.5.6",
+      "source": "https://github.com/sxyazi/yazi",
+      "release": "https://github.com/sxyazi/yazi/releases/tag/v26.5.6",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/sxyazi/yazi/releases/download/v26.5.6/yazi-aarch64-apple-darwin.zip",
+          "filename": "yazi-aarch64-apple-darwin.zip",
+          "format": "zip",
+          "binary": "yazi",
+          "sha256": "7abd71725e2fe27bed036becbf6ce79fa17964eb68491d34190011c94b8c7ca8",
+          "checksum_source": "official-release-sha256",
+          "download_size": 9511933
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/sxyazi/yazi/releases/download/v26.5.6/yazi-x86_64-unknown-linux-gnu.zip",
+          "filename": "yazi-x86_64-unknown-linux-gnu.zip",
+          "format": "zip",
+          "binary": "yazi",
+          "sha256": "1c9096f0a83b8102c194385f644cdeff93cc8269426163c9d033041ebd537bd2",
+          "checksum_source": "official-release-sha256",
+          "download_size": 11227995
+        }
+      }
+    },
+    "rg": {
+      "version": "15.2.0",
+      "source": "https://github.com/BurntSushi/ripgrep",
+      "release": "https://github.com/BurntSushi/ripgrep/releases/tag/15.2.0",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-aarch64-apple-darwin.tar.gz",
+          "filename": "ripgrep-15.2.0-aarch64-apple-darwin.tar.gz",
+          "format": "tar.gz",
+          "binary": "rg",
+          "sha256": "3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4",
+          "checksum_source": "official-release-sha256",
+          "download_size": 1764284
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz",
+          "filename": "ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz",
+          "format": "tar.gz",
+          "binary": "rg",
+          "sha256": "33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c",
+          "checksum_source": "official-release-sha256",
+          "download_size": 2265718
+        }
+      }
+    },
+    "fd": {
+      "version": "10.4.2",
+      "source": "https://github.com/sharkdp/fd",
+      "release": "https://github.com/sharkdp/fd/releases/tag/v10.4.2",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/sharkdp/fd/releases/download/v10.4.2/fd-v10.4.2-aarch64-apple-darwin.tar.gz",
+          "filename": "fd-v10.4.2-aarch64-apple-darwin.tar.gz",
+          "format": "tar.gz",
+          "binary": "fd",
+          "sha256": "623dc0afc81b92e4d4606b380d7bc91916ba7b97814263e554d50923a39e480a",
+          "checksum_source": "official-release-sha256",
+          "download_size": 1328933
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/sharkdp/fd/releases/download/v10.4.2/fd-v10.4.2-x86_64-unknown-linux-gnu.tar.gz",
+          "filename": "fd-v10.4.2-x86_64-unknown-linux-gnu.tar.gz",
+          "format": "tar.gz",
+          "binary": "fd",
+          "sha256": "def59805cd14b5651b68990855f426ad087f3b96881296d963910431ba3143c8",
+          "checksum_source": "official-release-sha256",
+          "download_size": 1700779
+        }
+      }
+    },
+    "fzf": {
+      "version": "0.73.1",
+      "source": "https://github.com/junegunn/fzf",
+      "release": "https://github.com/junegunn/fzf/releases/tag/v0.73.1",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/junegunn/fzf/releases/download/v0.73.1/fzf-0.73.1-darwin_arm64.tar.gz",
+          "filename": "fzf-0.73.1-darwin_arm64.tar.gz",
+          "format": "tar.gz",
+          "binary": "fzf",
+          "sha256": "d27fd68c04fb9b42f7c73a3f7d38069a74d308e40174f64a072c747213e97286",
+          "checksum_source": "official-release-sha256",
+          "download_size": 1861771
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/junegunn/fzf/releases/download/v0.73.1/fzf-0.73.1-linux_amd64.tar.gz",
+          "filename": "fzf-0.73.1-linux_amd64.tar.gz",
+          "format": "tar.gz",
+          "binary": "fzf",
+          "sha256": "f3252c2c366bc1700d3c85781ec8c9695998927ac127870eb049ceea2d540f8a",
+          "checksum_source": "official-release-sha256",
+          "download_size": 1969160
+        }
+      }
+    },
+    "lazygit": {
+      "version": "0.62.2",
+      "source": "https://github.com/jesseduffield/lazygit",
+      "release": "https://github.com/jesseduffield/lazygit/releases/tag/v0.62.2",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/jesseduffield/lazygit/releases/download/v0.62.2/lazygit_0.62.2_darwin_arm64.tar.gz",
+          "filename": "lazygit_0.62.2_darwin_arm64.tar.gz",
+          "format": "tar.gz",
+          "binary": "lazygit",
+          "sha256": "f311d96b666b4865760e39f3967edfd7bf30b5d09e52a1bc7ae511f6bdfdd02c",
+          "checksum_source": "official-release-sha256",
+          "download_size": 6425711
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/jesseduffield/lazygit/releases/download/v0.62.2/lazygit_0.62.2_linux_x86_64.tar.gz",
+          "filename": "lazygit_0.62.2_linux_x86_64.tar.gz",
+          "format": "tar.gz",
+          "binary": "lazygit",
+          "sha256": "8b9a4c2d0969cbea92b45c956dd2a44e1ba76900c9df49f1c60984045ce77984",
+          "checksum_source": "official-release-sha256",
+          "download_size": 6799853
+        }
+      }
+    },
+    "uv": {
+      "version": "0.11.24",
+      "source": "https://github.com/astral-sh/uv",
+      "release": "https://github.com/astral-sh/uv/releases/tag/0.11.24",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/astral-sh/uv/releases/download/0.11.24/uv-aarch64-apple-darwin.tar.gz",
+          "filename": "uv-aarch64-apple-darwin.tar.gz",
+          "format": "tar.gz",
+          "binary": "uv",
+          "sha256": "7578c6087c5cd76981732b1f5d126248101faebdf81016ba780a65ce03653cdf",
+          "checksum_source": "official-release-sha256",
+          "download_size": 21190959
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/astral-sh/uv/releases/download/0.11.24/uv-x86_64-unknown-linux-gnu.tar.gz",
+          "filename": "uv-x86_64-unknown-linux-gnu.tar.gz",
+          "format": "tar.gz",
+          "binary": "uv",
+          "sha256": "5ce1ad074a78f96c5c8122088bb85a12eb282195bc1453151a48762e4fc31fed",
+          "checksum_source": "official-release-sha256",
+          "download_size": 24656792
+        }
+      }
+    },
+    "fff": {
+      "version": "0.11.0",
+      "source": "https://github.com/dmtrKovalenko/fff",
+      "release": "https://github.com/dmtrKovalenko/fff/releases/tag/v0.11.0",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/dmtrKovalenko/fff/releases/download/v0.11.0/aarch64-apple-darwin.dylib",
+          "filename": "aarch64-apple-darwin.dylib",
+          "format": "raw",
+          "install_name": "libfff_nvim.dylib",
+          "sha256": "cd198f5e2a9dde9b5a5632eabf6ac275d3b880e5b064b1bcceb0882d087e8cbc",
+          "checksum_source": "official-release-sha256",
+          "download_size": 5601104
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/dmtrKovalenko/fff/releases/download/v0.11.0/x86_64-unknown-linux-gnu.so",
+          "filename": "x86_64-unknown-linux-gnu.so",
+          "format": "raw",
+          "install_name": "libfff_nvim.so",
+          "sha256": "63739c275a2efa8d433e066df4de18694bbe1374670a659f38b9aa8474f59b08",
+          "checksum_source": "official-release-sha256",
+          "download_size": 11172312
+        }
+      }
+    },
+    "font": {
+      "version": "3.3.0",
+      "source": "https://github.com/ryanoasis/nerd-fonts",
+      "release": "https://github.com/ryanoasis/nerd-fonts/releases/tag/v3.3.0",
+      "platforms": {
+        "any": {
+          "url": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/FiraCode.zip",
+          "filename": "FiraCode.zip",
+          "format": "zip",
+          "sha256": "89978e6f870d044286a339161d5ed961569744b1cd2afee62337fa140cd0b397",
+          "checksum_source": "sha256-of-fixed-official-artifact",
+          "download_size": 26920821
+        }
+      }
+    },
+    "cmatrix": {
+      "version": "2.0",
+      "source": "https://github.com/abishekvashok/cmatrix",
+      "release": "https://github.com/abishekvashok/cmatrix/releases/tag/v2.0",
+      "platforms": {
+        "any": {
+          "url": "https://github.com/abishekvashok/cmatrix/releases/download/v2.0/cmatrix-v2.0-Butterscotch.tar",
+          "filename": "cmatrix-v2.0-Butterscotch.tar",
+          "format": "tar",
+          "binary": "cmatrix",
+          "build_from_source": true,
+          "sha256": "e46c739bfe79e570db2461f89ac66ea79a8fab8efb8423ab53f143e93c2553bc",
+          "checksum_source": "sha256-of-fixed-official-artifact",
+          "download_size": 2027520
+        }
+      },
+      "source_patch": {
+        "path": "payload/patches/cmatrix-unimatrix.patch",
+        "sha256": "1d8fd93355b0849c70d964c1ee9fb006546cdaf06b4585d658cb4101b62ef662"
+      }
+    },
+    "node": {
+      "version": "26.3.1",
+      "source": "https://nodejs.org",
+      "checksums_url": "https://nodejs.org/dist/v26.3.1/SHASUMS256.txt",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://nodejs.org/dist/v26.3.1/node-v26.3.1-darwin-arm64.tar.gz",
+          "filename": "node-v26.3.1-darwin-arm64.tar.gz",
+          "format": "tar.gz",
+          "binary": "node",
+          "sha256": "3f624ab0d774553c0d28b968e141d8c676a35a2811fb0b7b356ba9cbdce15f74",
+          "checksum_source": "official-release-sha256",
+          "download_size": 56913099
+        },
+        "linux-x86_64": {
+          "url": "https://nodejs.org/dist/v26.3.1/node-v26.3.1-linux-x64.tar.gz",
+          "filename": "node-v26.3.1-linux-x64.tar.gz",
+          "format": "tar.gz",
+          "binary": "node",
+          "sha256": "e892cd615e637edebcf22f9653d80fba63167ad6754d20881fd52cc37be81441",
+          "checksum_source": "official-release-sha256",
+          "download_size": 61293737
+        }
+      }
+    },
+    "unimatrix": {
+      "version": "dff519f972103f91384f360f270614184de8aa92",
+      "source": "https://github.com/will8211/unimatrix",
+      "commit": "dff519f972103f91384f360f270614184de8aa92",
+      "platforms": {
+        "any": {
+          "url": "https://raw.githubusercontent.com/will8211/unimatrix/dff519f972103f91384f360f270614184de8aa92/unimatrix.py",
+          "filename": "unimatrix-dff519f972103f91384f360f270614184de8aa92.py",
+          "format": "raw",
+          "binary": "unimatrix",
+          "sha256": "0bd73f1fc3625aa50402df84c3efd76f5c6929630e00fc6a90c163b645812546",
+          "checksum_source": "sha256-of-fixed-official-artifact",
+          "download_size": 26741
+        }
+      }
+    },
+    "python": {
+      "version": "3.14.6",
+      "build": "20260728",
+      "source": "https://github.com/astral-sh/python-build-standalone",
+      "release": "https://github.com/astral-sh/python-build-standalone/releases/tag/20260728",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260728/cpython-3.14.6%2B20260728-aarch64-apple-darwin-install_only_stripped.tar.gz",
+          "filename": "cpython-3.14.6+20260728-aarch64-apple-darwin-install_only_stripped.tar.gz",
+          "sha256": "f4b47659e2da4b97f38cefdf5ad19f0042946099d843cde60de308708e5b1ac5",
+          "format": "tar.gz",
+          "binary": "python3",
+          "checksum_source": "official-release-sha256",
+          "download_size": 26022203,
+          "extraction_root": "python"
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260728/cpython-3.14.6%2B20260728-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+          "filename": "cpython-3.14.6+20260728-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+          "sha256": "d6254462d5fe066810a472d286861f6a18f66400008bfa9688e202a5672e88cb",
+          "format": "tar.gz",
+          "binary": "python3",
+          "checksum_source": "official-release-sha256",
+          "download_size": 35891118,
+          "extraction_root": "python"
+        }
+      }
+    },
+    "python_mason": {
+      "version": "3.12.2",
+      "build": "20240224",
+      "source": "https://github.com/astral-sh/python-build-standalone",
+      "release": "https://github.com/astral-sh/python-build-standalone/releases/tag/20240224",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20240224/cpython-3.12.2%2B20240224-aarch64-apple-darwin-install_only.tar.gz",
+          "filename": "cpython-3.12.2+20240224-aarch64-apple-darwin-install_only.tar.gz",
+          "sha256": "01c064c00013b0175c7858b159989819ead53f4746d40580b5b0b35b6e80fba6",
+          "format": "tar.gz",
+          "binary": "python3",
+          "checksum_source": "official-release-sha256-file",
+          "checksum_url": "https://github.com/astral-sh/python-build-standalone/releases/download/20240224/cpython-3.12.2%2B20240224-aarch64-apple-darwin-install_only.tar.gz.sha256",
+          "download_size": 16840399,
+          "extraction_root": "python"
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20240224/cpython-3.12.2%2B20240224-x86_64-unknown-linux-gnu-install_only.tar.gz",
+          "filename": "cpython-3.12.2+20240224-x86_64-unknown-linux-gnu-install_only.tar.gz",
+          "sha256": "57a37b57f8243caa4cdac016176189573ad7620f0b6da5941c5e40660f9468ab",
+          "format": "tar.gz",
+          "binary": "python3",
+          "checksum_source": "official-release-sha256-file",
+          "checksum_url": "https://github.com/astral-sh/python-build-standalone/releases/download/20240224/cpython-3.12.2%2B20240224-x86_64-unknown-linux-gnu-install_only.tar.gz.sha256",
+          "download_size": 68023315,
+          "extraction_root": "python"
+        }
+      }
+    },
+    "tree_sitter": {
+      "version": "0.25.3",
+      "source": "https://github.com/tree-sitter/tree-sitter",
+      "release": "https://github.com/tree-sitter/tree-sitter/releases/tag/v0.25.3",
+      "platforms": {
+        "macos-arm64": {
+          "url": "https://github.com/tree-sitter/tree-sitter/releases/download/v0.25.3/tree-sitter-macos-arm64.gz",
+          "filename": "tree-sitter-macos-arm64.gz",
+          "sha256": "b914b20b5e6e706e571600476cf27c3bfe57aa3e431ccc944ec52b6c47766e9f",
+          "format": "gzip",
+          "binary": "tree-sitter",
+          "checksum_source": "sha256-of-fixed-official-artifact",
+          "download_size": 5936653
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/tree-sitter/tree-sitter/releases/download/v0.25.3/tree-sitter-linux-x64.gz",
+          "filename": "tree-sitter-linux-x64.gz",
+          "sha256": "ad69bfbd54f9ebba1387bf0e7c2683896a5968f2f78768380af70f0c4dd8ceab",
+          "format": "gzip",
+          "binary": "tree-sitter",
+          "checksum_source": "sha256-of-fixed-official-artifact",
+          "download_size": 6696346
+        }
+      }
+    }
+  },
+  "stability_scope": {
+    "official_artifact_sha256": true,
+    "plugin_commits": true,
+    "treesitter_grammar_commits": true,
+    "mason_top_level_versions": true,
+    "mason_transitive_dependencies_fully_locked": false,
+    "windows_runtime_verified": false
+  }
+}

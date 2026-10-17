@@ -1,0 +1,5 @@
+# No third-party runtime plugins are required by this snapshot.
+[[flavor.deps]]
+use = "kmlupreti/ayu-dark"
+rev = "8d487bc"
+hash = "4b0b04345a4001101a43b48500192532"

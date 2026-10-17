@@ -58,3 +58,7 @@ There are tiers for individuals and teams, and one-time contributions are welcom
 ## License
 
 Licensed under [MIT](./LICENSE).
+
+## Pinned personal environment
+
+The [portable setup](portable/README.md) contains the locked Neovim configuration, native cmatrix-uni adaptation, Mac and Windows/WSL entry points, and a [deployment guide](portable/DEPLOY.md) suitable for users or Codex. Download the [2026-10-17 snapshot](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017) for the self-contained Mac installer or the cross-platform ZIP. Mac installation preserves the DMG drag-to-Applications workflow. Windows runtime validation is pending. Components retain their individual licenses.

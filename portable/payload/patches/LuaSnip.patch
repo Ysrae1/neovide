@@ -1,0 +1,561 @@
+diff --git a/.github/workflows/luarocks.yml b/.github/workflows/luarocks.yml
+index 4355027..81e233e 100644
+--- a/.github/workflows/luarocks.yml
++++ b/.github/workflows/luarocks.yml
+@@ -10,9 +10,9 @@ jobs:
+     steps:
+       - uses: actions/checkout@v3
+       - name: LuaRocks Upload
+-        uses: nvim-neorocks/luarocks-tag-release@v5
++        uses: nvim-neorocks/luarocks-tag-release@v7
+         env:
+           LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
+         with:
+           dependencies: |
+-            jsregexp >= 0.0.5, <= 0.0.7
++            jsregexp >= 0.0.5, <= 0.1.0
+diff --git a/.gitignore b/.gitignore
+index a657724..d205921 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -6,3 +6,4 @@
+ /lua/luasnip-jsregexp.lua
+ /.aspell.en.prepl
+ /doc.json
++/luasnip.log
+diff --git a/.gitmodules b/.gitmodules
+index 8fc43e9..ad9732e 100644
+--- a/.gitmodules
++++ b/.gitmodules
+@@ -4,3 +4,6 @@
+ [submodule "deps/jsregexp005"]
+ 	path = deps/jsregexp005
+ 	url = ../../kmarius/jsregexp
++[submodule "deps/jsregexp006"]
++	path = deps/jsregexp006
++	url = ../../kmarius/jsregexp
+diff --git a/DOC.md b/DOC.md
+index 2de6d37..1fc4e0f 100644
+--- a/DOC.md
++++ b/DOC.md
+@@ -31,6 +31,7 @@ local d = ls.dynamic_node
+ local r = ls.restore_node
+ local events = require("luasnip.util.events")
+ local ai = require("luasnip.nodes.absolute_indexer")
++local opt = require("luasnip.nodes.optional_arg")
+ local extras = require("luasnip.extras")
+ local l = extras.lambda
+ local rep = extras.rep
+@@ -937,8 +938,10 @@ user input.
+    the dynamicNode's place.  
+    `args`, `parent` and `user_args` are also explained in
+    [FunctionNode](#functionnode)
+-   - `args`: `table of text` (`{{"node1line1", "node1line2"}, {"node2line1"}}`)
+-     from nodes the `dynamicNode` depends on.
++   - `args`: `table of text` (`snippetstring_args == false`) or `snippetString`
++     (otherwise). Represents content of the nodes this dynamicNode depends on.
++     Their index in the `node_references`-list determines the position in
++     this list.
+    - `parent`: the immediate parent of the `dynamicNode`.
+    - `old_state`: a user-defined table. This table may contain anything; its
+    	 intended usage is to preserve information from the previously generated
+@@ -957,8 +960,10 @@ user input.
+   inserted at the `dynamicNode`s place.  
+   (`dynamicNode` behaves exactly the same as `functionNode` in this regard).
+ 
+-- `opts`: In addition to the common [Node](#node)-keys, there is, again, 
++- `opts`: In addition to the common [Node](#node)-keys, there is:
+   - `user_args`, which is described in [FunctionNode](#functionnode).
++  - `snippetstring_args`, boolean: If set, `function` receives a list of
++    [Snippetstring](#snippetstring) instead of `string[]`. `false` by default.
+ 
+ **Examples**:
+ 
+@@ -1024,6 +1029,70 @@ ls.add_snippets("all",
+ As with `functionNode`, `user_args` can be used to reuse similar `dynamicNode`-
+ functions.
+ 
++## Self-dependent DynamicNode
++
++While the previous examples only showed dynamicNodes that depend on nodes
++outside of itself, it's possible to update a dynamicNode in response to a change
++to a node within it:
++
++```lua
++ls.snip_expand(s("trig", {
++    d(1, function(args)
++        if not args[1] then
++            -- the arg does not exist -> provide a default.
++            return sn(nil, {i(1, "asdf", {key = "ins"})})
++        else
++            -- This branch is only take after the dynamicNode was updated once.
++            -- Now we can perform the actual "task" of this dynamicNode:
++            -- replacing all occurences of "a" with "e".
++            return sn(nil, {i(1, args[1]:gsub("a", "e"), {key = "ins"})})
++        end
++    end, {opt(k("ins"))}, { snippetstring_args = true })
++}))
++```
++
++The example above shows a dynamicNode that will substitute all occurrences of
++"a" within it with an "e". Important for this to work are:
++* Use an [Optional Noderef](#optional-noderef) `opt(k("ins"))` to reference the
++  generated insertNode that will eventually update the dynamicNode on changes:
++  A dynamicNode does not update when one of its argnodes is missing, so in
++  order to get anything out of the node, we need `opt`.
++* Set `snippetstring_args`: This ensures that snippets expanded inside the
++  dynamicNode are preserved during the update! While not completely necessary,
++  this is a good idea because it can be annoying to lose jump-points
++  only because the snippet they belong is inside such a self-dependent
++  dynamicNode.
++
++When using these self-dependent dynamicNodes it is a really good idea to give
++nodes that can cause an update some unique key, or make sure that they are
++inside of a restoreNode. If this is not done, LuaSnip may not find a node that
++is equivalent to the one that contained the cursor before the update, and thus
++may have to jump into the dynamicNode anew, which may be unexpected.
++
++Another danger is in accidentally constructing an infinite loop of updates.
++Right now, LuaSnip is very indiscriminate in updating dynamicNodes, and if given
++a snippet like
++
++```lua
++s("srep", {
++    d(1, function(args)
++        if not args[1] then
++            return sn(nil, {i(1, "sdf", {key = "ins"})})
++        else
++            return sn(nil, {i(1, args[1]:gsub("a", "aa"), {key = "ins"})})
++        end
++    end, {opt(k("ins"))}, {snippetstring_args = true})
++}),
++```
++
++any "a" is replaced with "aa", ad infinitum (or until the process is killed,
++which is likely soon).
++
++These infinite loops may also be caused by nested self-dependent dynamicNodes,
++think one that replaces "a" with "e", and another that changes "e" back to "a",
++so it's best to build in some kind of safeguard into the generating function.  
++One could for example skip the update once the argnode exceeds a certain length.
++
+ # RestoreNode
+ 
+ This node can store and restore a snippetNode as is. This includes changed
+@@ -1121,6 +1190,20 @@ that really bothers you feel free to open an issue.
+ 
+ <!-- panvimdoc-ignore-end -->
+ 
++# Snippetstring
++
++Snippetstrings can store the content of an insertNode as-is. This includes both
++the regular text, and expanded snippets. The primary purpose of Snippetstrings
++is to facilitate easy modifications of text in dynamicNode, while preserving
++snippets and cursor-positions.
++
++A Snippetstring supports the string-functions `lower`, `upper`, `gsub` and
++`sub`, and the `..`-metamethod. While `lower`, `upper`, and `..` will always
++preserve snippets inside the Snippetstring, `sub` will replace partially
++contained snippets with their text, while `gsub` will do so if a replacement
++crosses a node-boundary.
++
++
+ # Key Indexer
+ 
+ A very flexible way of referencing nodes ([Node Reference](#node-reference)).  
+@@ -1178,6 +1261,29 @@ s("trig", {
+ <!-- panvimdoc-ignore-end -->
+ 
+ 
++# Optional Noderef
++
++`opt` wraps another node-reference and makes the wrapped node not strictly
++required for performing an update. This means, amongst other things, that a
++`dynamicNode`s can be updated by nodes within it:
++
++```lua
++ls.snip_expand(s("trig", {
++    d(1, function(args)
++        if not args[1] then
++            -- the arg does not exist -> provide a default.
++            return sn(nil, {i(1, "asdf", {key = "ins"})})
++        else
++            -- This branch is only take after the dynamicNode was updated once.
++            -- Now we can perform the actual "task" of this dynamicNode:
++            -- replacing all occurences of "a" with "e".
++            return sn(nil, {i(1, args[1][1]:gsub("a", "e"), {key = "ins"})})
++        end
++    end, {opt(k("ins"))})
++}))
++```
++
++
+ # Absolute Indexer
+ 
+ `absolute_indexer` allows accessing nodes by their unique jump-index path from
+@@ -1308,6 +1414,26 @@ ls.add_snippets("all", {
+ })
+ ```
+ 
++This example shows how to access the snippet opts for MultiSnippets.
++Note that unlike a `s` snippet these opts must be in the `common_opts`
++table item.
++
++```lua
++ls.addsnippets('all', {
++    ms({ 'test' }, { t('Access multisnippet opts') }, {
++        common_opts = {
++            callbacks = {
++                [-1] = {
++                    [events.pre_expand] = function()
++                        vim.notify('multisnippet opts callback')
++                    end,
++                },
++            },
++        },
++    }),
++}),
++```
++
+ # Extras
+ 
+ ## Lambda
+@@ -4067,32 +4193,28 @@ snippet.
+ 
+ * `node: LuaSnip.Node`
+ 
+-#### `filetype_extend(ft, extend_ft)`
++#### `filetype_extend(ft, extend_fts)`
+ 
+-Add `extend_ft` filetype to inherit its snippets from `ft`.
++Make all snippets that belong to one of the filetypes in `extend_fts` available to the filetype
++`ft`.
+ 
+ Example:
+ ```lua
+ ls.filetype_extend("sh", {"zsh"})
+ ls.filetype_extend("sh", {"bash"})
+ ```
+-This makes all `sh` snippets available in `sh`/`zsh`/`bash` buffers.
++This makes all `zsh`- and `bash`-snippets available in `sh`-buffers.
+ 
+ * `ft: string`
+-* `extend_ft: string[]`
+-
+-#### `filetype_set(ft, fts)`
++* `extend_fts: string[]`
+ 
+-Set `fts` filetypes as inheriting their snippets from `ft`.
++#### `filetype_set(ft, extend_fts)`
+ 
+-Example:
+-```lua
+-ls.filetype_set("sh", {"sh", "zsh", "bash"})
+-```
+-This makes all `sh` snippets available in `sh`/`zsh`/`bash` buffers.
++Make all snippets that belong to one of the filetypes in `extend_fts` available to the filetype `ft`
++and remove all previous extension-filetypes added by `filetype_extend` or `filetype_set`.
+ 
+ * `ft: string`
+-* `fts: string[]`
++* `extend_fts: string[]`
+ 
+ #### `cleanup()`
+ 
+diff --git a/Makefile b/Makefile
+index fff60df..a7473ce 100644
+--- a/Makefile
++++ b/Makefile
+@@ -99,27 +99,29 @@ NEOVIM_BIN_PATH:=$(or \
+ LUA_LDLIBS?=$(if $(NEOVIM_BIN_PATH),-L'$(NEOVIM_BIN_PATH)' -llua51,)
+ endif
+ 
+-CC:=$(shell (which $(CC) || which gcc || which clang || (which zig >/dev/null && echo "$$(which zig) cc")) 2>/dev/null;)
++CC:=$(shell (test -n "$(CC)" && command -v $(CC) || command -v gcc || command -v clang || (test -n "$$(command -v zig)" && echo "$$(command -v zig) cc") 2>/dev/null))
+ ifeq (,$(CC))
+ $(error No compiler is provided in this environment. Please install a C compiler (gcc, clang, or zig).)
+ endif
+ PROJECT_ROOT:=$(CURDIR)
+-JSREGEXP_PATH=$(PROJECT_ROOT)/deps/jsregexp
++JSREGEXP010_PATH=$(PROJECT_ROOT)/deps/jsregexp
+ JSREGEXP005_PATH=$(PROJECT_ROOT)/deps/jsregexp005
++JSREGEXP006_PATH=$(PROJECT_ROOT)/deps/jsregexp006
+ jsregexp:
+ 	git submodule init;
+ 	git submodule update;
+-	"$(MAKE)" "CC=$(CC)" "INCLUDE_DIR=-I$(PROJECT_ROOT)/deps/lua51_include/" "LDLIBS=$(LUA_LDLIBS)" -C "$(JSREGEXP_PATH)";
++	"$(MAKE)" "CC=$(CC)" "INCLUDE_DIR=-I$(PROJECT_ROOT)/deps/lua51_include/" "LDLIBS=$(LUA_LDLIBS)" -C "$(JSREGEXP010_PATH)";
+ 	"$(MAKE)" "CC=$(CC)" "INCLUDE_DIR=-I$(PROJECT_ROOT)/deps/lua51_include/" "LDLIBS=$(LUA_LDLIBS)" -C "$(JSREGEXP005_PATH)";
++	"$(MAKE)" "CC=$(CC)" "INCLUDE_DIR=-I$(PROJECT_ROOT)/deps/lua51_include/" "LDLIBS=$(LUA_LDLIBS)" -C "$(JSREGEXP006_PATH)";
+ 
+ install_jsregexp: jsregexp
+ # remove old binary.
+ 	rm -f "$(PROJECT_ROOT)/lua/luasnip-jsregexp.so";
+ # there is some additional trickery to make this work with jsregexp-0.0.6 in
+ # util/jsregexp.lua.
+-	cp "$(JSREGEXP_PATH)/jsregexp.lua" "$(PROJECT_ROOT)/lua/luasnip-jsregexp.lua";
++	cp "$(JSREGEXP010_PATH)/jsregexp.lua" "$(PROJECT_ROOT)/lua/luasnip-jsregexp.lua";
+ # just move out of jsregexp-directory, so it is not accidentally deleted.
+-	cp "$(JSREGEXP_PATH)/jsregexp.so" "$(PROJECT_ROOT)/deps/luasnip-jsregexp.so";
++	cp "$(JSREGEXP010_PATH)/jsregexp.so" "$(PROJECT_ROOT)/deps/luasnip-jsregexp.so";
+ 
+ uninstall_jsregexp:
+ # also remove binaries of older version.
+@@ -139,10 +141,12 @@ test: nvim install_jsregexp
+ # For some Reason, on 0.9.0, `make functionaltest` has to be preceded by a regular make for doc to build.
+ 	if ${PREVENT_LUA_PATH_LEAK}; then unset LUA_PATH LUA_CPATH; fi; \
+ 	export LUASNIP_SOURCE=$(PROJECT_ROOT); \
+-	export JSREGEXP_ABS_PATH=$(JSREGEXP_PATH); \
++	export JSREGEXP010_ABS_PATH=$(JSREGEXP010_PATH); \
+ 	export JSREGEXP005_ABS_PATH=$(JSREGEXP005_PATH); \
++	export JSREGEXP006_ABS_PATH=$(JSREGEXP006_PATH); \
+ 	export TEST_FILE=$(realpath ${TEST_FILE}); \
+ 	export BUSTED_ARGS=--lpath=$(PROJECT_ROOT)/tests/?.lua; \
++	export LUASNIP_OVERRIDE_LOGPATH=$(PROJECT_ROOT); \
+ 	set -e; \
+ 	if ${TEST_07}; then "$(MAKE)" -C ${NVIM_0.7_PATH} functionaltest DEPS_CMAKE_FLAGS=-DUSE_BUNDLED_GPERF=OFF -j; fi; \
+ 	if ${TEST_09}; then "$(MAKE)" -C ${NVIM_0.9_PATH} -j; "$(MAKE)" -C ${NVIM_0.9_PATH} functionaltest -j; fi; \
+diff --git a/data/DOC-template.md b/data/DOC-template.md
+index 13a331d..8c03098 100644
+--- a/data/DOC-template.md
++++ b/data/DOC-template.md
+@@ -31,6 +31,7 @@ local d = ls.dynamic_node
+ local r = ls.restore_node
+ local events = require("luasnip.util.events")
+ local ai = require("luasnip.nodes.absolute_indexer")
++local opt = require("luasnip.nodes.optional_arg")
+ local extras = require("luasnip.extras")
+ local l = extras.lambda
+ local rep = extras.rep
+@@ -902,8 +903,10 @@ user input.
+    the dynamicNode's place.  
+    `args`, `parent` and `user_args` are also explained in
+    [FunctionNode](#functionnode)
+-   - `args`: `table of text` (`{{"node1line1", "node1line2"}, {"node2line1"}}`)
+-     from nodes the `dynamicNode` depends on.
++   - `args`: `table of text` (`snippetstring_args == false`) or `snippetString`
++     (otherwise). Represents content of the nodes this dynamicNode depends on.
++     Their index in the `node_references`-list determines the position in
++     this list.
+    - `parent`: the immediate parent of the `dynamicNode`.
+    - `old_state`: a user-defined table. This table may contain anything; its
+    	 intended usage is to preserve information from the previously generated
+@@ -922,8 +925,10 @@ user input.
+   inserted at the `dynamicNode`s place.  
+   (`dynamicNode` behaves exactly the same as `functionNode` in this regard).
+ 
+-- `opts`: In addition to the common [Node](#node)-keys, there is, again, 
++- `opts`: In addition to the common [Node](#node)-keys, there is:
+   - `user_args`, which is described in [FunctionNode](#functionnode).
++  - `snippetstring_args`, boolean: If set, `function` receives a list of
++    [Snippetstring](#snippetstring) instead of `string[]`. `false` by default.
+ 
+ **Examples**:
+ 
+@@ -989,6 +994,70 @@ ls.add_snippets("all",
+ As with `functionNode`, `user_args` can be used to reuse similar `dynamicNode`-
+ functions.
+ 
++## Self-dependent DynamicNode
++
++While the previous examples only showed dynamicNodes that depend on nodes
++outside of itself, it's possible to update a dynamicNode in response to a change
++to a node within it:
++
++```lua
++ls.snip_expand(s("trig", {
++    d(1, function(args)
++        if not args[1] then
++            -- the arg does not exist -> provide a default.
++            return sn(nil, {i(1, "asdf", {key = "ins"})})
++        else
++            -- This branch is only take after the dynamicNode was updated once.
++            -- Now we can perform the actual "task" of this dynamicNode:
++            -- replacing all occurences of "a" with "e".
++            return sn(nil, {i(1, args[1]:gsub("a", "e"), {key = "ins"})})
++        end
++    end, {opt(k("ins"))}, { snippetstring_args = true })
++}))
++```
++
++The example above shows a dynamicNode that will substitute all occurrences of
++"a" within it with an "e". Important for this to work are:
++* Use an [Optional Noderef](#optional-noderef) `opt(k("ins"))` to reference the
++  generated insertNode that will eventually update the dynamicNode on changes:
++  A dynamicNode does not update when one of its argnodes is missing, so in
++  order to get anything out of the node, we need `opt`.
++* Set `snippetstring_args`: This ensures that snippets expanded inside the
++  dynamicNode are preserved during the update! While not completely necessary,
++  this is a good idea because it can be annoying to lose jump-points
++  only because the snippet they belong is inside such a self-dependent
++  dynamicNode.
++
++When using these self-dependent dynamicNodes it is a really good idea to give
++nodes that can cause an update some unique key, or make sure that they are
++inside of a restoreNode. If this is not done, LuaSnip may not find a node that
++is equivalent to the one that contained the cursor before the update, and thus
++may have to jump into the dynamicNode anew, which may be unexpected.
++
++Another danger is in accidentally constructing an infinite loop of updates.
++Right now, LuaSnip is very indiscriminate in updating dynamicNodes, and if given
++a snippet like
++
++```lua
++s("srep", {
++    d(1, function(args)
++        if not args[1] then
++            return sn(nil, {i(1, "sdf", {key = "ins"})})
++        else
++            return sn(nil, {i(1, args[1]:gsub("a", "aa"), {key = "ins"})})
++        end
++    end, {opt(k("ins"))}, {snippetstring_args = true})
++}),
++```
++
++any "a" is replaced with "aa", ad infinitum (or until the process is killed,
++which is likely soon).
++
++These infinite loops may also be caused by nested self-dependent dynamicNodes,
++think one that replaces "a" with "e", and another that changes "e" back to "a",
++so it's best to build in some kind of safeguard into the generating function.  
++One could for example skip the update once the argnode exceeds a certain length.
++
+ # RestoreNode
+ 
+ This node can store and restore a snippetNode as is. This includes changed
+@@ -1086,6 +1155,20 @@ that really bothers you feel free to open an issue.
+ 
+ <!-- panvimdoc-ignore-end -->
+ 
++# Snippetstring
++
++Snippetstrings can store the content of an insertNode as-is. This includes both
++the regular text, and expanded snippets. The primary purpose of Snippetstrings
++is to facilitate easy modifications of text in dynamicNode, while preserving
++snippets and cursor-positions.
++
++A Snippetstring supports the string-functions `lower`, `upper`, `gsub` and
++`sub`, and the `..`-metamethod. While `lower`, `upper`, and `..` will always
++preserve snippets inside the Snippetstring, `sub` will replace partially
++contained snippets with their text, while `gsub` will do so if a replacement
++crosses a node-boundary.
++
++
+ # Key Indexer
+ 
+ A very flexible way of referencing nodes ([Node Reference](#node-reference)).  
+@@ -1143,6 +1226,29 @@ s("trig", {
+ <!-- panvimdoc-ignore-end -->
+ 
+ 
++# Optional Noderef
++
++`opt` wraps another node-reference and makes the wrapped node not strictly
++required for performing an update. This means, amongst other things, that a
++`dynamicNode`s can be updated by nodes within it:
++
++```lua
++ls.snip_expand(s("trig", {
++    d(1, function(args)
++        if not args[1] then
++            -- the arg does not exist -> provide a default.
++            return sn(nil, {i(1, "asdf", {key = "ins"})})
++        else
++            -- This branch is only take after the dynamicNode was updated once.
++            -- Now we can perform the actual "task" of this dynamicNode:
++            -- replacing all occurences of "a" with "e".
++            return sn(nil, {i(1, args[1][1]:gsub("a", "e"), {key = "ins"})})
++        end
++    end, {opt(k("ins"))})
++}))
++```
++
++
+ # Absolute Indexer
+ 
+ `absolute_indexer` allows accessing nodes by their unique jump-index path from
+@@ -1273,6 +1379,26 @@ ls.add_snippets("all", {
+ })
+ ```
+ 
++This example shows how to access the snippet opts for MultiSnippets.
++Note that unlike a `s` snippet these opts must be in the `common_opts`
++table item.
++
++```lua
++ls.addsnippets('all', {
++    ms({ 'test' }, { t('Access multisnippet opts') }, {
++        common_opts = {
++            callbacks = {
++                [-1] = {
++                    [events.pre_expand] = function()
++                        vim.notify('multisnippet opts callback')
++                    end,
++                },
++            },
++        },
++    }),
++}),
++```
++
+ # Extras
+ 
+ ## Lambda
+diff --git a/data/project-dictionary.txt b/data/project-dictionary.txt
+index 5ea39ad..96065a1 100644
+--- a/data/project-dictionary.txt
++++ b/data/project-dictionary.txt
+@@ -1,4 +1,4 @@
+-personal_ws-1.1 en 123 utf-8
++personal_ws-1.1 en 130 utf-8
+ AbsoluteIndexer
+ Autosnippets
+ Cfigure
+@@ -17,12 +17,16 @@ LuaSnip
+ LuaSnip's
+ MiB
+ MultiSnippet
++MultiSnippets
+ Neovim
+ Neovim's
++Noderef
+ PascalCase
+ README
+ SnipMate
+ SnippetProxy
++Snippetstring
++Snippetstrings
+ TJ
+ TextMate
+ Treesitter
+@@ -30,6 +34,7 @@ UTF
+ VSCode
+ VSCode's
+ Ziontee
++aa
+ amongst
+ anytext
+ argnode
+@@ -77,6 +82,7 @@ get's
+ globals
+ honza
+ ie
++infinitum
+ ing
+ insertNode
+ insertNodes
+@@ -88,6 +94,7 @@ lsp
+ lua
+ luasnip
+ luasnip's
++metamethod
+ mistyped
+ molleweide
+ multiline
+diff --git a/deps/jsregexp b/deps/jsregexp
+index b5a81e2..558d5b5 160000
+--- a/deps/jsregexp
++++ b/deps/jsregexp
+@@ -1 +1 @@
+-Subproject commit b5a81e21d0875667ba2458ac8ae903afd5568698
++Subproject commit 558d5b567a8a6a391ec578f3e763f43fd4126abc
