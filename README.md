@@ -1,5 +1,11 @@
 # Neovide
 
+> **Neovide Glow — personal customized fork:** adjustable native bloom and a pinned portable setup,
+> based on [Neovide](https://github.com/neovide/neovide).
+> [Live showcase](https://neovide-glow.windygrass17.chatgpt.site/) ·
+> [Download the gm2 release](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017-gm2) ·
+> [Deployment guide](https://github.com/Ysrae1/neovide/blob/glow-preview/portable/DEPLOY.md)
+
 [![Discord](https://img.shields.io/discord/896132176091955261?style=flat&logo=discord)](https://discord.gg/SjFpZdQys6) [![Chat on Matrix](https://matrix.to/img/matrix-badge.svg)](https://matrix.to/#/#neovide:matrix.org) [![Discussions](https://img.shields.io/badge/GitHub-Discussions-green?logo=github)](https://github.com/neovide/neovide/discussions)
 
 <img align="left" src="website/docs/assets/neovide-128x128.png">
