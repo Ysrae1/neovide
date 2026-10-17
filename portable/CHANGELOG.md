@@ -1,5 +1,11 @@
 # 冻结版本记录
 
+## 2026-10-17 · glow-stack-20261017-gm2
+
+最终总安装包快照：[glow-stack-20261017-gm2](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017-gm2)。在 gm1 的基础上，将首页 Find File 与 Config 改为 Telescope，与 Find Text 和 Recent Files 统一。`空格 t f` 的 FFF 入口继续保留；其他版本、字母雨、图标、两秒开场和透明度设置沿用 gm1。
+
+配置 README、部署说明、清单目录和安装包同步更新。首页两项 action 已验证会调用 Telescope，并分别以当前工作目录、配置目录为搜索根目录。cmatrix-gm 仍固定在 `f48f363c4dcbdd37d842b17e82711f869d759950`。gm1 与更早的标签和发行文件保留。
+
 ## 2026-10-17 · glow-stack-20261017-gm1
 
 这是一份冻结快照。Apple Silicon Mac 的当前配置与字母雨行为已验收；Windows x64 + WSL2 的入口保留，仍待 Windows 真机验收。旧标签 `glow-stack-20261017` 保留，不覆盖其文件或提交。

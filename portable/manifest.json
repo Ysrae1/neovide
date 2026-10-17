@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "stack_id": "neovide-glow-20261017-gm1",
+  "stack_id": "neovide-glow-20261017-gm2",
   "neovide": {
     "repo": "https://github.com/Ysrae1/neovide.git",
     "commit": "6c152c4d4761b5eda75f67dbd82beaa3a0afb59f",
@@ -12,7 +12,7 @@
       "minimum_macos": "11.0",
       "native_layered_icon_macos": "26+",
       "notarized": false,
-      "url": "https://github.com/Ysrae1/neovide/releases/download/glow-stack-20261017-gm1/Neovide-Glow-macOS-arm64.dmg"
+      "url": "https://github.com/Ysrae1/neovide/releases/download/glow-stack-20261017-gm2/Neovide-Glow-macOS-arm64.dmg"
     }
   },
   "runtimes": {

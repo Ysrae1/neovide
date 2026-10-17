@@ -42,7 +42,7 @@ return {
               key = "f",
               desc = "Find File",
               action = function()
-                require("fff").find_files({ cwd = vim.fn.getcwd() })
+                require("telescope.builtin").find_files({ cwd = vim.fn.getcwd() })
               end,
             },
             {
@@ -78,7 +78,7 @@ return {
               key = "c",
               desc = "Config",
               action = function()
-                require("fff").find_files({ cwd = vim.fn.stdpath("config") })
+                require("telescope.builtin").find_files({ cwd = vim.fn.stdpath("config") })
               end,
             },
 

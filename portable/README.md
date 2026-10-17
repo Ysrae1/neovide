@@ -26,4 +26,4 @@ Mac 仍需要打开生成的 DMG，把 Neovide 拖入 Applications。安装器�
 
 Windows 入口和平台适配已经编写，但必须在 Windows 机器上完成编译和交互验收；不要将 Mac 的检查结果理解为 Windows 已通过。Apple 的 Liquid Glass 分层图标只在 macOS 适用，Windows 使用同一设计的静态浅色图标。
 
-远程固定快照：[glow-stack-20261017-gm1](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017-gm1)。仓库源码中的 `portable/` 目录也可直接运行入口；Mac DMG 若未放在本地，会从该固定发行版获取并核对 SHA256。各组件保留各自许可证，CMatrix 与 Unimatrix 衍生部分见 `licenses/CMatrix-Unimatrix-GPL3.txt`。
+远程固定快照：[glow-stack-20261017-gm2](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017-gm2)。仓库源码中的 `portable/` 目录也可直接运行入口；Mac DMG 若未放在本地，会从该固定发行版获取并核对 SHA256。各组件保留各自许可证，CMatrix 与 Unimatrix 衍生部分见 `licenses/CMatrix-Unimatrix-GPL3.txt`。

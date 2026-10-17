@@ -64,7 +64,7 @@ bash install.sh
 默认环境在：
 
 ```text
-~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm1/
+~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm2/
 ```
 
 下载会核对清单中的 SHA256。安装器把 Neovim、配置、插件、运行库和缓存放进这个版本目录；失败时保留结果并退出，可以在处理具体错误后重跑同一命令。首次源码构建需要联网和一定磁盘空间；构建耗时取决于网络和电脑，不能把仍在编译误判为无响应。
@@ -82,7 +82,7 @@ bash install.sh
 
 ```sh
 bash install.sh --doctor
-~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm1/bin/nvim --version
+~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm2/bin/nvim --version
 ```
 
 再启动 GUI，确认字体完整、Glow 正常、启动字母雨能结束、首页和侧栏正常。打开一个 Lua 或 Python 文件，确认没有启动报错并检查对应 LSP。详细检查项见后面的验收清单。
@@ -139,7 +139,7 @@ Windows 使用同一 Glow 源码与静态浅色图标，Apple `.icon/Assets.car`
 
 ## AI 登录和公式
 
-AI 仍使用 Avante 原侧栏与原快捷键，通过固定版本的 Codex ACP 适配器连接。首次使用时在这套环境中启动登录流程，使用自己的 ChatGPT 账号完成浏览器授权，例如在 Mac 或 WSL 终端运行 `~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm1/bin/codex login`；已有宿主电脑的登录不会自动复制到另一台机器。WSL 后端需要在 WSL 里完成登录，Windows 宿主的登录文件不等于 Linux 后端的登录。
+AI 仍使用 Avante 原侧栏与原快捷键，通过固定版本的 Codex ACP 适配器连接。首次使用时在这套环境中启动登录流程，使用自己的 ChatGPT 账号完成浏览器授权，例如在 Mac 或 WSL 终端运行 `~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm2/bin/codex login`；已有宿主电脑的登录不会自动复制到另一台机器。WSL 后端需要在 WSL 里完成登录，Windows 宿主的登录文件不等于 Linux 后端的登录。
 
 不要把 `auth.json`、密钥、会话和账号目录发到 GitHub 或交给其他用户。部署说明可以交给 Codex，账号登录仍由账号本人完成。
 
@@ -147,7 +147,7 @@ Markdown 和 AI 侧栏中的公式转换使用固定 `pylatexenc`。这与完整
 
 ## 常用操作与字母雨
 
-- `空格 t f`：FFF 快速找文件；首页 `f` 找文件，`c` 找配置。
+- `空格 t f`：FFF 快速找文件。首页 `f` 找文件、`g` 找文字、`r` 最近文件、`c` 找配置，统一使用 Telescope。
 - `空格 t a`：保留 Telescope 的全部文件入口，适合查隐藏文件或通常被忽略的文件。
 - 其他原有 leader、Ctrl 快捷键及 AI 侧栏入口保留。Command 快捷键只在 Mac 启用；Windows/WSL 使用普通 leader 和 Ctrl 入口。
 - Neovide 全屏启动字母雨与首页动画使用 C 原生 `cmatrix-gm`，复现 Gomatrix 的逐串定时、混合字符与亮头效果。全屏动画仍为两秒，使用 `--intro` 在首次显示前后台快速预演，从已经铺开的中间帧开始，之后始终以正常速率的 2.5 倍匀速下落；屏幕上不显示高速铺开或减速过程。`--fps 60` 只控制刷新上限，每条雨串独立下落。终端 Neovim 首页继续使用原 CMatrix。`cmatrix-uni` 保留原 Unimatrix 模式；原 Python Unimatrix 也仍安装保留，可用于对照。
