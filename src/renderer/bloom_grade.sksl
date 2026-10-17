@@ -1,0 +1,37 @@
+uniform shader source;
+uniform float strength;
+uniform float brightness;
+uniform float saturation;
+
+float peak(float3 color) {
+    return max(color.r, max(color.g, color.b));
+}
+
+float3 toGamma(float3 color) {
+    float3 low = color * 12.92;
+    float3 high = 1.055 * pow(max(color, float3(0.0)), float3(1.0 / 2.4)) - 0.055;
+    return mix(low, high, step(float3(0.0031308), color));
+}
+
+half4 main(float2 position) {
+    // The extractor's RGB already contains alpha-weighted linear light energy;
+    // dividing by alpha here would inflate faint halos and create hard rims.
+    float3 glow = toGamma(max(float3(source.eval(position).rgb), float3(0.0)) * strength);
+    float gain = min(brightness, 1.0 / max(peak(glow), 0.0001));
+    glow *= gain;
+
+    // Keep hue and peak brightness while strengthening colored light. Neutral
+    // white stays neutral and a single shared factor avoids per-channel clips.
+    float highest = peak(glow);
+    float lowest = min(glow.r, min(glow.g, glow.b));
+    float chroma = highest - lowest;
+    float colorfulness = chroma / max(highest, 0.0001);
+    float confidence = smoothstep(0.06, 0.20, colorfulness)
+                     * smoothstep(0.0, 0.20, highest);
+    float requested = 1.0 + saturation * brightness * confidence;
+    float limit = highest / max(chroma, 0.0001);
+    float factor = max(1.0, min(requested, limit));
+    glow = max(float3(highest) - (float3(highest) - glow) * factor, float3(0.0));
+
+    return half4(glow, peak(glow));
+}

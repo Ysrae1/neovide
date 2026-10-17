@@ -1,4 +1,7 @@
 pub mod animation_utils;
+mod bloom;
+#[cfg(test)]
+mod bloom_tests;
 pub mod box_drawing;
 pub mod cursor_renderer;
 pub mod fonts;
@@ -95,6 +98,11 @@ fn plot_skia_cache() {
 
 #[derive(SettingGroup, Clone)]
 pub struct RendererSettings {
+    bloom: bool,
+    bloom_strength: f32,
+    bloom_radius: f32,
+    bloom_brightness: f32,
+    bloom_saturation: f32,
     position_animation_length: f32,
     scroll_animation_length: f32,
     scroll_animation_far_lines: u32,
@@ -118,6 +126,12 @@ pub struct RendererSettings {
 impl Default for RendererSettings {
     fn default() -> Self {
         Self {
+            // Enable bloom by default in this experimental glow-preview branch.
+            bloom: true,
+            bloom_strength: 0.2,
+            bloom_radius: 8.0,
+            bloom_brightness: 1.1,
+            bloom_saturation: 0.15,
             position_animation_length: 0.15,
             scroll_animation_length: 0.3,
             scroll_animation_far_lines: 1,
@@ -167,6 +181,7 @@ pub enum StartupMessageFlush {
 }
 
 pub struct Renderer {
+    bloom_renderer: bloom::BloomRenderer,
     cursor_renderer: CursorRenderer,
     pub grid_renderer: GridRenderer,
     current_mode: EditorMode,
@@ -217,6 +232,7 @@ impl Renderer {
         let progress_bar = ProgressBar::new();
 
         Renderer {
+            bloom_renderer: bloom::BloomRenderer::default(),
             rendered_windows,
             cursor_renderer,
             grid_renderer,
@@ -381,6 +397,8 @@ impl Renderer {
             root_window_regions.into_iter().chain(floating_window_regions).collect();
         self.draw_message_selection(root_canvas, grid_scale);
         self.cursor_renderer.draw(&mut self.grid_renderer, root_canvas);
+
+        self.bloom_renderer.draw(root_canvas, &settings, default_background);
 
         self.profiler.draw(root_canvas, dt);
 

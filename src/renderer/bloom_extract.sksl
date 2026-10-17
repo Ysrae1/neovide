@@ -1,0 +1,26 @@
+uniform shader source;
+uniform float3 background;
+
+float peak(float3 color) {
+    return max(color.r, max(color.g, color.b));
+}
+
+// Only the light layer is linearized; the native text remains untouched.
+float3 toLinear(float3 color) {
+    return color * (color * (color * 0.305306011 + 0.682171111) + 0.012522878);
+}
+
+half4 main(float2 position) {
+    half4 pixel = source.eval(position);
+    if (pixel.a <= 0.0001) return half4(0.0);
+
+    float3 color = clamp(float3(pixel.rgb) / float(pixel.a), 0.0, 1.0);
+    float luminance = dot(color, float3(0.2126, 0.7152, 0.0722));
+    float brightPass = smoothstep(0.18, 0.35, luminance);
+    float backgroundPass = smoothstep(0.0, 0.08, peak(abs(color - background)));
+    float3 light = toLinear(color) * float(pixel.a) * brightPass * backgroundPass;
+
+    // RGB stores light energy; matching coverage keeps every intermediate PMA
+    // valid, including soft glyph edges and completely transparent background.
+    return half4(light, peak(light));
+}
