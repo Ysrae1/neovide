@@ -144,7 +144,7 @@ Markdown 和 AI 侧栏中的公式转换使用固定 `pylatexenc`。这与完整
 - `空格 t f`：FFF 快速找文件；首页 `f` 找文件，`c` 找配置。
 - `空格 t a`：保留 Telescope 的全部文件入口，适合查隐藏文件或通常被忽略的文件。
 - 其他原有 leader、Ctrl 快捷键及 AI 侧栏入口保留。Command 快捷键只在 Mac 启用；Windows/WSL 使用普通 leader 和 Ctrl 入口。
-- Neovide 全屏启动字母雨与首页动画统一使用 C 原生 `cmatrix-uni`，显式选择混合字符集 `-l m`。全屏动画仍为两秒、20ms 刷新；首页为 50ms 刷新。终端 Neovim 首页继续使用原 CMatrix。原 Unimatrix 仍安装保留，可用于对照。
+- Neovide 全屏启动字母雨与首页动画统一使用 C 原生 `cmatrix-uni`，显式选择混合字符集 `-l m`。全屏动画仍为两秒、20ms 刷新；首页为 50ms 刷新。两处均开启 `-a`，每列随机选择不同下落节奏。终端 Neovim 首页继续使用原 CMatrix。原 Unimatrix 仍安装保留，可用于对照。
 
 Unimatrix 默认字符包含半角片假名、数字和符号；`unimatrix -l k` 可单独查看半角片假名。`ｱ` 是一格宽，`ア` 是两格宽，不能只靠切换等宽字体让全角字占一格。原版 CMatrix 2.0 不能仅靠参数完全复刻这套字符与下落细节，故本包保留两个程序，并另带一个修改版 CMatrix 的独立 `--unimatrix` 模式。修改版将纵向长度区间、生成／擦除交替、白头概率、列间距和异步调度公式与原 Python 版对齐；同步／异步各 50 帧受控事件对照一致。可运行 `cmatrix-uni -o -s 98` 对比；`cmatrix-uni -o -s 98 -l k` 为纯半角片假名。它不是把 Python 放在后台运行，也不声称随机序列或所有 Unimatrix 可选字符集逐项完全相同。
 

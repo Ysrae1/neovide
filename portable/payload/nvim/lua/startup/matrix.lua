@@ -68,7 +68,7 @@ local function open_intro()
     return
   end
   intro.win = win
-  local started, job = pcall(vim.fn.jobstart, { "cmatrix-uni", "-o", "-s", "98", "-l", "m" }, {
+  local started, job = pcall(vim.fn.jobstart, { "cmatrix-uni", "-o", "-s", "98", "-l", "m", "-a" }, {
     term = true,
     on_exit = function()
       vim.schedule(cleanup)
