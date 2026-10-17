@@ -1,0 +1,6 @@
+Original icon: Marc Oliver Orth (marc2o)
+Copyright (c) 2022 Marc Oliver Orth
+Source: https://github.com/marc2o/Neovide-macOS-Icon
+License: MIT; see Icon-LICENSE.txt / LICENSE.
+This derivative preserves the original artwork and adapts its material in Icon Composer for Liquid Glass.
+Liquid Glass adaptation and installer customization: Ysrae1.

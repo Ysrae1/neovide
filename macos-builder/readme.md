@@ -75,3 +75,27 @@ create-dmg \
 
 - Ensure all paths and filenames are correct and that the necessary files (like `Neovide.icns` and `neovide-dmg-background.tiff`) are present in their respective directories.
 - The script assumes a macOS environment with the necessary tools installed.
+
+## Native layered icon in this fork
+
+The application remains a Rust/Cargo project. When `assets/Neovide.icon` is
+present, `macos-builder/run` calls `macos-builder/make-native-icon` before signing
+the generated app. The helper uses `xcrun actool` from an Xcode installation with
+Icon Composer support to compile the layered source into `Assets.car` and add
+its `CFBundleIconName` to the generated bundle. No Xcode project is required.
+Select that Xcode installation with `xcode-select` if `actool` is unavailable.
+An icon compilation failure stops packaging before signing.
+
+The source preserves the original Sketch material as a PNG plus an independent
+glass surface. The Default and Dark appearances both keep the white base,
+without a separate dark-background variation. Marc Oliver Orth's original MIT
+license and the adaptation attribution are copied into the app's Resources;
+see [the asset documentation](../assets/README.md) for the original logo notices
+and editable artwork.
+
+Before packaging changed static artwork, run `macos-builder/make-icns` to
+regenerate `Neovide.icns` and the retina background TIFF from the supplied PNGs.
+The generated app retains `Neovide.icns` and `CFBundleIconFile` as the legacy
+fallback, and the DMG uses that ICNS as its volume icon. The existing signing
+sequence, installer layout, and drag-to-Applications step remain unchanged.
+The build produces an installer; it does not replace an installed app.
