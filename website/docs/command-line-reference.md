@@ -211,6 +211,19 @@ tabs to avoid confusing new users. `--no-tabs` disables this behavior.
 Note: Even if files are opened in tabs, they're buffers anyways. It's just about them being visible
 or not.
 
+### Startup Message Capture
+
+```sh
+--no-startup-message-capture, --startup-message-capture or $NEOVIDE_STARTUP_MESSAGE_CAPTURE=0|1
+```
+
+**Nightly.**
+
+By default, Neovide temporarily captures startup messages so errors can be shown before the first
+grid render. `--no-startup-message-capture` disables that temporary
+external message UI path for plugins that need to initialize without another UI client advertising
+`ext_messages` or `ext_cmdline`
+
 ### Reuse Existing Instance (macOS Only)
 
 ```sh
@@ -259,10 +272,9 @@ as with `--reuse-instance` works.
 --no-system-native-tabs, --system-native-tabs or $NEOVIDE_SYSTEM_NATIVE_TABS=0|1
 ```
 
-Neovide merges macOS windows into a single host window automatically and hides the native tab bar by
-default to mimic a standalone window. Enable this option to keep the tab bar visible so every window
-shows up as a tab immediately. The setting applies to windows opened through both global shortcuts
-and the Editors menu entry.
+Neovide can merge macOS windows into a single native tab group. Enable this option to keep the tab
+bar visible when multiple Neovide windows are grouped as tabs or leave it disabled to keep separate
+windows.
 
 ### Menu Shortcuts
 
@@ -280,6 +292,9 @@ Remaps the macOS menu shortcuts used by Neovide. The defaults are `cmd+h`, `cmd+
 `cmd+n`, `cmd+m`, `cmd+ctrl+f`, and `cmd+shift+e` for Hide, Hide Others, Quit, New Window,
 Minimize, Enter Full Screen, and Editors respectively. Set any of them to `false` or leave them
 empty to remove the shortcut while keeping the menu item available.
+
+`--system-show-all-tabs-hotkey` remaps Window > Editors. The menu item opens the Editors
+switcher with either separate windows or native tabs.
 
 ### System Tab Navigation
 

@@ -93,6 +93,16 @@ vim.api.nvim_create_user_command("NeovideFocus", function()
     rpcnotify("neovide.focus_window")
 end, {})
 
+local function open_neovide_help()
+    local _, err = vim.ui.open("https://neovide.dev/")
+    if err then
+        vim.notify(err, vim.log.levels.ERROR, { title = "Neovide" })
+    end
+end
+
+vim.api.nvim_create_user_command("NeovideHelp", open_neovide_help, {
+    desc = "Open Neovide documentation",
+})
 
 if vim.fn.has("mac") == 1 then
     local URL_PATTERN = "https?://[%w-_%.]+%.%w[%w-_%.%%%?%.:/+=&%%[%]#]*"
@@ -285,10 +295,20 @@ end
 -- Create auto command for retrieving exit code from neovim on quit.
 vim.api.nvim_create_autocmd({ "VimLeavePre" }, {
     pattern = "*",
-    once = true,
     nested = true,
     callback = function()
+        -- plugins like minimap.vim replays exit events before :quit from a
+        -- non-nested WinEnter autocmd, where the real exit events are
+        -- suppressed. https://github.com/wfxr/minimap.vim/pull/36
+        --
+        -- v:exiting is still unset so we keep this callback for any later real exit.
+        if vim.v.exiting == vim.NIL then
+            return
+        end
+
         rpcrequest("neovide.quit", vim.v.exiting)
+
+        return true
     end,
 })
 
@@ -430,18 +450,19 @@ vim.api.nvim_create_autocmd("OptionSet", {
 
 notify_intro_state()
 
-pcall(vim.api.nvim_create_autocmd, 'Progress', {
-    group = vim.api.nvim_create_augroup('NeovideProgressBar', { clear = true }),
-    desc = 'Forward progress events to Neovide',
+pcall(vim.api.nvim_create_autocmd, "Progress", {
+    group = vim.api.nvim_create_augroup("NeovideProgressBar", { clear = true }),
+    desc = "Forward progress events to Neovide",
     callback = function(ev)
-        if ev.data and ev.data.status == 'running' then
+        if ev.data then
             progress_bar({
-                percent = ev.data.percent or 0,
+                id = ev.data.id,
+                source = ev.data.source,
+                status = ev.data.status,
+                percent = ev.data.percent,
                 title = ev.data.title or "",
                 message = ev.data.message or "",
             })
-        else
-            progress_bar({ percent = 100 })
         end
     end,
 })

@@ -899,8 +899,8 @@ augroup ime_input
     autocmd!
     autocmd InsertLeave * execute "let g:neovide_input_ime=v:false"
     autocmd InsertEnter * execute "let g:neovide_input_ime=v:true"
-    autocmd CmdlineLeave [/\?] execute "let g:neovide_input_ime=v:false"
-    autocmd CmdlineEnter [/\?] execute "let g:neovide_input_ime=v:true"
+    autocmd CmdlineLeave [\/\?] execute "let g:neovide_input_ime=v:false"
+    autocmd CmdlineEnter [\/\?] execute "let g:neovide_input_ime=v:true"
 augroup END
 ```
 
@@ -923,7 +923,7 @@ vim.api.nvim_create_autocmd({ "InsertEnter", "InsertLeave" }, {
 
 vim.api.nvim_create_autocmd({ "CmdlineEnter", "CmdlineLeave" }, {
     group = ime_input,
-    pattern = "[/\\?]",
+    pattern = "[\\/\\?]",
     callback = set_ime
 })
 ```
@@ -941,8 +941,9 @@ until more than one tab exists to keep a clean single-window look.
 Use Window > New Window (default: `cmd+n`) or the Dock menu to open another Neovide window. If
 native tabs are enabled, new windows become tabs in the host window.
 
-If you have native tabs enabled, the Window menu shows an Editors entry and the Editors hotkey
-becomes available. You can also remap the in-app tab cycling shortcuts.
+The Window menu includes an Editors entry that opens Neovide's editor switcher for both separate
+windows or native tabs. If you use native tabs, you can also remap the in-app tab cycling
+shortcuts.
 
 #### macOS Global Activation Shortcuts
 
@@ -951,10 +952,9 @@ Neovide registers system-wide shortcuts on macOS:
 - **Pinned** <kbd>⌘</kbd> + <kbd>⌃</kbd> + <kbd>Z</kbd> toggles the most recently used Neovide
   window. If that window is already active, the shortcut hides it; otherwise it brings the window
   to the front.
-- **Editors** <kbd>⌘</kbd> + <kbd>⌃</kbd> + <kbd>N</kbd> opens the Editors (tab overview) view so
-  you can pick another Neovide window. This shortcut is only available when
-  `system-native-tabs = true` and if only one window exists, it behaves the same as the pinned
-  shortcut.
+- **Editors** <kbd>⌘</kbd> + <kbd>⌃</kbd> + <kbd>N</kbd> opens the Editors switcher so you can
+  search and pick another Neovide window or tab. The switcher is available with either separate
+  windows or native tabs.
 
 Customize them by setting the environment variables:
 
@@ -991,6 +991,8 @@ system-show-all-tabs-hotkey = "cmd+shift+e"
 
 Set any of them to `false` (or an empty value) to remove the menu shortcut while keeping the menu
 item.
+
+`system-show-all-tabs-hotkey` remaps Window > Editors.
 
 When `system-native-tabs` is enabled, you can also customize the in-app tab navigation shortcuts:
 
@@ -1469,8 +1471,8 @@ more "nervous", the lower, the more it looks like a collapsing sine wave.
 
 ### Automatic settings, should be turned on/off for debug purposes only
 
-Note: These settings will be removed when the features are deemed stable. In most cases they are
-only here because the automatic detection of Neovim nightly versions does not always work.
+Note: These settings will be removed when the features are deemed stable. They can be used to
+disable features for troubleshooting.
 
 #### Autodetect mouse grid
 
@@ -1488,8 +1490,5 @@ vim.g.neovide_has_mouse_grid_detection = true
 
 **Available since 0.16.0.**
 
-**Requires Neovim 0.12.0.**
-
 Neovim will detect the mouse grid for much better mouse compatibility when enabled. This is
-automaticaly enabled starting from Neovim Nightly September 20. 2025. You should not try to enable
-it manually for unsupported versions, since the behaviour is undefined.
+automatically enabled when the neovim version supports it.

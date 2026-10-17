@@ -188,7 +188,7 @@ impl Editor {
             current_mode_index: None,
             current_mode: EditorMode::Normal,
             ui_ready: false,
-            startup_message_capture: StartupMessageCapture::BeforeFirstGrid,
+            startup_message_capture: StartupMessageCapture::Finished,
             settings,
             event_loop_proxy,
             route_id,
@@ -1217,7 +1217,7 @@ impl Editor {
     }
 
     fn set_option(&mut self, gui_option: GuiOption) {
-        trace!("Option set {:?}", &gui_option);
+        trace!("Option set {:?}", gui_option);
 
         match gui_option {
             GuiOption::GuiFont(guifont) => {

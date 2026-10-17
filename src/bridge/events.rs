@@ -12,7 +12,7 @@ use strum::AsRefStr;
 use super::RestartDetails;
 use crate::{
     editor::{Colors, CursorMode, CursorShape, Style, UnderlineStyle},
-    window::UserEvent,
+    window::{ProgressBarUpdate, UserEvent},
 };
 
 #[derive(Clone, Debug)]
@@ -553,10 +553,7 @@ fn parse_set_title(set_title_arguments: Vec<Value>) -> Result<RedrawEvent> {
 }
 
 fn parse_restart(arguments: Vec<Value>) -> Result<RedrawEvent> {
-    RestartDetails::from_values(&arguments).map_or_else(
-        || Err(ParseError::Format(format!("invalid restart event: {arguments:?}"))),
-        |details| Ok(RedrawEvent::Restart { details }),
-    )
+    RestartDetails::from_values(arguments).map(|details| RedrawEvent::Restart { details })
 }
 
 fn parse_mode_info_set(mode_info_set_arguments: Vec<Value>) -> Result<RedrawEvent> {
@@ -1144,15 +1141,40 @@ pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
     Ok(parsed_events)
 }
 
+fn parse_map_field<'a>(map: &'a [(Value, Value)], key: &str) -> Option<&'a Value> {
+    map.iter().find_map(|(name, value)| (name.as_str() == Some(key)).then_some(value))
+}
+
+fn parse_progress_id(value: &Value) -> Option<String> {
+    value
+        .as_str()
+        .map(ToOwned::to_owned)
+        .or_else(|| value.as_i64().map(|value| value.to_string()))
+        .or_else(|| value.as_u64().map(|value| value.to_string()))
+}
+
+fn parse_progress_string(value: &Value) -> Option<String> {
+    value.as_str().map(ToOwned::to_owned)
+}
+
+fn parse_progress_percent(value: &Value) -> Option<f32> {
+    value
+        .as_f64()
+        .map(|value| value as f32)
+        .or_else(|| value.as_i64().map(|value| value as f32))
+        .or_else(|| value.as_u64().map(|value| value as f32))
+}
+
 pub fn parse_progress_bar_event(value: Option<&Value>) -> Option<UserEvent> {
     let map = value.filter(|v| matches!(v, Value::Map(_)))?.as_map()?;
-    let percent = map
-        .iter()
-        .find(|(key, _)| key.as_str() == Some("percent"))
-        .and_then(|(_, value)| value.as_f64())
-        .unwrap_or(0.0) as f32;
+    let update = ProgressBarUpdate {
+        id: parse_map_field(map, "id").and_then(parse_progress_id),
+        source: parse_map_field(map, "source").and_then(parse_progress_string),
+        status: parse_map_field(map, "status").and_then(parse_progress_string),
+        percent: parse_map_field(map, "percent").and_then(parse_progress_percent),
+    };
 
-    Some(UserEvent::ShowProgressBar { percent })
+    Some(UserEvent::ShowProgressBar { update })
 }
 
 #[cfg(test)]
