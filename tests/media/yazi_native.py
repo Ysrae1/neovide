@@ -63,7 +63,7 @@ def main():
             first_id = show[1]
             assert first_id >= 2000000 and show[2]["overlay"]
             status = statuses()[0]
-            assert status["path"] == str(picture)
+            assert status["source"] == str(picture)
             assert status["region"]["w"] == show[2]["width"]
             # Real Yazi popup layer: rename opens its own dialog inside the
             # terminal, rather than a Neovim floating window.
@@ -72,7 +72,7 @@ def main():
             editor.exec_lua("vim.api.nvim_chan_send(vim.bo[...].channel, string.char(3))", terminal)
             wait_until(lambda: any(call[0] == "neovide.image.load" and call[1] != first_id for call in editor.exec_lua("return _calls")), "popup dismiss restoration")
             editor.exec_lua("_api:reveal(...)", str(second))
-            wait_until(lambda: any(call[0] == "neovide.image.load" and call[2] == str(second) for call in editor.exec_lua("return _calls")), "second image selection")
+            wait_until(lambda: any(value.get("source") == str(second) and "id" in value for value in statuses()), "second image selection")
             editor.exec_lua("_api:reveal(...)", str(text))
             wait_until(lambda: all("id" not in value for value in statuses()), "non-image release")
             assert (config_home / "yazi.toml").read_text() == original_config
