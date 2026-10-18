@@ -1,4 +1,4 @@
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use skia_safe::{
     BlendMode, Canvas, Color, Color4f, Matrix, Paint, Path, PathBuilder, Picture, PictureRecorder,
@@ -19,10 +19,9 @@ use crate::{
 pub const BASE_GRID_ID: u64 = 1;
 pub const NO_MULTIGRID_GRID_ID: u64 = 0;
 
-// Window layouts can leave a tiny remainder past the last full grid cell when
-// the content size is not an exact multiple of the cell size. We extend edge
-// backgrounds slightly into that gap, capped to one cell so the grid never
-// appears visibly stretched if it briefly lags a resize.
+// Fill only the horizontal remainder after the last complete cell. The strip
+// below the last complete row retains the window's default background. Cap the
+// horizontal fill to one cell so a grid briefly lagging a resize is not stretched.
 const MAX_EDGE_FILL_CELLS: f32 = 1.0;
 
 #[derive(Debug)]
@@ -72,55 +71,11 @@ pub enum WindowDrawCommand {
 struct RenderedLine {
     line: Line,
     background_picture: Option<Picture>,
-    background_runs: CachedBackgroundRuns,
     foreground_picture: Option<Picture>,
     boxchar_picture: Option<(Picture, PixelPos<f32>)>,
     trailing_background: Option<Color4f>,
     has_transparency: bool,
     is_valid: bool,
-}
-
-/// Background color for a half-open cell range on one rendered line.
-#[derive(Clone, Copy)]
-struct BackgroundRun {
-    start_cell: u32,
-    end_cell: u32,
-    color: Color4f,
-}
-
-/// The normal background picture still draws the line itself. These runs keep enough per-column
-/// color information to extend a fractional bottom edge using the bottom row's actual background
-/// colors, without replaying line fragments or filling the strip with one flat color.
-#[derive(Default)]
-struct CachedBackgroundRuns {
-    runs: Vec<BackgroundRun>,
-}
-
-impl CachedBackgroundRuns {
-    fn push(&mut self, cells: Range<u32>, color: Color4f) {
-        if cells.is_empty() {
-            return;
-        }
-
-        if let Some(last) = self.runs.last_mut()
-            && last.color == color
-            && last.end_cell == cells.start
-        {
-            last.end_cell = cells.end;
-            return;
-        }
-
-        self.runs.push(BackgroundRun { start_cell: cells.start, end_cell: cells.end, color });
-    }
-
-    fn iter(&self) -> impl Iterator<Item = &BackgroundRun> {
-        self.runs.iter()
-    }
-
-    #[cfg(test)]
-    fn len(&self) -> usize {
-        self.runs.len()
-    }
 }
 
 pub struct RenderedWindow {
@@ -384,7 +339,6 @@ impl RenderedWindow {
         grid_scale: GridScale,
         content_region: Option<PixelRect<f32>>,
         rightmost_window: bool,
-        bottommost_window: bool,
     ) -> WindowDrawDetails {
         let pixel_region_box = self.pixel_region(grid_scale);
         let draw_region_box = self.expanded_pixel_region(
@@ -413,18 +367,11 @@ impl RenderedWindow {
 
         root_canvas.restore();
 
-        let window_region_box = self.expanded_bottom_pixel_region(
-            draw_region_box,
-            content_region,
-            grid_scale,
-            bottommost_window,
-        );
-
-        self.draw_edge_background_surface(root_canvas, window_region_box, grid_scale);
+        self.draw_edge_background_surface(root_canvas, draw_region_box, grid_scale);
 
         WindowDrawDetails {
             id: self.id,
-            region: window_region_box,
+            region: draw_region_box,
             grid_size: self.grid_size,
             window_type: self.window_type,
         }
@@ -451,34 +398,13 @@ impl RenderedWindow {
         region
     }
 
-    pub fn expanded_bottom_pixel_region(
-        &self,
-        pixel_region: PixelRect<f32>,
-        content_region: Option<PixelRect<f32>>,
-        grid_scale: GridScale,
-        bottommost_window: bool,
-    ) -> PixelRect<f32> {
-        let Some(content_region) = content_region else {
-            return pixel_region;
-        };
-
-        let mut region = pixel_region;
-        if bottommost_window
-            && sub_cell_edge_gap(content_region.max.y, region.max.y, grid_scale.height()).is_some()
-        {
-            region.max.y = content_region.max.y;
-        }
-
-        region
-    }
-
     pub fn draw_edge_background_surface(
         &self,
         canvas: &Canvas,
         pixel_region: PixelRect<f32>,
         grid_scale: GridScale,
     ) {
-        self.edge_background_fills(pixel_region, grid_scale).draw(canvas, pixel_region);
+        self.trailing_background_fills(pixel_region, grid_scale).draw(canvas, pixel_region);
     }
 
     pub fn edge_background_path_and_bounds(
@@ -486,17 +412,7 @@ impl RenderedWindow {
         pixel_region: PixelRect<f32>,
         grid_scale: GridScale,
     ) -> Option<(Path, Rect)> {
-        self.edge_background_fills(pixel_region, grid_scale).path_and_bounds()
-    }
-
-    fn edge_background_fills(
-        &self,
-        expanded_region: PixelRect<f32>,
-        grid_scale: GridScale,
-    ) -> BackgroundFills {
-        let mut fills = self.trailing_background_fills(expanded_region, grid_scale);
-        fills.extend(self.bottom_background_fills(expanded_region, grid_scale));
-        fills
+        self.trailing_background_fills(pixel_region, grid_scale).path_and_bounds()
     }
 
     fn trailing_background_fills(
@@ -562,92 +478,6 @@ impl RenderedWindow {
         }
 
         fills
-    }
-
-    fn bottom_background_fills(
-        &self,
-        expanded_region: PixelRect<f32>,
-        grid_scale: GridScale,
-    ) -> BackgroundFills {
-        let base_region = self.pixel_region(grid_scale);
-        let Some(fill_area) = BottomFillArea::new(expanded_region, base_region, grid_scale) else {
-            return BackgroundFills::default();
-        };
-
-        let Some(line) = self.line_covering_bottom_edge(base_region, grid_scale) else {
-            return BackgroundFills::default();
-        };
-
-        let line = line.borrow();
-        let mut fills = BackgroundFills::default();
-        for run in line.background_runs.iter() {
-            if let Some(rect) = fill_area.rect_for_cells(run.start_cell, run.end_cell, grid_scale) {
-                fills.push(rect, run.color);
-            }
-        }
-
-        if let Some(color) = line.trailing_background
-            && let Some(rect) = fill_area.trailing_corner_rect()
-        {
-            fills.push(rect, color);
-        }
-
-        fills
-    }
-
-    fn line_covering_bottom_edge(
-        &self,
-        base_region: PixelRect<f32>,
-        grid_scale: GridScale,
-    ) -> Option<&Rc<RefCell<RenderedLine>>> {
-        let line_height = grid_scale.height();
-        let bottom_y = base_region.max.y;
-
-        if let Some(line) = self
-            .border_line_positions(base_region, grid_scale)
-            .find(|positioned_line| positioned_line.covers_y(bottom_y, line_height))
-            .map(|positioned_line| positioned_line.line)
-        {
-            return Some(line);
-        }
-
-        let inner_region = self.inner_region(base_region, grid_scale);
-        if inner_region.bottom < bottom_y - f32::EPSILON {
-            return None;
-        }
-
-        self.scrollable_line_positions(base_region, grid_scale)
-            .filter(|positioned_line| positioned_line.covers_y(bottom_y, line_height))
-            .last()
-            .map(|positioned_line| positioned_line.line)
-    }
-
-    fn border_line_positions(
-        &self,
-        base_region: PixelRect<f32>,
-        grid_scale: GridScale,
-    ) -> impl Iterator<Item = PositionedRenderedLine<'_>> {
-        let line_height = grid_scale.height();
-        self.iter_border_lines().map(move |(row, line)| {
-            PositionedRenderedLine::new(base_region.min.y + row as f32 * line_height, line)
-        })
-    }
-
-    fn scrollable_line_positions(
-        &self,
-        base_region: PixelRect<f32>,
-        grid_scale: GridScale,
-    ) -> impl Iterator<Item = PositionedRenderedLine<'_>> {
-        let line_height = grid_scale.height();
-        let scroll_offset_pixels = self.scroll_offset_pixels(line_height);
-        let top_margin = self.viewport_margins.top as isize;
-
-        self.iter_scrollable_lines().map(move |(row, line)| {
-            PositionedRenderedLine::new(
-                base_region.min.y + scroll_offset_pixels + (row + top_margin) as f32 * line_height,
-                line,
-            )
-        })
     }
 
     fn scroll_offset_pixels(&self, line_height: f32) -> f32 {
@@ -805,7 +635,6 @@ impl RenderedWindow {
                 let line = RenderedLine {
                     line,
                     background_picture: None,
-                    background_runs: CachedBackgroundRuns::default(),
                     foreground_picture: None,
                     boxchar_picture: None,
                     trailing_background: None,
@@ -1021,17 +850,12 @@ impl RenderedWindow {
 
             let mut has_transparency = false;
             let mut custom_background = false;
-            let mut background_runs = CachedBackgroundRuns::default();
 
             for line_fragment in line.line.fragments() {
                 let LineFragment { cells, style, .. } = line_fragment;
                 let background_info = grid_renderer.draw_background(canvas, cells, style, opacity);
                 custom_background |= background_info.custom_color;
                 has_transparency |= background_info.transparent;
-                if background_info.custom_color {
-                    let color = grid_renderer.background_paint_color(style, opacity);
-                    background_runs.push(cells.clone(), color);
-                }
             }
             let background_picture =
                 custom_background.then_some(recorder.finish_recording_as_picture(None).unwrap());
@@ -1048,6 +872,7 @@ impl RenderedWindow {
                     boxchar_canvas,
                     &line_fragment,
                     position,
+                    opacity,
                 );
                 text_drawn |= frag_text_drawn;
                 boxchar_drawn |= frag_box_drawn;
@@ -1065,7 +890,6 @@ impl RenderedWindow {
                 .map(|fragment| grid_renderer.background_paint_color(fragment.style, opacity));
 
             line.background_picture = background_picture;
-            line.background_runs = background_runs;
             line.foreground_picture = foreground_picture;
             line.boxchar_picture = boxchar_picture;
             line.trailing_background = trailing_background;
@@ -1101,21 +925,6 @@ impl RenderedWindow {
     }
 }
 
-struct PositionedRenderedLine<'a> {
-    top: f32,
-    line: &'a Rc<RefCell<RenderedLine>>,
-}
-
-impl PositionedRenderedLine<'_> {
-    fn new(top: f32, line: &Rc<RefCell<RenderedLine>>) -> PositionedRenderedLine<'_> {
-        PositionedRenderedLine { top, line }
-    }
-
-    fn covers_y(&self, y: f32, height: f32) -> bool {
-        self.top < y && self.top + height >= y - f32::EPSILON
-    }
-}
-
 struct BackgroundFillRect {
     rect: Rect,
     color: Color4f,
@@ -1134,10 +943,6 @@ impl BackgroundFills {
         }
 
         self.rects.push(BackgroundFillRect { rect, color });
-    }
-
-    fn extend(&mut self, fills: Self) {
-        self.rects.extend(fills.rects);
     }
 
     fn draw(&self, canvas: &Canvas, clip_region: PixelRect<f32>) {
@@ -1172,62 +977,6 @@ impl BackgroundFills {
     }
 }
 
-/// Geometry for filling the fractional strip below a grid.
-struct BottomFillArea {
-    grid_region: PixelRect<f32>,
-    bottom_gap_height: f32,
-    right_gap_width: Option<f32>,
-}
-
-impl BottomFillArea {
-    fn new(
-        fill_region: PixelRect<f32>,
-        grid_region: PixelRect<f32>,
-        grid_scale: GridScale,
-    ) -> Option<Self> {
-        let bottom_gap_height =
-            sub_cell_edge_gap(fill_region.max.y, grid_region.max.y, grid_scale.height())?;
-
-        let right_gap_width =
-            sub_cell_edge_gap(fill_region.max.x, grid_region.max.x, grid_scale.width());
-
-        Some(Self { grid_region, bottom_gap_height, right_gap_width })
-    }
-
-    fn rect_for_cells(
-        &self,
-        start_cell: u32,
-        end_cell: u32,
-        grid_scale: GridScale,
-    ) -> Option<Rect> {
-        if start_cell >= end_cell {
-            return None;
-        }
-
-        let left = self.grid_region.min.x + start_cell as f32 * grid_scale.width();
-        let right = (self.grid_region.min.x + end_cell as f32 * grid_scale.width())
-            .min(self.grid_region.max.x);
-
-        (right > left).then_some(Rect::from_xywh(
-            left,
-            self.grid_region.max.y,
-            right - left,
-            self.bottom_gap_height,
-        ))
-    }
-
-    fn trailing_corner_rect(&self) -> Option<Rect> {
-        self.right_gap_width.map(|width| {
-            Rect::from_xywh(
-                self.grid_region.max.x,
-                self.grid_region.max.y,
-                width,
-                self.bottom_gap_height,
-            )
-        })
-    }
-}
-
 fn sub_cell_edge_gap(expanded_edge: f32, base_edge: f32, cell_extent: f32) -> Option<f32> {
     let extra_extent = expanded_edge - base_edge;
     if extra_extent > 0.0 && extra_extent <= cell_extent * MAX_EDGE_FILL_CELLS + f32::EPSILON {
@@ -1258,18 +1007,11 @@ fn push_fill_rect_path(builder: &mut PathBuilder, bounds: &mut Option<Rect>, rec
 #[cfg(test)]
 mod tests {
     use crate::units::PixelSize;
-    use skia_safe::Color4f;
 
     use super::*;
 
     fn grid_scale() -> GridScale {
         GridScale::new(PixelSize::new(8.0, 16.0))
-    }
-
-    fn rendered_window() -> RenderedWindow {
-        let mut window = RenderedWindow::new(BASE_GRID_ID);
-        window.grid_size = GridSize::new(80, 24);
-        window
     }
 
     #[test]
@@ -1281,165 +1023,76 @@ mod tests {
     }
 
     #[test]
-    fn cached_background_runs_coalesce_adjacent_same_color() {
-        let color = Color4f::new(0.1, 0.2, 0.3, 1.0);
-        let other_color = Color4f::new(0.4, 0.5, 0.6, 1.0);
-        let mut runs = CachedBackgroundRuns::default();
+    fn fractional_bottom_gap_keeps_default_background_in_root_and_floating_windows() {
+        use crate::renderer::rendered_layer::FloatingLayer;
+        use skia_safe::surfaces;
 
-        runs.push(0..2, color);
-        runs.push(2..4, color);
-        runs.push(4..5, other_color);
-        runs.push(5..6, other_color);
-
-        assert_eq!(runs.len(), 2);
-        let runs = runs.iter().collect::<Vec<_>>();
-        assert_eq!(runs[0].start_cell, 0);
-        assert_eq!(runs[0].end_cell, 4);
-        assert_eq!(runs[0].color, color);
-        assert_eq!(runs[1].start_cell, 4);
-        assert_eq!(runs[1].end_cell, 6);
-        assert_eq!(runs[1].color, other_color);
-    }
-
-    #[test]
-    fn bottom_fill_area_rect_for_cells_uses_grid_region_and_clamps_to_grid() {
         let grid_scale = grid_scale();
-        let grid_region = PixelRect::new(PixelPos::new(10.0, 20.0), PixelPos::new(90.0, 52.0));
-        let fill_region = PixelRect::new(
-            grid_region.min,
-            PixelPos::new(grid_region.max.x, grid_region.max.y + 7.0),
-        );
-        let fill_area = BottomFillArea::new(fill_region, grid_region, grid_scale).unwrap();
+        let background = Color::from_rgb(11, 14, 20);
+        let left_color = Color::from_rgb(240, 70, 100);
+        let right_color = Color::from_rgb(0, 190, 240);
+        let content_region = PixelRect::new(PixelPos::new(0.0, 0.0), PixelPos::new(35.0, 39.0));
 
-        let rect = fill_area.rect_for_cells(8, 12, grid_scale).unwrap();
+        for floating in [false, true] {
+            let mut window = RenderedWindow::new(BASE_GRID_ID);
+            window.handle_window_draw_command(WindowDrawCommand::Position {
+                grid_position: (0.0, 0.0),
+                grid_size: (4, 2),
+                anchor_info: None,
+                window_type: WindowType::Editor,
+            });
+            window.viewport_margins = ViewportMargins { top: 0, bottom: 1 };
+            let mut recorder = PictureRecorder::new();
+            let canvas = recorder.begin_recording(Rect::from_wh(32.0, 16.0), false);
+            let mut paint = Paint::default();
+            paint.set_color(left_color);
+            canvas.draw_rect(Rect::from_xywh(0.0, 0.0, 16.0, 16.0), &paint);
+            paint.set_color(right_color);
+            canvas.draw_rect(Rect::from_xywh(16.0, 0.0, 16.0, 16.0), &paint);
+            window.actual_lines[1] = Some(Rc::new(RefCell::new(RenderedLine {
+                line: Line::empty(),
+                background_picture: recorder.finish_recording_as_picture(None),
+                foreground_picture: None,
+                boxchar_picture: None,
+                trailing_background: Some(right_color.into()),
+                has_transparency: false,
+                is_valid: true,
+            })));
 
-        assert_eq!(rect.left, 74.0);
-        assert_eq!(rect.top, 52.0);
-        assert_eq!(rect.right, 90.0);
-        assert_eq!(rect.bottom, 59.0);
-    }
+            let mut surface = surfaces::raster_n32_premul((35, 39)).unwrap();
+            surface.canvas().clear(background);
+            let region = if floating {
+                let settings = RendererSettings {
+                    floating_shadow: false,
+                    floating_blur: false,
+                    floating_corner_radius: 0.0,
+                    ..RendererSettings::default()
+                };
+                FloatingLayer { windows: vec![&mut window] }
+                    .draw(surface.canvas(), &settings, background, grid_scale, Some(content_region))
+                    .remove(0)
+                    .region
+            } else {
+                window
+                    .draw(surface.canvas(), background, grid_scale, Some(content_region), true)
+                    .region
+            };
+            assert_eq!(region.max, PixelPos::new(35.0, 32.0));
 
-    #[test]
-    fn bottom_fill_area_trailing_corner_uses_bottom_right_gap() {
-        let grid_scale = grid_scale();
-        let grid_region = PixelRect::new(PixelPos::new(10.0, 20.0), PixelPos::new(90.0, 52.0));
-        let fill_region = PixelRect::new(
-            grid_region.min,
-            PixelPos::new(grid_region.max.x + 3.0, grid_region.max.y + 7.0),
-        );
-        let fill_area = BottomFillArea::new(fill_region, grid_region, grid_scale).unwrap();
-
-        let rect = fill_area.trailing_corner_rect().unwrap();
-
-        assert_eq!(rect.left, 90.0);
-        assert_eq!(rect.top, 52.0);
-        assert_eq!(rect.right, 93.0);
-        assert_eq!(rect.bottom, 59.0);
-    }
-
-    fn test_rendered_line() -> Rc<RefCell<RenderedLine>> {
-        Rc::new(RefCell::new(RenderedLine {
-            line: Line::empty(),
-            background_picture: None,
-            background_runs: CachedBackgroundRuns::default(),
-            foreground_picture: None,
-            boxchar_picture: None,
-            trailing_background: None,
-            has_transparency: false,
-            is_valid: true,
-        }))
-    }
-
-    fn positioned_rendered_window(grid_size: (u64, u64)) -> RenderedWindow {
-        let mut window = RenderedWindow::new(BASE_GRID_ID);
-        window.handle_window_draw_command(WindowDrawCommand::Position {
-            grid_position: (0.0, 0.0),
-            grid_size,
-            anchor_info: None,
-            window_type: WindowType::Editor,
-        });
-        window
-    }
-
-    #[test]
-    fn bottom_edge_line_prefers_bottom_border_then_scrollable_line() {
-        let grid_scale = grid_scale();
-        let mut window = positioned_rendered_window((20, 4));
-        let base_region = window.pixel_region(grid_scale);
-
-        let border_line = test_rendered_line();
-        let scroll_line = test_rendered_line();
-        window.actual_lines[3] = Some(Rc::clone(&border_line));
-        window.scrollback_lines[3] = Some(Rc::clone(&scroll_line));
-
-        window.viewport_margins = ViewportMargins { top: 0, bottom: 1 };
-        let line = window.line_covering_bottom_edge(base_region, grid_scale).unwrap();
-        assert!(Rc::ptr_eq(line, &border_line));
-
-        window.viewport_margins = ViewportMargins { top: 0, bottom: 0 };
-        let line = window.line_covering_bottom_edge(base_region, grid_scale).unwrap();
-        assert!(Rc::ptr_eq(line, &scroll_line));
-    }
-
-    #[test]
-    fn bottom_region_expands_for_bottommost_sub_cell_gap() {
-        let window = rendered_window();
-        let grid_scale = grid_scale();
-        let pixel_region = window.pixel_region(grid_scale);
-        let content_region = PixelRect::new(
-            pixel_region.min,
-            PixelPos::new(pixel_region.max.x, pixel_region.max.y + 7.0),
-        );
-
-        let expanded = window.expanded_bottom_pixel_region(
-            pixel_region,
-            Some(content_region),
-            grid_scale,
-            true,
-        );
-
-        assert_eq!(expanded.min, pixel_region.min);
-        assert_eq!(expanded.max.x, pixel_region.max.x);
-        assert_eq!(expanded.max.y, content_region.max.y);
-    }
-
-    #[test]
-    fn bottom_region_does_not_expand_for_non_bottommost_window() {
-        let window = rendered_window();
-        let grid_scale = grid_scale();
-        let pixel_region = window.pixel_region(grid_scale);
-        let content_region = PixelRect::new(
-            pixel_region.min,
-            PixelPos::new(pixel_region.max.x, pixel_region.max.y + 7.0),
-        );
-
-        let expanded = window.expanded_bottom_pixel_region(
-            pixel_region,
-            Some(content_region),
-            grid_scale,
-            false,
-        );
-
-        assert_eq!(expanded, pixel_region);
-    }
-
-    #[test]
-    fn bottom_region_does_not_expand_past_one_cell() {
-        let window = rendered_window();
-        let grid_scale = grid_scale();
-        let pixel_region = window.pixel_region(grid_scale);
-        let content_region = PixelRect::new(
-            pixel_region.min,
-            PixelPos::new(pixel_region.max.x, pixel_region.max.y + grid_scale.height() + 1.0),
-        );
-
-        let expanded = window.expanded_bottom_pixel_region(
-            pixel_region,
-            Some(content_region),
-            grid_scale,
-            true,
-        );
-
-        assert_eq!(expanded, pixel_region);
+            let pixels = surface.peek_pixels().unwrap();
+            assert_eq!(pixels.get_color((4, 31)), left_color);
+            assert_eq!(pixels.get_color((24, 31)), right_color);
+            // Keep the right-hand fractional fill within the complete status line.
+            assert_eq!(pixels.get_color((34, 31)), right_color);
+            for y in 32..39 {
+                for x in 0..35 {
+                    assert_eq!(
+                        pixels.get_color((x, y)),
+                        background,
+                        "bottom remainder at ({x}, {y}), floating={floating}"
+                    );
+                }
+            }
+        }
     }
 }

@@ -37,6 +37,7 @@ require("lazy").setup({
 
       opts = {
         colorscheme = function()
+          require("config.appearance.base46").setup()
           require("base46").load_all_highlights()
           vim.cmd.colorscheme("nvchad")
         end,

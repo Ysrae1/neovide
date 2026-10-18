@@ -27,7 +27,7 @@ local del = vim.keymap.del
 map(
   "n",
   "<leader>tn",
-  "<cmd>lua require('toggles').toggle_null_ls()<CR>",
+  "<cmd>lua require('config.editor.toggles').toggle_null_ls()<CR>",
   { noremap = true, silent = true, desc = "Toggle null_ls" }
 )
 

@@ -14,7 +14,8 @@ vim.cmd([[highlight FloatingWindow guibg=#2E3440]])
 vim.cmd([[highlight FloatingBorder guifg=#81A1C1 guibg=#2E3440]])
 
 -- This is a GUI decoration only. Missing animation tools must not block startup.
-if not vim.g.neovide or vim.fn.executable("cmatrix-gm") ~= 1 then
+-- The nvidec launcher skips this opening animation.
+if vim.env.NVIM_SKIP_MATRIX_INTRO == "1" or not vim.g.neovide or vim.fn.executable("cmatrix-gm") ~= 1 then
   return
 end
 

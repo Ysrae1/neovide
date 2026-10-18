@@ -433,6 +433,7 @@ impl CursorRenderer {
             ),
             foreground_color,
             PixelPos::default(),
+            None,
         );
         if !box_char_drawn {
             let pos = (self.destination.x, self.destination.y + baseline_offset);

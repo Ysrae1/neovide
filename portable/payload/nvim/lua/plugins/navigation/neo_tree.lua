@@ -32,6 +32,7 @@ return {
       },
     },
     config = function()
+      require("config.navigation.neo_tree").setup()
       -- If you want icons for diagnostic errors, you'll need to define them somewhere:
       vim.fn.sign_define("DiagnosticSignError", { text = " ", texthl = "DiagnosticSignError" })
       vim.fn.sign_define("DiagnosticSignWarn", { text = " ", texthl = "DiagnosticSignWarn" })
@@ -208,6 +209,7 @@ return {
         },
         nesting_rules = {},
         filesystem = {
+          bind_to_cwd = false,
           filtered_items = {
             visible = false, -- when true, they will just be displayed differently than normal items
             hide_dotfiles = true,
@@ -235,7 +237,7 @@ return {
             },
           },
           follow_current_file = {
-            enabled = true, -- This will find and focus the file in the active buffer every time
+            enabled = false, -- config.project_root follows files within their historical project root.
             --               -- the current file is changed while the tree is open.
             leave_dirs_open = false, -- `false` closes auto expanded dirs, such as with `:Neotree reveal`
           },
@@ -327,6 +329,7 @@ return {
         },
       })
 
+      require("config.navigation.project_root").setup()
       vim.cmd([[nnoremap <leader>\\ :Neotree reveal<cr>]])
     end,
   },

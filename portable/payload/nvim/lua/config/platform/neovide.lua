@@ -43,7 +43,7 @@ vim.g.neovide_cursor_vfx_particle_curl = 1.0
 
 local state_dir = vim.fn.stdpath("state") .. "/neovide"
 local scale_file = state_dir .. "/scale_factor.txt"
-local legacy_scale_file = vim.fn.stdpath("config") .. "/scale_factor.txt"
+local legacy_scale_file = vim.fn.stdpath("config") .. "/archive/legacy/scale_factor.txt"
 
 local function parse_scale(value)
   local scale = tonumber(value)

@@ -32,6 +32,149 @@ pub struct GridRenderer {
     settings: Arc<Settings>,
 }
 
+#[cfg(test)]
+mod tests {
+    use skia_safe::{Data, Font, FontMgr, PictureRecorder, Rect, Surface, surfaces};
+
+    use super::*;
+
+    fn powerline_frame(
+        renderer: &mut GridRenderer,
+        font: &Font,
+        cap: &str,
+        color: Color,
+        blend: u8,
+        opacity: f32,
+        draw_cap: bool,
+    ) -> Surface {
+        let bounds = Rect::from_wh(160.0, 32.0);
+        let background = Some(Arc::new(Style {
+            blend,
+            ..Style::new(Colors::new(None, Some(color.into()), None))
+        }));
+        let body = if cap == "" { 0..2 } else { 3..5 };
+        let mut recorder = PictureRecorder::new();
+        renderer.draw_background(
+            recorder.begin_recording(bounds, false),
+            &body,
+            &background,
+            opacity,
+        );
+        let background_picture = recorder.finish_recording_as_picture(None).unwrap();
+
+        let mut text_paint = Paint::default();
+        text_paint.set_color(Color::from_rgb(240, 113, 120));
+        recorder.begin_recording(bounds, false).draw_str("a", (104.0, 23.0), font, &text_paint);
+        let foreground_picture = recorder.finish_recording_as_picture(None).unwrap();
+
+        let canvas = recorder.begin_recording(bounds, false);
+        let shape_opacity = renderer.background_opacity(color, blend, opacity);
+        let cell = |column: f32| {
+            PixelRect::from_origin_and_size(
+                PixelPos::new(column * 16.0, 0.0),
+                crate::units::PixelSize::new(16.0, 32.0),
+            )
+        };
+        // Ordinary foreground box lines must remain opaque, and letters must
+        // still fall through to the normal text renderer.
+        let alpha = draw_cap.then_some(shape_opacity);
+        assert!(renderer.box_char_renderer.draw_glyph(
+            "│",
+            canvas,
+            cell(8.0),
+            Color::WHITE,
+            PixelPos::default(),
+            alpha,
+        ));
+        assert!(!renderer.box_char_renderer.draw_glyph(
+            "a",
+            canvas,
+            cell(6.0),
+            Color::WHITE,
+            PixelPos::default(),
+            alpha,
+        ));
+        if draw_cap {
+            assert!(renderer.box_char_renderer.draw_glyph(
+                cap,
+                canvas,
+                cell(2.0),
+                color,
+                PixelPos::default(),
+                Some(shape_opacity),
+            ));
+        }
+        let boxchar_picture = recorder.finish_recording_as_picture(None).unwrap();
+
+        // Replay the same separate background/text/boxchar pictures used by a
+        // rendered window, over a translucent pre-existing window background.
+        let mut surface = surfaces::raster_n32_premul((160, 32)).unwrap();
+        surface.canvas().clear(Color::from_argb(64, 11, 14, 20));
+        for picture in [&background_picture, &foreground_picture, &boxchar_picture] {
+            surface.canvas().draw_picture(picture, None, None);
+        }
+        surface
+    }
+
+    #[test]
+    fn powerline_caps_match_background_alpha_without_changing_text_or_outer_pixels() {
+        let settings = Arc::new(Settings::new());
+        let mut window_settings = WindowSettings::default();
+        window_settings.normal_opacity = 0.9;
+        settings.set(&window_settings);
+        settings.set(&RendererSettings::default());
+        let mut renderer = GridRenderer::new(1.0, settings);
+        renderer.grid_scale = GridScale::new(crate::units::PixelSize::new(16.0, 32.0));
+        renderer
+            .box_char_renderer
+            .update_dimensions(crate::units::PixelSize::new(16.0, 32.0), 32.0);
+        let typeface = FontMgr::new()
+            .new_from_data(Data::new_copy(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED), 0)
+            .unwrap();
+        let font = Font::from_typeface(typeface, 20.0);
+        let normal = renderer.get_default_background_color();
+        let capsule = Color::from_rgb(28, 31, 37);
+
+        for opacity in [1.0, 0.95, 0.5] {
+            for (color, blend) in [(capsule, 0), (normal, 0), (capsule, 35)] {
+                for cap in ["", ""] {
+                    let mut expected =
+                        powerline_frame(&mut renderer, &font, cap, color, blend, opacity, false);
+                    let mut actual =
+                        powerline_frame(&mut renderer, &font, cap, color, blend, opacity, true);
+                    let baseline = expected.peek_pixels().unwrap();
+                    let pixels = actual.peek_pixels().unwrap();
+                    let body_x = if cap == "" { 16 } else { 64 };
+                    let inner_x = if cap == "" { 33 } else { 46 };
+                    let body = pixels.get_color((body_x, 16));
+                    assert_eq!(
+                        pixels.get_color((inner_x, 16)),
+                        body,
+                        "{cap} must match its background at opacity {opacity}, blend {blend}",
+                    );
+                    let mut antialiased_edge = false;
+                    let mut text_drawn = false;
+                    for y in 0..32 {
+                        for x in 0..160 {
+                            let before = baseline.get_color((x, y));
+                            let after = pixels.get_color((x, y));
+                            if (32..48).contains(&x) {
+                                antialiased_edge |= after != before && after != body;
+                            } else {
+                                assert_eq!(after, before, "{cap} changed an outside/text pixel");
+                                text_drawn |= (100..128).contains(&x)
+                                    && after != Color::from_argb(64, 11, 14, 20);
+                            }
+                        }
+                    }
+                    assert!(antialiased_edge, "{cap} must keep its smooth contour");
+                    assert!(text_drawn, "the normal text sample must be rendered");
+                }
+            }
+        }
+    }
+}
+
 /// Struct with named fields to be returned from draw_background
 pub struct BackgroundInfo {
     pub custom_color: bool,
@@ -132,19 +275,19 @@ impl GridRenderer {
         paint.set_blend_mode(BlendMode::Src);
         paint.set_color(style_background);
 
-        let is_default_background = style_background == self.get_default_background_color();
-        let normal_opacity = self.settings.get::<WindowSettings>().normal_opacity;
+        paint.set_alpha_f(self.background_opacity(style_background, style.blend, opacity));
+        paint.color4f()
+    }
 
-        let alpha = if normal_opacity < 1.0 && is_default_background {
+    fn background_opacity(&self, color: Color, blend: u8, opacity: f32) -> f32 {
+        let normal_opacity = self.settings.get::<WindowSettings>().normal_opacity;
+        if normal_opacity < 1.0 && color == self.get_default_background_color() {
             normal_opacity
-        } else if style.blend > 0 {
-            ((100 - style.blend) as f32 / 100.0) * opacity
+        } else if blend > 0 {
+            ((100 - blend) as f32 / 100.0) * opacity
         } else {
             opacity
-        };
-
-        paint.set_alpha_f(alpha);
-        paint.color4f()
+        }
     }
 
     /// Draws a single background cell with the same style
@@ -179,16 +322,7 @@ impl GridRenderer {
             paint.set_color(style_background);
         }
 
-        let is_default_background = style_background == self.get_default_background_color();
-        let normal_opacity = self.settings.get::<WindowSettings>().normal_opacity;
-
-        let alpha = if normal_opacity < 1.0 && is_default_background {
-            normal_opacity
-        } else if style.blend > 0 {
-            ((100 - style.blend) as f32 / 100.0) * opacity
-        } else {
-            opacity
-        };
+        let alpha = self.background_opacity(style_background, style.blend, opacity);
         paint.set_alpha_f(alpha);
 
         let custom_color = paint.color4f() != self.default_style.colors.background.unwrap();
@@ -207,6 +341,7 @@ impl GridRenderer {
         boxchar_canvas: &Canvas,
         fragment: &LineFragment,
         window_position: PixelPos<f32>,
+        opacity: f32,
     ) -> (bool, bool) {
         tracy_zone!("draw_foreground");
 
@@ -231,12 +366,14 @@ impl GridRenderer {
             text_drawn = true;
         }
 
+        let foreground = style.foreground(&self.default_style.colors).to_color();
         if self.box_char_renderer.draw_glyph(
             text,
             boxchar_canvas,
             region,
-            style.foreground(&self.default_style.colors).to_color(),
+            foreground,
             window_position,
+            Some(self.background_opacity(foreground, style.blend, opacity)),
         ) {
             return (text_drawn, true);
         } else if !text.is_empty() {

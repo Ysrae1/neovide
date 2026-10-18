@@ -11,8 +11,8 @@
   "packages": [
     {
       "name": "pyright",
-      "version": "1.1.394",
-      "source": "pkg:npm/pyright@1.1.394",
+      "version": "1.1.414",
+      "source": "pkg:npm/pyright@1.1.414",
       "source_type": "registry+v1",
       "secondary_sources": []
     },
@@ -164,6 +164,20 @@
       "name": "marksman",
       "version": "2024-12-18",
       "source": "pkg:github/artempyanykh/marksman@2024-12-18",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "gopls",
+      "version": "v0.22.0",
+      "source": "pkg:golang/golang.org/x/tools/gopls@v0.22.0",
+      "source_type": "registry+v1",
+      "secondary_sources": []
+    },
+    {
+      "name": "neocmakelsp",
+      "version": "v0.10.2",
+      "source": "pkg:github/neocmakelsp/neocmakelsp@v0.10.2",
       "source_type": "registry+v1",
       "secondary_sources": []
     }

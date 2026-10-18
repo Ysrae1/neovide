@@ -1,5 +1,16 @@
 # 冻结版本记录
 
+## 2026-10-18 · ayu-colors-20261018-v1
+
+冻结当前 Ayu Light／Dark 自定义配色、Base46 插件映射与编辑配置。两个主题文件统一命名为 `ayu_light_customed.lua`、`ayu_dark_customed.lua`，保留相同字段结构，加载入口与重载命令同步更新。
+
+- 保存 Neo-tree Git 状态色、未保存标记、Dashboard、状态栏、复制提示、浅色行号与缩进点，以及选区加粗设置。
+- 保存按用途分组的配置目录、自动浅深切换与开关同步、项目根目录跟随，以及已完成的语言环境和 Skim 修复。
+- 保存多光标的移动／确认分离、`Ctrl+p` 选点撤销、Extend 大小写转换与重叠选区修复。
+- 本版使用源码／配置标签，不覆盖原 `glow-stack-20261017-gm2` 发行包及下载校验值；平台适用范围与原安装说明中的限制保留。
+
+主配置与便携副本使用同一标签，回滚入口见 `payload/nvim/README.md`。
+
 ## 2026-10-17 · glow-stack-20261017-gm2
 
 最终总安装包快照：[glow-stack-20261017-gm2](https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261017-gm2)。在 gm1 的基础上，将首页 Find File 与 Config 改为 Telescope，与 Find Text 和 Recent Files 统一。`空格 t f` 的 FFF 入口继续保留；其他版本、字母雨、图标、两秒开场和透明度设置沿用 gm1。

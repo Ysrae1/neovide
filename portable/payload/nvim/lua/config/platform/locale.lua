@@ -1,6 +1,14 @@
 local M = {}
 
-local lang_file = vim.fn.stdpath("config") .. "/lang_setting.txt"
+local state_dir = vim.fn.stdpath("state") .. "/preferences"
+local lang_file = state_dir .. "/language.txt"
+local legacy_file = vim.fn.stdpath("config") .. "/archive/legacy/lang_setting.txt"
+
+-- Preserve the previous preference once, then keep runtime state out of config.
+if vim.fn.filereadable(lang_file) == 0 and vim.fn.filereadable(legacy_file) == 1 then
+  vim.fn.mkdir(state_dir, "p")
+  vim.fn.writefile(vim.fn.readfile(legacy_file), lang_file)
+end
 
 function M.toggle_lang()
   if vim.env.LANG == "en_US.UTF-8" then
@@ -17,6 +25,7 @@ end
 
 -- 保存语言设置到文件
 function M.save_language_settings()
+  vim.fn.mkdir(state_dir, "p")
   vim.fn.writefile({ vim.env.LANG }, lang_file)
 end
 

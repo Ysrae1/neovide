@@ -13,10 +13,7 @@ use crate::{
     units::{GridScale, PixelRect, to_skia_rect},
 };
 
-use super::{
-    RenderedWindow, RendererSettings, WindowDrawDetails, is_bottommost_window_edge,
-    is_rightmost_window_edge,
-};
+use super::{RenderedWindow, RendererSettings, WindowDrawDetails, is_rightmost_window_edge};
 
 struct LayerWindow<'w> {
     window: &'w mut RenderedWindow,
@@ -123,25 +120,12 @@ impl FloatingLayer<'_> {
         content_region: Option<PixelRect<f32>>,
     ) -> Vec<PixelRect<f32>> {
         let max_layer_x = max_region_max_x(pixel_regions);
-        let max_layer_y = max_region_max_y(pixel_regions);
         self.windows
             .iter()
             .zip(pixel_regions.iter().copied())
             .map(|(window, region)| {
                 let rightmost_window = is_rightmost_window_edge(region.max.x, max_layer_x);
-                let bottommost_window = is_bottommost_window_edge(region.max.y, max_layer_y);
-                let region = window.expanded_pixel_region(
-                    region,
-                    content_region,
-                    grid_scale,
-                    rightmost_window,
-                );
-                window.expanded_bottom_pixel_region(
-                    region,
-                    content_region,
-                    grid_scale,
-                    bottommost_window,
-                )
+                window.expanded_pixel_region(region, content_region, grid_scale, rightmost_window)
             })
             .collect::<Vec<_>>()
     }
@@ -273,10 +257,6 @@ fn max_region_max_x(regions: &[PixelRect<f32>]) -> f32 {
     regions.iter().fold(f32::NEG_INFINITY, |max_x, region| max_x.max(region.max.x))
 }
 
-fn max_region_max_y(regions: &[PixelRect<f32>]) -> f32 {
-    regions.iter().fold(f32::NEG_INFINITY, |max_y, region| max_y.max(region.max.y))
-}
-
 fn rect_to_round_rect_path(rect: Rect, settings: &RendererSettings, grid_scale: GridScale) -> Path {
     let scaled_radius =
         if settings.floating_corner_radius > 0.0 && settings.floating_corner_radius <= 1.0 {
@@ -314,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn floating_layer_expands_bottommost_window_to_content_bottom() {
+    fn floating_layer_only_expands_the_right_edge() {
         let grid_scale = grid_scale();
         let mut upper_window = positioned_window(2, 3.0, 0.0);
         let mut bottom_window = positioned_window(3, 4.0, 0.0);
@@ -325,14 +305,15 @@ mod tests {
         let bottom_region = pixel_regions[1];
         let content_region = PixelRect::new(
             PixelPos::new(0.0, 0.0),
-            PixelPos::new(bottom_region.max.x, bottom_region.max.y + 7.0),
+            PixelPos::new(bottom_region.max.x + 3.0, bottom_region.max.y + 7.0),
         );
 
         let expanded_regions =
             layer.expanded_regions(&pixel_regions, grid_scale, Some(content_region));
 
-        assert_eq!(expanded_regions[0], upper_region);
-        assert_eq!(expanded_regions[1].max.y, content_region.max.y);
-        assert_eq!(expanded_regions[1].max.x, bottom_region.max.x);
+        assert_eq!(expanded_regions[0].max.y, upper_region.max.y);
+        assert_eq!(expanded_regions[1].max.y, bottom_region.max.y);
+        assert_eq!(expanded_regions[0].max.x, content_region.max.x);
+        assert_eq!(expanded_regions[1].max.x, content_region.max.x);
     }
 }

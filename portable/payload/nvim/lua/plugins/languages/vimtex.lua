@@ -26,7 +26,9 @@ return {
     -- (2) PDF 查看器：使用 Skim + SyncTeX
     ------------------------------------------------------------------------------
     if vim.fn.has("macunix") == 1 then
-      vim.g.vimtex_view_method = "skim"
+      -- 异步调用并限制等待时间，避免 macOS 查看器弹窗阻塞编辑器。
+      vim.g.vimtex_view_method = "skim_async"
+      vim.g.vimtex_view_skim_timeout = 10000
       vim.g.vimtex_view_skim_activate = 0
       vim.g.vimtex_view_skim_sync = 1
       vim.g.vimtex_view_skim_reading_bar = 1
@@ -39,6 +41,16 @@ return {
       vim.g.vimtex_view_method = "general"
       vim.g.vimtex_view_general_viewer = vim.fn.executable("wslview") == 1 and "wslview" or "xdg-open"
       vim.g.vimtex_view_general_options = "@pdf"
+    end
+
+    if vim.fn.has("macunix") == 1 and vim.g.neovide then
+      vim.api.nvim_create_autocmd("User", {
+        group = vim.api.nvim_create_augroup("VimtexNeovideReverseFocus", { clear = true }),
+        pattern = "VimtexEventViewReverse",
+        callback = function()
+          vim.system({ "/usr/bin/open", "-a", "/Applications/Neovide.app" }, { detach = true })
+        end,
+      })
     end
 
     ------------------------------------------------------------------------------

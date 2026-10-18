@@ -4,9 +4,11 @@ return {
   version = false,
   dependencies = { "neovim/nvim-lspconfig", "nvim-telescope/telescope.nvim", "mfussenegger/nvim-dap-python" },
   opts = {
-    -- Your options go here
-    -- name = "venv",
-    -- auto_refresh = false
+    options = {
+      -- Restore/select environments explicitly; do not change all tool processes' PATH.
+      cached_venv_automatic_activation = false,
+      activate_venv_in_terminal = false,
+    },
   },
   event = "VeryLazy", -- Optional: needed only if you want to type `:VenvSelect` without a keymapping
   keys = {

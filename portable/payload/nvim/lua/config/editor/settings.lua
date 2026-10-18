@@ -11,6 +11,6 @@ vim.o.wrap = true
 vim.o.linebreak = false
 vim.o.list = false -- extra option I set in addition to the ones in your question
 
-require("toggles")
+require("config.editor.toggles")
 
 return M

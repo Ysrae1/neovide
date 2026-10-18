@@ -3,7 +3,7 @@
 -- Keep terminal transparency out of Neovide's cached plugin highlights.
 local cache_dir = vim.g.neovide and "base46/" or "base46-terminal/"
 vim.g.base46_cache = vim.fn.stdpath("data") .. "/" .. cache_dir
-require("startup.terminal_colors").setup()
+require("config.appearance.terminal").setup()
 
 local result = vim.o.background == "dark" and "Dark" or "Light"
 if vim.fn.has("macunix") == 1 then

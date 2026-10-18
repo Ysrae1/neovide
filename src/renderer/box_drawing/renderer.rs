@@ -57,6 +57,7 @@ pub struct Context<'a> {
     bounding_box: PixelRect<f32>,
     color_fg: Color,
     em_size: f32,
+    background_opacity: Option<f32>,
 }
 
 impl<'a> Context<'a> {
@@ -66,8 +67,9 @@ impl<'a> Context<'a> {
         bounding_box: PixelRect<f32>,
         color_fg: Color,
         em_size: f32,
+        background_opacity: Option<f32>,
     ) -> Self {
-        Context { canvas, settings, bounding_box, color_fg, em_size }
+        Context { canvas, settings, bounding_box, color_fg, em_size, background_opacity }
     }
 
     fn get_stroke_width_pixels(&self, t: Thickness) -> f32 {
@@ -83,6 +85,12 @@ impl<'a> Context<'a> {
         fg.set_style(PaintStyle::Fill);
         fg.set_color(self.color_fg);
         fg.set_blend_mode(BlendMode::SrcOver);
+        if let Some(opacity) = self.background_opacity {
+            // Filled Powerline shapes extend a cell's background. Replace the
+            // covered pixels like draw_background; SrcOver would stack alpha.
+            fg.set_alpha_f(opacity);
+            fg.set_blend_mode(BlendMode::Src);
+        }
         fg.set_anti_alias(false);
         fg
     }
@@ -1716,18 +1724,31 @@ impl Renderer {
         dst: PixelRect<f32>,
         color_fg: Color,
         window_pos: PixelPos<f32>,
+        background_opacity: Option<f32>,
     ) -> bool {
         match self.settings.mode.as_ref().unwrap_or(&BoxDrawingMode::default()) {
             BoxDrawingMode::FontGlyph => false,
-            BoxDrawingMode::Native => {
-                self.draw_box_glyph(box_char_text, canvas, dst, color_fg, window_pos)
-            }
+            BoxDrawingMode::Native => self.draw_box_glyph(
+                box_char_text,
+                canvas,
+                dst,
+                color_fg,
+                window_pos,
+                background_opacity,
+            ),
             BoxDrawingMode::SelectedNative => {
                 let selected = self.settings.selected.as_deref().unwrap_or("");
                 let is_selected =
                     box_char_text.chars().next().is_some_and(|first| selected.contains(first));
                 if is_selected {
-                    self.draw_box_glyph(box_char_text, canvas, dst, color_fg, window_pos)
+                    self.draw_box_glyph(
+                        box_char_text,
+                        canvas,
+                        dst,
+                        color_fg,
+                        window_pos,
+                        background_opacity,
+                    )
                 } else {
                     false
                 }
@@ -1742,6 +1763,7 @@ impl Renderer {
         dst: PixelRect<f32>,
         color_fg: Color,
         window_pos: PixelPos<f32>,
+        background_opacity: Option<f32>,
     ) -> bool {
         let Some(ch) = box_char_text.chars().next() else {
             return false;
@@ -1749,6 +1771,12 @@ impl Renderer {
         let Some(draw_fn) = BOX_CHARS.get(&ch) else {
             return false;
         };
+        // Only filled private-use Powerline separators act as backgrounds.
+        // Ordinary box lines, font text and the cursor retain their opacity.
+        let background_opacity =
+            matches!(ch, '' | '' | '' | '' | '' | '' | '' | '' | '' | '' | '' | '')
+                .then_some(background_opacity)
+                .flatten();
         for (i, _) in box_char_text.chars().enumerate() {
             canvas.save();
             // Box chars need to be rendered with absolute x positions, so translate the x coordinates.
@@ -1758,7 +1786,14 @@ impl Renderer {
                 self.cell_size,
             )) + PixelVec::new(window_pos.x, 0.0);
             canvas.clip_rect(to_skia_rect(&rect), None, Some(false));
-            let ctx = Context::new(canvas, &self.settings, rect, color_fg, self.em_size);
+            let ctx = Context::new(
+                canvas,
+                &self.settings,
+                rect,
+                color_fg,
+                self.em_size,
+                background_opacity,
+            );
             (draw_fn)(&ctx);
             canvas.restore();
         }
