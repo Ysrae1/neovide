@@ -6,6 +6,9 @@ composer_tool="${ICON_COMPOSER_TOOL:-/Applications/Icon Composer.app/Contents/Ex
 design_generation="${ICON_DESIGN_GENERATION:-27}"
 [ -x "$composer_tool" ] || { echo "Icon Composer's ictool is required." >&2; exit 1; }
 
+# Always start from the preserved material, not a previously compensated PNG.
+swift "$project_root/macos-builder/compensate-icon.swift" --prepare
+
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/neovide-static-icon.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT
 

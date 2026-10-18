@@ -24,8 +24,10 @@
   "groups" : [
     {
       "blur-material" : 0.32,
+      "hidden" : false,
       "layers" : [
         {
+          "blend-mode" : "normal",
           "glass" : true,
           "image-name" : "glass-surface.svg",
           "name" : "Glass surface — original silhouette",
@@ -60,8 +62,8 @@
       "blur-material" : 0,
       "layers" : [
         {
-          "glass" : false,
-          "image-name" : "original-material.png",
+          "glass" : true,
+          "image-name" : "original-material-compensated.png",
           "name" : "Original colors, highlights and relief",
           "opacity" : 1,
           "position" : {

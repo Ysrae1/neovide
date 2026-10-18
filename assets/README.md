@@ -44,13 +44,28 @@ complex Sketch effects are rendered into the PNG; those effects are not separate
 Icon Composer layers. Both Default and Dark appearances retain the white base;
 there is no alternate dark-background design.
 
+The visible glass surface reduces the material's apparent saturation. The
+calibrated settings in [icon-color-compensation.json](icon-color-compensation.json)
+precompensate the material so the final Icon Composer render stays closer to the
+original colors. Run `swift macos-builder/compensate-icon.swift --prepare` to
+regenerate `Neovide.icon/Assets/original-material-compensated.png` and select it
+for the original-material layer. The script always reads the preserved
+`original-material.png`; never replace that original with the compensated PNG or
+apply compensation repeatedly to an output. Other Icon Composer layer settings,
+including the visible glass surface, remain editable and are retained.
+The current HSV saturation gain is 1.17, calibrated against the unchanged
+material with design generation 27. Changing the glass strength or source colors
+requires a new comparison after native rendering; this is not a universal gain.
+
 `neovide-1024.png` is the static macOS fallback. Regenerate it with
-`macos-builder/export-static-icon`: Icon Composer renders the complete icon,
+`macos-builder/export-static-icon`: the script prepares color compensation,
+then Icon Composer renders the complete icon,
 then native Core Graphics draws it at the existing 832 × 832 size within a
 1024 × 1024 transparent canvas and generates its outside shadow from that same
 image's alpha. The export pins design generation 27, matching the current
 material; `ICON_DESIGN_GENERATION` can explicitly select another generation.
-The layered `.icon` source and original material remain unchanged.
+The layered icon uses the same compensated material as this static fallback;
+the preserved original material remains unchanged.
 
 Do not reuse the old Sketch base shadow or subtract its rounded mask: that
 geometry differs from Icon Composer's continuous corners and creates a detached
@@ -70,17 +85,36 @@ Export the background at 650 × 450 and 1300 × 900 to the existing
 running `macos-builder/make-icns`. The DMG keeps the existing drag-to-Applications
 installation flow.
 
-After regenerating the static icon, run
+Save and close Icon Composer and editable Sketch documents before updating them; reopen them after
+the export to view the refreshed embedded images. After regenerating the static icon, run
 `python3 macos-builder/update-installer-icon.py assets/neovide-1024.png` to update
 the two embedded icon references in the editable Sketch document. Export its
 `neovide-dmg-background` group to both PNG sizes and `dmg-background/source.pdf`;
 then run the same helper with `assets/neovide-dmg-background@2x.png` as its second
 argument to refresh the document's cached background image. The helper validates
-image sizes and layer identities and replaces the archive atomically.
+image sizes and layer identities and replaces the archive atomically. Its
+`--sketch PATH` option targets a specific document.
 
 For the complete sequence, run `macos-builder/export-static-artwork`, followed by
-`macos-builder/make-icns`. The first command performs the native icon export,
+`macos-builder/make-icns`. The first command performs compensation, native icon export,
 Sketch panel replacement, both PNG exports, PDF export and cache refresh in
-order. The `neovide-update` maintenance entry calls both commands before Rust
-compilation and packaging, after copying the selected custom assets.
+order. To synchronize the designer's original project at the same time:
+
+```bash
+NEOVIDE_SKETCH_SOURCE="$HOME/Documents/icon-builder/Neovide-macOS-Icon/source/Neovide.sketch" \
+  macos-builder/export-static-artwork
+```
+
+The repository and selected external Sketch documents receive the same icon;
+each background cache is rendered from its own document. Their layout, text,
+other design layers and visibility are not copied over one another. Packaged
+PNG/PDF assets come from the repository installer document.
+
+The `neovide-update` maintenance entry calls both commands before Rust
+compilation and packaging, after copying the selected custom assets. On this
+machine it also synchronizes the original project above when present. Set
+`NEOVIDE_SKETCH_SOURCE` to another document, or an empty value to disable that
+additional synchronization. Keep `icon-color-compensation.json` and the complete
+`Neovide.icon` source together in the selected custom-assets directory, including
+the preserved original material; old flattened PNGs cannot replace this step.
 
