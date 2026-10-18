@@ -148,6 +148,8 @@ impl RouteLaunchConfig {
 }
 
 pub struct RouteWindow {
+    #[cfg(target_os = "macos")]
+    pub native_previews: crate::native_preview::NativePreviews,
     pub skia_renderer: Rc<RefCell<Box<dyn SkiaRenderer>>>,
     pub winit_window: Rc<Window>,
     pub neovim_handler: NeovimHandler,
@@ -530,6 +532,29 @@ impl WinitWindowWrapper {
         };
 
         match command {
+            WindowCommand::NativePreview(command) => {
+                #[cfg(target_os = "macos")]
+                if let Some(route) = self.routes.get_mut(&target_window_id) {
+                    let scale = route.window.renderer.borrow().grid_renderer.grid_scale;
+                    let padding = (route.state.window_padding.left, route.state.window_padding.top);
+                    let status = route.window.native_previews.handle(
+                        command,
+                        &route.window.winit_window,
+                        scale,
+                        padding,
+                    );
+                    if let Some((id, json)) = status
+                        && let Some(nvim) = route.window.neovim_handler.clone_current_neovim()
+                        && let Some(runtime) = self.runtime.as_ref()
+                    {
+                        runtime
+                            .runtime()
+                            .spawn(crate::native_preview::report_status(nvim, id, json));
+                    }
+                }
+                #[cfg(not(target_os = "macos"))]
+                let _ = command;
+            }
             WindowCommand::TitleChanged(new_title) => {
                 self.handle_title_changed(target_window_id, new_title)
             }
@@ -1259,7 +1284,9 @@ impl WinitWindowWrapper {
     }
 
     pub fn clear_renderer(&mut self, window_id: WindowId) {
-        if let Some(route) = self.routes.get(&window_id) {
+        if let Some(route) = self.routes.get_mut(&window_id) {
+            #[cfg(target_os = "macos")]
+            route.window.native_previews.clear();
             route.window.renderer.borrow_mut().clear();
         }
     }
@@ -1455,6 +1482,12 @@ impl WinitWindowWrapper {
             return;
         };
 
+        #[cfg(target_os = "macos")]
+        route.window.native_previews.layout(
+            &window,
+            renderer.grid_renderer.grid_scale,
+            (route.state.window_padding.left, route.state.window_padding.top),
+        );
         renderer.draw_frame(skia_renderer.canvas(), Some(&content_rect), dt);
 
         skia_renderer.flush();
@@ -1831,6 +1864,8 @@ impl WinitWindowWrapper {
         let route = Route {
             route_id,
             window: RouteWindow {
+                #[cfg(target_os = "macos")]
+                native_previews: crate::native_preview::NativePreviews::default(),
                 renderer,
                 skia_renderer: skia_renderer.clone(),
                 winit_window: window.clone(),

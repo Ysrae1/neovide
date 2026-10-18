@@ -227,6 +227,20 @@ impl Handler for NeovimHandler {
         trace!("Neovim notification: {:?}", event_name);
 
         match event_name.as_ref() {
+            name if name.starts_with("neovide.preview.") => {
+                match crate::native_preview::NativeCommand::parse(name, &arguments) {
+                    Ok(command) => self.send_window_command(WindowCommand::NativePreview(command)),
+                    Err(error) => {
+                        if let Some(id) = arguments.first().and_then(Value::as_u64) {
+                            tokio::spawn(crate::native_preview::report_status(
+                                neovim,
+                                id,
+                                serde_json::json!({"state":"error", "error":error}).to_string(),
+                            ));
+                        }
+                    }
+                }
+            }
             name if name.starts_with("neovide.image.") => {
                 self.image_requests.handle(name, &arguments, neovim);
             }

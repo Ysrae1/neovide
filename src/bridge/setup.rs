@@ -38,6 +38,10 @@ pub async fn setup_neovide_specific_state(
         .await
         .context("Could not advertise native image preview")?;
 
+    nvim.set_var("neovide_native_preview", Value::from(cfg!(target_os = "macos")))
+        .await
+        .context("Could not advertise native media/web preview")?;
+
     nvim.exec2("runtime! ginit.vim", nvim_dict!())
         .await
         .context("Error encountered in ginit.vim ")?;

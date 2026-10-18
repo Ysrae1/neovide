@@ -2,6 +2,7 @@ use std::process::Command;
 
 fn main() {
     set_rerun();
+    build_native_previews();
 
     println!("cargo:rustc-env=NEOVIDE_BUILD_VERSION={}", build_version());
 
@@ -95,4 +96,53 @@ fn git_output(args: &[&str]) -> Option<String> {
         .filter(|output| output.status.success())
         .and_then(|output| String::from_utf8(output.stdout).ok())
         .map(|output| output.trim().to_owned())
+}
+
+// Use the system frameworks and their existing AppKit run loop; no second
+// window/event-loop runtime is needed for child media and web views.
+fn build_native_previews() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("macos") {
+        return;
+    }
+    let out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    let arch = match std::env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
+        "aarch64" => "arm64",
+        "x86_64" => "x86_64",
+        other => panic!("Unsupported macOS preview architecture: {other}"),
+    };
+    let mut objects = Vec::new();
+    for name in ["media", "web"] {
+        let source = format!("src/native_preview/{name}.m");
+        println!("cargo:rerun-if-changed={source}");
+        let object = out.join(format!("glow_{name}.o"));
+        let status = Command::new("xcrun")
+            .args([
+                "clang",
+                "-c",
+                "-fobjc-arc",
+                "-fmodules",
+                "-arch",
+                arch,
+                "-mmacosx-version-min=11.0",
+                "-Wall",
+                "-Wextra",
+                "-Werror=return-type",
+            ])
+            .arg(&source)
+            .arg("-o")
+            .arg(&object)
+            .status()
+            .expect("macOS previews require Xcode command-line tools");
+        assert!(status.success(), "Could not compile {source}");
+        objects.push(object);
+    }
+    let archive = out.join("libglow_native_preview.a");
+    let status =
+        Command::new("xcrun").args(["ar", "crs"]).arg(&archive).args(objects).status().unwrap();
+    assert!(status.success(), "Could not archive native previews");
+    println!("cargo:rustc-link-search=native={}", out.display());
+    println!("cargo:rustc-link-lib=static=glow_native_preview");
+    for framework in ["AppKit", "AVFoundation", "AVKit", "CoreMedia", "QuartzCore", "WebKit"] {
+        println!("cargo:rustc-link-lib=framework={framework}");
+    }
 }

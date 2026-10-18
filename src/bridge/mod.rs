@@ -475,7 +475,7 @@ impl NeovimRuntime {
         Ok(())
     }
 
-    fn runtime(&self) -> &Runtime {
+    pub(crate) fn runtime(&self) -> &Runtime {
         self.runtime.as_ref().expect("runtime must be available while NeovimRuntime is alive")
     }
 

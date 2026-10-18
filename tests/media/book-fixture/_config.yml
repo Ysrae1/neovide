@@ -1,0 +1,4 @@
+title: Glow Jupyter Book fixture
+author: Neovide Glow
+execute:
+  execute_notebooks: "off"

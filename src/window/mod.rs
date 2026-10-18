@@ -118,6 +118,7 @@ impl From<&str> for ForceClickKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowCommand {
+    NativePreview(crate::native_preview::NativeCommand),
     TitleChanged(String),
     SetMouseEnabled(bool),
     ListAvailableFonts,

@@ -1,0 +1,103 @@
+-- Run: nvim --headless -u NONE -l tests/media/notebook_book.lua
+vim.opt.rtp:append(vim.fs.joinpath(vim.uv.cwd(), 'portable/payload/nvim'))
+local checks, notifications, views, refreshes = 0, {}, {}, {}
+vim.notify = function(message) notifications[#notifications + 1] = message end
+package.loaded['config.media.preview'] = {
+  open = function(source, opts) views[#views + 1] = {source = source, opts = opts}; return true end,
+  refresh_source = function(source) refreshes[#refreshes + 1] = source end,
+}
+local notebook = require('config.media.notebook')
+local book = require('config.media.book')
+local function check(value, message)
+  assert(value, message); checks = checks + 1
+end
+local function wait(predicate, message)
+  check(vim.wait(10000, predicate, 10), message)
+end
+local function write(path, data) vim.fn.writefile(vim.split(data, '\n', {plain=true}), path) end
+local fixture = vim.fs.joinpath(vim.uv.cwd(), 'tests/media/notebook-fixture.ipynb')
+local raw = table.concat(vim.fn.readfile(fixture), '\n')
+local parsed = vim.json.decode(raw)
+local html = notebook.render(parsed, fixture)
+check(html:find('data:font/woff2;base64,', 1, true), 'offline KaTeX fonts')
+check(html:find('katex.renderToString', 1, true), 'real LaTeX renderer included')
+check(not html:find('src="https://', 1, true), 'no CDN runtime dependency')
+check(html:find('\\u003c/script>', 1, true), 'notebook data cannot terminate its script tag')
+check(html:find("setAttribute('sandbox','')", 1, true), 'saved HTML output script sandbox')
+check(not pcall(notebook.render, {nbformat=3,cells={}}, fixture), 'reject unsupported nbformat')
+check(notebook.supports('a.IPYNB') and not notebook.supports('a.html'), 'Notebook source detection')
+local temporary = vim.fn.tempname() .. '-glow-test'
+vim.fn.mkdir(temporary, 'p')
+local source = vim.fs.joinpath(temporary, 'source.ipynb')
+write(source, raw)
+check(notebook.open(source), 'start asynchronous notebook read')
+wait(function() return #views == 1 end, 'notebook opens WebView after rendering')
+local view = views[1]
+check(vim.fn.filereadable(view.source) == 1 and view.opts.kind == 'web', 'generated native web source exists')
+parsed.cells[1].source = '# Refreshed'
+write(source, vim.json.encode(parsed))
+vim.api.nvim_exec_autocmds('BufWritePost', {pattern=source})
+wait(function() return #refreshes == 1 end, 'saved notebook refreshes existing native view')
+check(table.concat(vim.fn.readfile(view.source),'\n'):find('# Refreshed',1,true), 'refresh uses newly saved data')
+view.opts.on_close()
+check(vim.fn.isdirectory(vim.fs.dirname(view.source)) == 0, 'close removes notebook temp assets')
+vim.api.nvim_exec_autocmds('BufWritePost', {pattern=source})
+vim.wait(50)
+check(#refreshes == 1, 'closed notebook does not refresh or revive')
+local origin_tab = vim.api.nvim_get_current_tabpage()
+local origin_views = #views
+check(notebook.open(source), 'start notebook before leaving original tab')
+vim.cmd.tabnew()
+local other_tab = vim.api.nvim_get_current_tabpage()
+vim.wait(150)
+check(#views == origin_views and vim.api.nvim_get_current_tabpage() == other_tab, 'late notebook never steals focus across tabs')
+vim.api.nvim_set_current_tabpage(origin_tab)
+wait(function() return #views == origin_views + 1 end, 'notebook opens when original tab returns')
+views[#views].opts.on_close()
+vim.api.nvim_set_current_tabpage(other_tab)
+vim.cmd.tabclose()
+local bad = vim.fs.joinpath(temporary,'bad.ipynb')
+write(bad,'{"bad":true}')
+check(notebook.open(bad), 'invalid source read remains asynchronous')
+wait(function() return (notifications[#notifications] or ''):find('需要 nbformat 4',1,true) end, 'invalid notebook gives failure feedback')
+local root = vim.fs.joinpath(temporary,'book with spaces $()')
+vim.fn.mkdir(vim.fs.joinpath(root,'chapter'),'p')
+write(vim.fs.joinpath(root,'_config.yml'),'title: Test')
+check(book.find_root(vim.fs.joinpath(root,'chapter','part.md')) == root, 'project root discovered from child file')
+local opts = {builder={vim.fs.joinpath(vim.uv.cwd(),'tests/media/fake-book.py')}}
+local before = #views
+check(book.open(root,opts), 'start argv-based build')
+local book_origin = vim.api.nvim_get_current_tabpage()
+vim.cmd.tabnew()
+local book_other = vim.api.nvim_get_current_tabpage()
+check(not book.open(root,opts), 'prevent concurrent build for one project')
+wait(function() return book.status(root).status == 'ready' end, 'successful builder recognized')
+check(#views == before and vim.api.nvim_get_current_tabpage() == book_other, 'late successful Book build preserves current tab')
+vim.api.nvim_set_current_tabpage(book_origin)
+wait(function() return #views == before + 1 end, 'Book preview opens when originating tab returns')
+check(views[#views].source:find('_build/html/index.html',1,true), 'successful build opens site artifact')
+vim.api.nvim_set_current_tabpage(book_other)
+vim.cmd.tabclose()
+local bookview = views[#views]
+check(book.open(root,opts), 'explicit rebuild starts')
+wait(function() return book.status(root).status == 'ready' end, 'explicit rebuild finishes')
+check(vim.fn.readfile(vim.fs.joinpath(root,'count'))[1] == '2' and refreshes[#refreshes] == bookview.source, 'rebuild refreshes same preview with new product')
+write(vim.fs.joinpath(root,'fail'),'yes')
+local refresh_count = #refreshes
+check(book.open(root,opts), 'start failing build')
+wait(function() return book.status(root).status == 'failed' end, 'failure exit code reported')
+check(#refreshes == refresh_count, 'failed build does not refresh stale artifact')
+check(book.log(root), 'build log is inspectable')
+local logtext = table.concat(vim.api.nvim_buf_get_lines(0,0,-1,false),'\n')
+check(logtext:find('fixture build error',1,true) and logtext:find('退出码 7',1,true), 'logs include builder stderr and failure code')
+vim.cmd.close()
+vim.fn.delete(vim.fs.joinpath(root,'fail'))
+write(vim.fs.joinpath(root,'slow'),'yes')
+check(book.open(root,opts), 'start cancellable own build')
+bookview.opts.on_close()
+wait(function() return book.status(root).status == 'cancelled' end, 'preview close cancels owned builder')
+check(not book.status(root).running and #refreshes == refresh_count, 'cancel does not refresh or leave tracked process')
+check(not book.open(root,{builder={'/no/such/jupyter-book'}}), 'missing builder actionable failure')
+vim.fn.delete(temporary,'rf')
+print(('Notebook/Book: %d checks passed'):format(checks))
+vim.cmd.qa()

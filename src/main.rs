@@ -25,6 +25,7 @@ mod frame;
 mod image_preview;
 #[cfg(target_os = "macos")]
 mod ipc;
+mod native_preview;
 mod platform;
 mod profiling;
 mod renderer;
