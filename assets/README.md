@@ -44,10 +44,23 @@ complex Sketch effects are rendered into the PNG; those effects are not separate
 Icon Composer layers. Both Default and Dark appearances retain the white base;
 there is no alternate dark-background design.
 
-`neovide-1024.png` is the static macOS fallback with the original proportions and
-outer shadow. `macos-builder/make-icns` generates the legacy ICNS and the retina
-DMG background from the PNG sources. The shared SVG, Windows ICO, and small PNG
-icons retain the upstream design.
+`neovide-1024.png` is the static macOS fallback. Regenerate it with
+`macos-builder/export-static-icon`: Icon Composer renders the complete icon,
+then native Core Graphics draws it at the existing 832 × 832 size within a
+1024 × 1024 transparent canvas and generates its outside shadow from that same
+image's alpha. The export pins design generation 27, matching the current
+material; `ICON_DESIGN_GENERATION` can explicitly select another generation.
+The layered `.icon` source and original material remain unchanged.
+
+Do not reuse the old Sketch base shadow or subtract its rounded mask: that
+geometry differs from Icon Composer's continuous corners and creates a detached
+second outline. Core Graphics owns the static fallback's outside shadow; Icon
+Composer retains the internal material and layer effects. The native application
+continues to use its compiled layered icon.
+
+`macos-builder/make-icns` generates the legacy ICNS and the retina DMG background
+TIFF from the PNG sources. The shared SVG, Windows ICO, and small PNG icons retain
+the upstream design.
 
 The installer background uses the same adapted icon. Its editable Sketch source
 is [Neovide Liquid Glass Installer.sketch](<dmg-background/Neovide Liquid Glass Installer.sketch>),
@@ -56,4 +69,12 @@ Export the background at 650 × 450 and 1300 × 900 to the existing
 `neovide-dmg-background.png` and `neovide-dmg-background@2x.png` paths before
 running `macos-builder/make-icns`. The DMG keeps the existing drag-to-Applications
 installation flow.
+
+After regenerating the static icon, run
+`python3 macos-builder/update-installer-icon.py assets/neovide-1024.png` to update
+the two embedded icon references in the editable Sketch document. Export its
+`neovide-dmg-background` group to both PNG sizes and `dmg-background/source.pdf`;
+then run the same helper with `assets/neovide-dmg-background@2x.png` as its second
+argument to refresh the document's cached background image. The helper validates
+image sizes and layer identities and replaces the archive atomically.
 

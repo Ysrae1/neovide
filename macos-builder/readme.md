@@ -93,6 +93,11 @@ license and the adaptation attribution are copied into the app's Resources;
 see [the asset documentation](../assets/README.md) for the original logo notices
 and editable artwork.
 
+When changing the static icon, first run `macos-builder/export-static-icon` and
+sync/export the installer artwork as described in [assets/README.md](../assets/README.md).
+Its native Core Graphics shadow follows the Icon Composer export's alpha;
+never add a shadow or rounded mask from the old Sketch base.
+
 Before packaging changed static artwork, run `macos-builder/make-icns` to
 regenerate `Neovide.icns` and the retina background TIFF from the supplied PNGs.
 The generated app retains `Neovide.icns` and `CFBundleIconFile` as the legacy

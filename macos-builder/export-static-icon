@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root="$(cd "$(dirname "$0")/.." && pwd)"
+composer_tool="${ICON_COMPOSER_TOOL:-/Applications/Icon Composer.app/Contents/Executables/ictool}"
+design_generation="${ICON_DESIGN_GENERATION:-27}"
+[ -x "$composer_tool" ] || { echo "Icon Composer's ictool is required." >&2; exit 1; }
+
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/neovide-static-icon.XXXXXX")"
+trap 'rm -rf "$work_dir"' EXIT
+
+"$composer_tool" "$project_root/assets/Neovide.icon" \
+  --export-image --output-file "$work_dir/composer.png" \
+  --platform macOS --rendition Default --width 1024 --height 1024 --scale 1 \
+  --design-generation "$design_generation"
+swift "$project_root/macos-builder/export-static-icon.swift" \
+  "$work_dir/composer.png" "$project_root/assets/neovide-1024.png"
+echo "Exported native static icon with a shadow derived from its own alpha."
