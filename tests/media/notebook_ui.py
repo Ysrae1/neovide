@@ -48,7 +48,9 @@ try:
     frames = nvim.exec_lua('return ui.refresh()')
     inputs = [f for f in frames if f['kind'] == 'input']
     outputs = [f for f in frames if f['kind'] == 'output']
-    assert len(inputs) == 3 and len(outputs) == 1, frames
+    assert len(inputs) == 3 and len(outputs) == 1, 'cell output joins its input section'
+    assert inputs[0]['join'] == 'top' and outputs[0]['join'] == 'bottom'
+    assert 'join' not in inputs[1] and 'join' not in inputs[2], 'cells without output retain complete round frames'
     assert inputs[0]['active'], 'hidden metadata must not leave the current cell/cursor behind'
     assert nvim.current.buffer[:] == source, 'presentation must not edit source text'
     assert nvim.current.buffer.options['modified'] is False, 'presentation must not dirty notebook'
@@ -60,6 +62,9 @@ try:
     last_row = nvim.exec_lua('return vim.fn.screenpos(0,7,1).row-1')
     assert abs(inputs[0]['rect']['row'] - (first_row - .5)) < .01, (inputs, first_row)
     assert inputs[0]['color'] == 0xaa7733, 'border uses the capsule theme accent exactly'
+    assert outputs[0]['color'] == nvim.exec_lua("return require('config.media.notebook_edit').output_accent()"), 'lower section uses vibrant_green'
+    for frame in inputs + outputs:
+        assert frame['rect']['col'] + frame['rect']['width'] <= frame['clip']['col'] + frame['clip']['width'] - 1, 'cell right edge has one-column inset'
     gaps = inputs[0]['label_gaps']
     assert len(gaps) == 2, 'type and run capsules each cut only their own top segment'
     assert gaps[1]['col'] - gaps[0]['col'] - gaps[0]['width'] >= 2, 'visible stroke connects the two capsules'
@@ -68,31 +73,56 @@ try:
         if mark[4].virt_lines_above then result[#result+1]=mark end end;return result""")
     assert len(labels) == 3 and all(len(mark[3]['virt_lines']) == 1 for mark in labels), 'labels reuse one existing virtual row per cell'
     label_text = ''.join(chunk[0] for chunk in labels[0][3]['virt_lines'][0])
-    assert 'python' not in label_text and 'Markdown' not in label_text and '▷' in label_text
-    out_rect = outputs[0]['rect']
-    assert abs(out_rect['row'] - (last_row + 1.05)) < .01, (out_rect, last_row)
-    assert out_rect['row'] > inputs[0]['rect']['row'] + inputs[0]['rect']['height'], 'input and output boxes are separate'
+    assert 'python' not in label_text and 'Markdown' not in label_text and '󰼛' in label_text
+    lower = outputs[0]['rect']
+    assert abs(lower['row'] - (last_row + .95)) < .01, (lower, last_row)
+    assert abs(inputs[0]['rect']['row'] + inputs[0]['rect']['height'] - lower['row']) < .01, 'upper and lower sections share the identical seam'
+    assert inputs[0]['active'] == outputs[0]['active'], 'joined sides keep matching stroke width'
+    outer_bottom = lower['row'] + lower['height']
+    assert abs(outer_bottom - (last_row + 1 + 2 + .2)) < .01, 'single outer contains every output row'
+    assert inputs[0]['rect']['row'] < lower['row'] < outer_bottom, 'shared seam stays inside the compound frame'
     # Inspect actual rendered lines, not only API geometry.
     screen = nvim.exec_lua("""local rows={};for r=1,15 do local text='';for c=1,40 do
       text=text..vim.fn.screenstring(r,c) end;rows[#rows+1]=text end;return rows""")
     assert not any('jupyter:' in line for line in screen), screen
     assert not any('# %%' in line for line in screen), 'cell markers are hidden without removing source'
     assert any('print(42)' in line for line in screen), screen
+    # Multiple output marks belong to their source cell, independently of their
+    # identity and proximity to the next cell. Keep one lower section each.
+    nvim.exec_lua("""extra=vim.api.nvim_buf_set_extmark(0,ns,7,0,{virt_lines={
+      {{'Out[2]: Done','Normal'}},{{'second','Normal'}},{{'third','Normal'}}}})
+      other=vim.api.nvim_buf_set_extmark(0,ns,9,0,{virt_lines={
+      {{'Out[3]: Done','Normal'}},{{'neighbor','Normal'}}}});ui.refresh()""")
+    multiple = nvim.exec_lua('return ui.refresh()')
+    multiple_outer = [f for f in multiple if f['kind'] == 'input']
+    multiple_lower = [f for f in multiple if f['kind'] == 'output']
+    assert len(multiple_outer) == 3 and len(multiple_lower) == 2
+    assert [f['cell'] for f in multiple_lower] == [1, 2], 'cross-cell outputs never share a lower section'
+    nvim.command('redraw')
+    last_output_anchor = nvim.exec_lua('return vim.fn.screenpos(0,8,1).row-1')
+    first_bottom = multiple_lower[0]['rect']['row'] + multiple_lower[0]['rect']['height']
+    assert abs(first_bottom - (last_output_anchor + 1 + 3 + .2)) < .01, 'outer ends at last mark envelope in its own cell'
+    assert first_bottom < multiple_outer[1]['rect']['row'], 'neighbor cell output must not stretch the preceding outer'
+    nvim.exec_lua('vim.api.nvim_buf_del_extmark(0,ns,extra);vim.api.nvim_buf_del_extmark(0,ns,other);ui.refresh()')
     # Jupytext may reload this same buffer after session restoration. Replacing
     # identical text still relocates extmarks; metadata shape alone is not a
     # sufficient cache key for its conceal positions.
-    # Remove the synthetic output first: it has no Molten owner to move it back.
-    nvim.exec_lua("""vim.api.nvim_buf_del_extmark(0,ns,out)
-      vim.api.nvim_buf_set_lines(0,0,-1,false,...);vim.bo.modified=false""", source)
+    # Keep the old output mark: a whole-buffer replacement moves it to EOF,
+    # where the UI must leave it untouched and simply omit it until valid again.
+    nvim.exec_lua("""vim.api.nvim_buf_set_lines(0,0,-1,false,...);vim.bo.modified=false""", source)
     reload_tick = nvim.api.buf_get_changedtick(0)
-    nvim.exec_lua('ui.refresh()')
+    reloaded = nvim.exec_lua('return ui.refresh()')
+    stale_output = nvim.exec_lua('return vim.api.nvim_buf_get_extmark_by_id(0,ns,out,{details=true})')
+    assert stale_output[0] >= len(source), 'regression retains a genuinely out-of-range old output mark'
+    assert not any(f['kind'] == 'output' for f in reloaded), 'stale mark must not enter text-height geometry'
     concealed = nvim.exec_lua("""local ns=vim.api.nvim_get_namespaces()['glow.notebook.metadata']
       return vim.api.nvim_buf_get_extmarks(0,ns,0,-1,{details=true})""")
     assert [mark[1] for mark in concealed] == [0, 1, 2, 3], 'same-shape reload must restore metadata marks to its actual prefix'
     assert nvim.current.buffer[:] == source and nvim.api.buf_get_changedtick(0) == reload_tick
     assert nvim.current.buffer.options['modified'] is False, 'conceal repair must not dirty the reloaded source'
-    nvim.exec_lua("""out=vim.api.nvim_buf_set_extmark(0,ns,6,0,
-      {virt_lines={{{'Out[1]: Done','Normal'}},{{'42','Normal'}}}});ui.refresh()""")
+    restored = nvim.exec_lua("""vim.api.nvim_buf_set_extmark(0,ns,6,0,
+      {id=out,virt_lines={{{'Out[1]: Done','Normal'}},{{'42','Normal'}}}});return ui.refresh()""")
+    assert any(f['kind'] == 'output' and f.get('join') == 'bottom' for f in restored), 'same mark reappears when its source position becomes valid'
     nvim.exec_lua('ui.toggle_metadata(); ui.refresh()')
     nvim.command('redraw')
     assert nvim.exec_lua('return vim.fn.screenpos(0,2,1).row') > 0, 'metadata can be revealed without changing source'
@@ -170,7 +200,7 @@ try:
     nvim.command('tabprevious')
     returned = nvim.exec_lua('return ui.refresh()')
     assert returned[0]['anchor']['epoch'] != epoch, 'returning to a hidden tab remeasures its current viewport'
-    print('PASS: real Molten NEW/RUNNING mark replacement keeps raw height and frame epoch; real output growth relayout; hidden markers/metadata; editable empty cell; preserved source; forward/reverse native scrolling; Tab lifecycle')
+    print('PASS: joined blue/green sections share one seam; no-output frames remain whole; multiple-mark envelopes/cross-cell ownership; real Molten 12 ticks keep raw height/epoch; hidden metadata; source/scroll/Tab preserved')
 finally:
     try:
         nvim.command('qa!')

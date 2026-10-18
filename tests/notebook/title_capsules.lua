@@ -3,6 +3,14 @@ local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h:h")
 vim.opt.rtp:prepend(root .. "/portable/payload/nvim")
 vim.g.mapleader = " "
 vim.o.background = "dark"
+package.preload.base46 = function()
+  return { get_theme_tb = function(kind)
+    assert(kind == 'base_16' or kind == 'base_30')
+    return { base0D = vim.o.background == 'dark' and '#96D7F3' or '#55B4D4',
+      base0B = vim.o.background == 'dark' and '#C5F760' or '#86B300',
+      vibrant_green = vim.o.background == 'dark' and '#B5F297' or '#94E76B' }
+  end }
+end
 vim.api.nvim_set_hl(0, "Normal", { fg = 0xffffff, bg = 0x171717 })
 vim.api.nvim_set_hl(0, "St_file_txt", { fg = 0xcccccc, bg = 0x252934 })
 for name, color in pairs({ St_NormalMode = 0x5599cc, St_VisualMode = 0x55bb99, St_InsertMode = 0xaa77cc }) do
@@ -16,7 +24,7 @@ local function rendered(session, width)
   })
 end
 local idle = rendered({}, 80)
-assert(idle.str:find("Kernel  Select (␣jk)", 1, true) and idle.str:find("Cells  ↑ [c   ↓ ]c", 1, true) and idle.str:find("Menu  ␣j", 1, true))
+assert(idle.str:find("KERNEL  SELECT ␣jk", 1, true) and idle.str:find("CELLS  ↑ [c   ↓ ]c", 1, true) and idle.str:find("MENU  ␣j", 1, true))
 local _, left_ends = idle.str:gsub("", "")
 local _, right_ends = idle.str:gsub("", "")
 assert(left_ends == 3 and right_ends == 3)
@@ -24,12 +32,12 @@ assert(not idle.str:find("空格", 1, true))
 assert(not idle.str:find("/", 1, true) and not idle.str:find("Kernel:", 1, true))
 local long = rendered({ ready = true, selected = { display_name = string.rep("Long Kernel ", 30) } }, 64)
 assert(long.width == 64 and long.str:find("…", 1, true))
-assert(long.str:find("↑ [c   ↓ ]c", 1, true) and long.str:find("Menu  ␣j", 1, true))
+assert(long.str:find("↑ [c   ↓ ]c", 1, true) and long.str:find("MENU  ␣j", 1, true))
 local narrow = rendered({ ready = true, kernel = string.rep("name", 30) }, 40)
 assert(narrow.width == 40 and narrow.str:find("[c  ]c", 1, true) and narrow.str:find("M  ␣j", 1, true))
-assert(rendered({ starting = true, requested = "glow-python" }, 100).str:find("Kernel  Starting… glow-python", 1, true))
-assert(rendered({ ready = true, kernel = "glow-python" }, 100).str:find("Kernel  glow-python", 1, true))
-assert(rendered({ selected = { display_name = "Base" } }, 100).str:find("Kernel  Stopped · Base", 1, true))
+assert(rendered({ starting = true, requested = "glow-python" }, 100).str:find("KERNEL  STARTING… glow-python", 1, true))
+assert(rendered({ ready = true, kernel = "glow-python" }, 100).str:find("KERNEL  glow-python", 1, true))
+assert(rendered({ selected = { display_name = "Base" } }, 100).str:find("KERNEL  STOPPED · Base", 1, true))
 local function contrast(color, background)
   local function linear(channel)
     channel = channel / 255
@@ -48,7 +56,7 @@ for _, name in ipairs({ "Kernel", "Cells", "Menu" }) do
   local cap = vim.api.nvim_get_hl(0, { name = "GlowNotebook" .. name .. "Cap", link = false })
   local value = vim.api.nvim_get_hl(0, { name = "GlowNotebook" .. name .. "Value", link = false })
   local value_cap = vim.api.nvim_get_hl(0, { name = "GlowNotebook" .. name .. "ValueCap", link = false })
-  assert(body.fg == 0xffffff and body.bg and cap.fg == body.bg and not cap.bg)
+  assert(body.fg == 0x171717 and body.bg and cap.fg == body.bg and not cap.bg)
   assert(value.bg == 0x252934 and value.fg == body.bg and value_cap.fg == value.bg and not value_cap.bg)
   assert(contrast(value.fg, value.bg) >= 4.5)
   assert(not colors[body.bg]); colors[body.bg] = true
@@ -58,8 +66,9 @@ local previous = vim.api.nvim_get_hl(0, { name = "GlowNotebookPrev", link = fals
 local following = vim.api.nvim_get_hl(0, { name = "GlowNotebookNext", link = false })
 local cells_value = vim.api.nvim_get_hl(0, { name = "GlowNotebookCellsValue", link = false })
 assert(previous.fg == following.fg and previous.fg == cells_value.fg and previous.bg == 0x252934 and following.bg == 0x252934)
+assert(previous.fg == 0xc5f760 and vim.api.nvim_get_hl(0,{name='GlowNotebookCells',link=false}).bg == 0xc5f760)
 vim.g.mapleader = ","
-assert(rendered({}, 80).str:find("Select (,jk)", 1, true))
+assert(rendered({}, 80).str:find("SELECT ,jk", 1, true))
 vim.g.mapleader = "<Space>"
 assert(notebook.leader_label() == "␣")
 local old_color = vim.api.nvim_get_hl(0, { name = "GlowNotebookKernel", link = false }).bg
@@ -82,21 +91,25 @@ local function joined(chunks)
 end
 assert(joined(labels[1].chunks):find('',1,true) and not joined(labels[1].chunks):find('Markdown',1,true))
 assert(joined(labels[2].chunks):find('',1,true) and not joined(labels[2].chunks):find('python',1,true))
-assert(joined(labels[2].chunks):gsub('%s+',' '):find('▷ (⇧↵)',1,true))
+local code_text=joined(labels[2].chunks)
+assert(code_text:find('󰼛',1,true) < code_text:find('',1,true), 'run precedes right-aligned type')
+assert(code_text:find('󰘶󰌑',1,true) and not code_text:find('[()]'), 'shortcut has no parentheses')
+assert(labels[2].chunks[#labels[2].chunks-1][2]=='GlowNotebookLanguage', 'type remains the last capsule')
 assert(labels[2].width==vim.fn.strdisplaywidth(joined(labels[2].chunks)) and labels[2].accent==notebook.cell_accent())
 local cell_accent=vim.api.nvim_get_hl(0,{name='GlowNotebookCell',link=false}).bg
-assert(cell_accent==0xdfa95b)
+assert(cell_accent==0x96d7f3)
+assert(notebook.output_accent()==0xb5f297)
 for _,name in ipairs({'Markdown','Language','Raw','Run'}) do
   local body=vim.api.nvim_get_hl(0,{name='GlowNotebook'..name,link=false})
   local cap=vim.api.nvim_get_hl(0,{name='GlowNotebook'..name..'Cap',link=false})
-  assert(body.bg==cell_accent and body.fg==0xffffff and cap.fg==cell_accent and not cap.bg)
+  assert(body.bg==cell_accent and body.fg==0x222222 and cap.fg==cell_accent and not cap.bg)
 end
 local run_value=vim.api.nvim_get_hl(0,{name='GlowNotebookRunValue',link=false})
 assert(run_value.fg==cell_accent and run_value.bg==0x252934)
 local _, caps = joined(labels[2].chunks):gsub('','');assert(caps==2)
 local idle_label, running_label = notebook.label_chunks('code','python',false), notebook.label_chunks('code','python',true)
 for index,chunk in ipairs(idle_label) do
-  if chunk[1]:find('▷',1,true) then assert(running_label[index][1]==chunk[1]:gsub('▷','▶'))
+  if chunk[1]:find('󰼛',1,true) then assert(running_label[index][1]==chunk[1]:gsub('󰼛','󰐊'))
   else assert(vim.deep_equal(chunk,running_label[index])) end
 end
 local ns=vim.api.nvim_get_namespaces()['glow.notebook.cells']
@@ -116,9 +129,15 @@ ui.text_borders=false;ui.border_labels=false
 notebook.refresh_labels(buf)
 assert(#vim.api.nvim_buf_get_extmarks(buf,ns,0,-1,{})==4)
 ui.text_borders=saved_owner;ui.border_labels=saved_border_owner
-vim.o.background='light';notebook.refresh_title_colors()
+vim.o.background='light'
+vim.api.nvim_set_hl(0,'St_NormalMode',{fg=0xfafafa,bg=0x399ee6})
+notebook.refresh_title_colors()
 assert(vim.api.nvim_get_hl(0,{name='GlowNotebookKernelValue',link=false}).bg==0xffffff)
-assert(notebook.cell_accent()==0xad732a and vim.api.nvim_get_hl(0,{name='GlowNotebookRunValue',link=false}).bg==0xffffff)
+assert(notebook.cell_accent()==0x55b4d4 and vim.api.nvim_get_hl(0,{name='GlowNotebookRunValue',link=false}).bg==0xffffff)
+assert(notebook.output_accent()==0x94e76b)
+assert(vim.api.nvim_get_hl(0,{name='GlowNotebookCells',link=false}).bg == 0x86b300)
+assert(vim.api.nvim_get_hl(0,{name='GlowNotebookKernel',link=false}).fg == 0xfafafa)
+assert(vim.api.nvim_get_hl(0,{name='GlowNotebookLanguage',link=false}).fg == 0xfafafa)
 print(vim.json.encode({ segmented_capsules=3, surface='dark/light adaptive', previous_next='same Cells accent',
-  label_capsules='solid white type icon + segmented play', cell_accent='shared warm frame color', running='only triangle changes', anchor='visible content/empty row',
+  label_capsules='run before right-aligned type; no parentheses', cell_accent='theme base0D', running='only triangle changes', anchor='visible content/empty row',
   native_ui='explicit border ownership / native source fallback', source='unchanged', kernels_started=0 }))

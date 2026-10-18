@@ -83,11 +83,11 @@ def main():
                     time.sleep(.04)
                 raise AssertionError(description + ": " + editor.command_output("messages"))
 
-            assert len(labels()) == 2 and all("▷ (⇧↵)" in label for label in labels())
+            assert len(labels()) == 2 and all("󰼛 󰘶󰌑" in label for label in labels())
             editor.command("GlowNotebookRunAll")
             wait(lambda: len(headers()) == 2 and "Running" in headers()[0] and "On Hold" in headers()[1], "running and queued")
             playing = labels()
-            assert "▶ (⇧↵)" in playing[0] and "▷ (⇧↵)" in playing[1], (headers(), playing)
+            assert "󰐊 󰘶󰌑" in playing[0] and "󰼛 󰘶󰌑" in playing[1], (headers(), playing)
             # Native refresh observes Molten's exact output without rewriting
             # its virtual lines, and must preserve the real RUNNING label.
             stable_native_refresh = editor.exec_lua("""
@@ -111,7 +111,7 @@ def main():
             assert stable_native_refresh, "native frame refresh was not actually exercised"
             wait(lambda: len(headers()) == 2 and "Done" in headers()[0] and "Failed" in headers()[1], "done and error")
             finished = labels()
-            assert all("▷ (⇧↵)" in label for label in finished), (headers(), finished)
+            assert all("󰼛 󰘶󰌑" in label for label in finished), (headers(), finished)
             assert editor.current.buffer[:] == original and not editor.current.buffer.options["modified"]
             editor.command("MoltenDeinit")
             assert editor.funcs.MoltenRunningKernels() == []

@@ -70,7 +70,7 @@ def main():
             location = editor.funcs.maparg("]l", "n", False, True)
             assert location["rhs"] == "<cmd>lnext<cr>" and location["desc"] == "下一条位置列表结果"
             winbar = editor.current.window.options["winbar"]
-            assert "Select (␣jk)" in winbar and "GlowNotebookMenuValue# ␣j" in winbar and "<Leader>" not in winbar
+            assert "SELECT ␣jk" in winbar and "GlowNotebookMenuValue# ␣j" in winbar and "<Leader>" not in winbar
             assert notebook.name not in winbar and "Shift+Enter" not in winbar
             assert editor.api.get_mode()["mode"] == "n"
             editor.command("GlowNotebookKernel")

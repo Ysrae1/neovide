@@ -1,7 +1,7 @@
 //! Decoration-only Notebook frames. Geometry arrives as asynchronous snapshots;
 //! editor text, cursor, execution and document serialization remain in Neovim.
 use rmpv::Value;
-use skia_safe::{Canvas, Color, Paint, Rect, paint::Style};
+use skia_safe::{Canvas, Color, Paint, PathBuilder, Rect, paint::Style};
 use std::collections::{HashMap, HashSet};
 
 use crate::units::{GridScale, to_skia_rect};
@@ -98,10 +98,17 @@ struct LabelGap {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+enum FrameJoin {
+    Top,
+    Bottom,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct NotebookFrame {
     rect: FrameRect,
     clip: FrameRect,
     output: bool,
+    join: Option<FrameJoin>,
     active: bool,
     overlay: bool,
     dark: bool,
@@ -126,6 +133,14 @@ impl NotebookFrame {
                 Some("input") => false,
                 Some("output") => true,
                 _ => return Err("Notebook frame kind must be input or output".into()),
+            },
+            join: match field("join") {
+                None => None,
+                Some(value) => Some(match value.as_str() {
+                    Some("top") => FrameJoin::Top,
+                    Some("bottom") => FrameJoin::Bottom,
+                    _ => return Err("Notebook join must be top or bottom".into()),
+                }),
             },
             anchor: field("anchor")
                 .map(|value| {
@@ -337,7 +352,40 @@ impl NotebookRenderer {
             }
             let radius =
                 (scale.height() * 0.42).min(bounds.height() / 2.0).min(bounds.width() / 2.0);
-            canvas.draw_round_rect(bounds, radius, radius, &paint);
+            match frame.join {
+                None => {
+                    canvas.draw_round_rect(bounds, radius, radius, &paint);
+                }
+                Some(ref join) => {
+                    let (l, t, r, b) = (bounds.left, bounds.top, bounds.right, bounds.bottom);
+                    let mut path = PathBuilder::new();
+                    let weight = std::f32::consts::FRAC_1_SQRT_2;
+                    match join {
+                        FrameJoin::Top => {
+                            // Open bottom: this section never paints a second
+                            // horizontal seam underneath the output's green one.
+                            path.move_to((l, b))
+                                .line_to((l, t + radius))
+                                .conic_to((l, t), (l + radius, t), weight)
+                                .line_to((r - radius, t))
+                                .conic_to((r, t), (r, t + radius), weight)
+                                .line_to((r, b));
+                        }
+                        FrameJoin::Bottom => {
+                            // Square top corners and one shared green seam;
+                            // only the external bottom corners remain round.
+                            path.move_to((l, t))
+                                .line_to((l, b - radius))
+                                .conic_to((l, b), (l + radius, b), weight)
+                                .line_to((r - radius, b))
+                                .conic_to((r, b), (r, b - radius), weight)
+                                .line_to((r, t))
+                                .close();
+                        }
+                    }
+                    canvas.draw_path(&path.detach(), &paint);
+                }
+            }
             canvas.restore();
         }
     }
@@ -377,6 +425,55 @@ mod tests {
         }
         assert!(FrameSnapshot::parse(&[Value::Array(vec![packet(); 513])]).is_err());
         assert!(FrameSnapshot::parse(&[]).is_err());
+    }
+    #[test]
+    fn joined_cell_keeps_blue_top_green_bottom_and_one_straight_shared_seam() {
+        let item = |kind: &str, join: &str, row: f64, height: f64, color: u32| {
+            Value::Map(vec![
+                ("rect".into(), rect(row, 1.0, 6.0, height)),
+                ("clip".into(), rect(0.0, 0.0, 10.0, 10.0)),
+                ("kind".into(), kind.into()),
+                ("join".into(), join.into()),
+                ("color".into(), color.into()),
+            ])
+        };
+        let mut renderer = NotebookRenderer::default();
+        renderer.replace(
+            FrameSnapshot::parse(&[Value::Array(vec![
+                item("input", "top", 1.0, 2.0, 0x5588cc),
+                item("output", "bottom", 3.0, 4.0, 0x22cc77),
+            ])])
+            .unwrap(),
+        );
+        let mut surface = surfaces::raster_n32_premul((110, 160)).unwrap();
+        surface.canvas().clear(Color::WHITE);
+        renderer.draw(surface.canvas(), PixelSize::new(10.0, 20.0).into(), false, &[], &[]);
+        let pixels = surface.peek_pixels().unwrap();
+        assert_eq!(pixels.get_color((40, 59)), Color::from_rgb(0x22, 0xcc, 0x77));
+        assert_eq!(pixels.get_color((40, 60)), Color::from_rgb(0x22, 0xcc, 0x77));
+        assert_eq!(pixels.get_color((40, 61)), Color::WHITE, "seam has no second edge or fill");
+        assert_eq!(pixels.get_color((10, 20)), Color::WHITE, "external top remains rounded");
+        assert_eq!(
+            pixels.get_color((10, 50)),
+            Color::from_rgb(0x55, 0x88, 0xcc),
+            "upper side is blue"
+        );
+        assert_eq!(
+            pixels.get_color((10, 60)),
+            Color::from_rgb(0x22, 0xcc, 0x77),
+            "junction is straight, with no rounded gap"
+        );
+        assert_eq!(
+            pixels.get_color((10, 90)),
+            Color::from_rgb(0x22, 0xcc, 0x77),
+            "lower vertical sides are green"
+        );
+        assert_eq!(
+            pixels.get_color((40, 139)),
+            Color::from_rgb(0x22, 0xcc, 0x77),
+            "lower external edge is green"
+        );
+        assert_eq!(pixels.get_color((10, 140)), Color::WHITE, "external bottom remains rounded");
     }
     #[test]
     fn capsule_gaps_preserve_connecting_line_and_opaque_two_pixel_theme_stroke() {
@@ -424,6 +521,7 @@ mod tests {
             rect: FrameRect { row: 10.0, col: 1.0, width: 6.0, height: 2.0 },
             clip: FrameRect { row: 0.0, col: 0.0, width: 10.0, height: 20.0 },
             output: false,
+            join: None,
             active: true,
             overlay: false,
             dark: false,
@@ -493,6 +591,7 @@ mod tests {
             rect: FrameRect { row: 1.0, col: 1.0, width: 6.0, height: 4.0 },
             clip: FrameRect { row: 0.0, col: 0.0, width: 9.0, height: 6.0 },
             output: true,
+            join: None,
             active: true,
             overlay: true,
             dark: false,

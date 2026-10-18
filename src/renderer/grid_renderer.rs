@@ -396,6 +396,16 @@ impl GridRenderer {
             } else {
                 paint.set_color(style.foreground(&self.default_style.colors).to_color());
             }
+            if style.enlarged_icon {
+                // The capsule's text has its own three-cell region. Enlarge
+                // its icon around that center, preserving layout and baseline
+                // for every other highlight, background and powerline cap.
+                let center = region.center();
+                text_canvas.save();
+                text_canvas.translate((center.x, center.y));
+                text_canvas.scale((1.2, 1.2));
+                text_canvas.translate((-center.x, -center.y));
+            }
             for word in fragment.words() {
                 let adjustment = PixelVec::new(
                     word.cell as f32 * self.grid_scale.width(),
@@ -411,6 +421,9 @@ impl GridRenderer {
                     );
                     text_drawn = true;
                 }
+            }
+            if style.enlarged_icon {
+                text_canvas.restore();
             }
 
             if style.strikethrough {

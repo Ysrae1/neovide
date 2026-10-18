@@ -6,9 +6,10 @@ use objc2::{
 };
 use objc2_app_kit::{
     NSApplication, NSBezelStyle, NSButton, NSButtonType, NSColor, NSControl, NSFloatingWindowLevel,
-    NSFocusRingType, NSFont, NSFontWeight, NSImage, NSImageScaling, NSImageView, NSLineBreakMode,
-    NSResponder, NSScrollView, NSTextAlignment, NSTextField, NSTextFieldDelegate, NSView, NSWindow,
-    NSWindowButton, NSWindowStyleMask, NSWindowTitleVisibility,
+    NSFocusRingType, NSFont, NSFontWeight, NSImage, NSImageScaling, NSImageSymbolConfiguration,
+    NSImageView, NSLineBreakMode, NSResponder, NSScrollView, NSTextAlignment, NSTextField,
+    NSTextFieldDelegate, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
+    NSWindowTitleVisibility,
 };
 use objc2_foundation::{MainThreadMarker, NSInteger, NSPoint, NSRect, NSSize, NSString, ns_string};
 
@@ -586,8 +587,28 @@ fn editor_switcher_footer_shortcut_chip(
     text: &str,
     size: f64,
 ) -> FooterShortcutChip {
-    let label = editor_switcher_label(mtm, text, size, EditorSwitcherLabelStyle::Shortcut);
-    let label_size = editor_switcher_fit_label(label.as_ref());
+    // SF Mono does not contain U+21A9. Keep just this key in a 15pt symbol box;
+    // the other shortcut chips retain their existing text sizing and layout.
+    let symbol = if text == "↩" {
+        NSImage::imageWithSystemSymbolName_accessibilityDescription(
+            ns_string!("return"),
+            Some(ns_string!("Return")),
+        )
+    } else {
+        None
+    };
+    let label = symbol.is_none().then(|| {
+        editor_switcher_label(
+            mtm,
+            if text == "↩" { "return" } else { text },
+            size,
+            EditorSwitcherLabelStyle::Shortcut,
+        )
+    });
+    let label_size = label
+        .as_ref()
+        .map(|label| editor_switcher_fit_label(label.as_ref()))
+        .unwrap_or(NSSize::new(size, size));
     let label_width = label_size.width.ceil();
     let label_height = label_size.height.ceil();
     let width = label_width + BottomBar::SHORTCUT_HORIZONTAL_PADDING * 2.0;
@@ -603,12 +624,28 @@ fn editor_switcher_footer_shortcut_chip(
         BottomBar::SHORTCUT_CHIP_CORNER_RADIUS,
     );
 
-    let label_view: &NSView = label.as_ref();
-    label_view.setFrame(NSRect::new(
+    let content_frame = NSRect::new(
         NSPoint::new(BottomBar::SHORTCUT_HORIZONTAL_PADDING, BottomBar::SHORTCUT_VERTICAL_PADDING),
         NSSize::new(label_width, label_height),
-    ));
-    chip.addSubview(label.as_ref());
+    );
+    if let Some(symbol) = symbol {
+        let image_view = NSImageView::initWithFrame(NSImageView::alloc(mtm), content_frame);
+        image_view.setImage(Some(symbol.as_ref()));
+        image_view.setSymbolConfiguration(Some(
+            NSImageSymbolConfiguration::configurationWithPointSize_weight(
+                size,
+                NSFontWeight::from(0),
+            )
+            .as_ref(),
+        ));
+        image_view.setImageScaling(NSImageScaling::ScaleProportionallyDown);
+        image_view.setContentTintColor(Some(NSColor::systemGrayColor().as_ref()));
+        chip.addSubview(image_view.as_ref());
+    } else if let Some(label) = label {
+        let label_view: &NSView = label.as_ref();
+        label_view.setFrame(content_frame);
+        chip.addSubview(label.as_ref());
+    }
 
     FooterShortcutChip { view: chip, width, height }
 }

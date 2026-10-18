@@ -7,7 +7,7 @@ return {
       registries = { "github:mason-org/mason-registry@2026-05-22-fiscal-eon" },
       ui = {
         border = "rounded",
-        icons = { package_installed = "✓", package_pending = "➜", package_uninstalled = "✗" },
+        icons = { package_installed = "󰄬", package_pending = "󰁔", package_uninstalled = "󰅖" },
       },
     },
     config = function(_, opts)

@@ -121,7 +121,6 @@ static void GlowGlassPanelApply(NSView *view, BOOL enabled, CGFloat radius, BOOL
 @property(nonatomic, weak) NSView *editor;
 @property(nonatomic, strong) NSView *effect;
 @property(nonatomic) BOOL enabled;
-@property(nonatomic) NSTimeInterval lastPanelScan;
 - (void)layout;
 - (void)setMaterialEnabled:(BOOL)enabled;
 @end
@@ -136,7 +135,6 @@ static void GlowGlassPanelApply(NSView *view, BOOL enabled, CGFloat radius, BOOL
         GlowGlassPanelState *state = objc_getAssociatedObject(panel, GlowGlassPanelKey);
         GlowGlassPanelApply(panel, enabled, state.radius, state.material);
     }
-    self.lastPanelScan = 0;
     [self layout];
 }
 - (void)layout {
@@ -152,17 +150,8 @@ static void GlowGlassPanelApply(NSView *view, BOOL enabled, CGFloat radius, BOOL
     }
     self.effect.frame = [editor convertRect:editor.bounds toView:parent];
     self.effect.hidden = editor.hidden;
-    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
-    if (now - self.lastPanelScan < 0.15) return;
-    self.lastPanelScan = now;
-    // Only our own preview containers become transparent. PDF pages, video and
-    // web document content retain their own readable, unmodified backgrounds.
-    for (NSView *child in editor.subviews.copy) {
-        NSString *name = NSStringFromClass(child.class);
-        if ([name isEqualToString:@"GlowMediaView"] || [name isEqualToString:@"GlowPDFContainer"]) {
-            GlowGlassPanelApply(child, YES, 12, YES);
-        }
-    }
+    // This is the editor window's sole material. Native media/PDF containers
+    // retain their original backgrounds and controls above the Neovide canvas.
 }
 @end
 

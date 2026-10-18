@@ -289,7 +289,8 @@ impl Editor {
             }
             RedrawEvent::HighlightAttributesDefine { id, style, name } => {
                 tracy_zone!("EditorHighlightAttributesDefine");
-                self.defined_styles.insert(id, Arc::new(style));
+                self.defined_styles
+                    .insert(id, Arc::new(style.with_highlight_name(name.as_deref())));
 
                 #[cfg(target_os = "macos")]
                 self.update_match_paren_highlight(id, name.as_deref());

@@ -43,6 +43,8 @@ pub struct Style {
     /// Blend level (0-100).
     pub blend: u8,
     pub underline: Option<UnderlineStyle>,
+    /// Scale only the foreground of Notebook type-icon capsules.
+    pub enlarged_icon: bool,
 }
 
 impl Style {
@@ -55,7 +57,16 @@ impl Style {
             strikethrough: false,
             blend: 0,
             underline: None,
+            enlarged_icon: false,
         }
+    }
+
+    pub fn with_highlight_name(mut self, name: Option<&str>) -> Self {
+        self.enlarged_icon = matches!(
+            name,
+            Some("GlowNotebookLanguage" | "GlowNotebookMarkdown")
+        );
+        self
     }
 
     pub fn foreground(&self, default_colors: &Colors) -> Color4f {

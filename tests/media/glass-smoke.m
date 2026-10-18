@@ -12,10 +12,14 @@ static void Check(BOOL condition, const char *message) {
 @implementation GlassEditor
 - (BOOL)acceptsFirstResponder { return YES; }
 @end
-// Discovery uses only our own preview container classes, never web/PDF content.
+// These preview containers must keep their ordinary Neovide-style surfaces.
 @interface GlowMediaView : NSView
 @end
 @implementation GlowMediaView
+@end
+@interface GlowPDFContainer : NSView
+@end
+@implementation GlowPDFContainer
 @end
 int main(void) {
     @autoreleasepool {
@@ -48,18 +52,36 @@ int main(void) {
         NSButton *button = [NSButton buttonWithTitle:@"Play" target:nil action:nil];
         button.frame = NSMakeRect(20,20,70,30);
         [panel addSubview:button]; [editor addSubview:panel];
-        context.lastPanelScan = 0;
+        GlowPDFContainer *pdf = [[GlowPDFContainer alloc] initWithFrame:NSMakeRect(320,10,300,200)];
+        pdf.wantsLayer = YES;
+        pdf.layer.backgroundColor = NSColor.blueColor.CGColor;
+        [editor addSubview:pdf];
         glow_glass_layout(handle);
-        GlowGlassPanelState *state = objc_getAssociatedObject(panel, GlowGlassPanelKey);
-        Check(state.effect != nil && [panel.subviews indexOfObject:state.effect] == 0, "new native preview gets a single lower material");
-        Check(CGColorGetAlpha(panel.layer.backgroundColor) == 0, "preview container background becomes transparent");
-        Check([panel hitTest:NSMakePoint(50,45)] == button, "preview controls retain click handling above glass");
+        Check(objc_getAssociatedObject(panel, GlowGlassPanelKey) == nil
+            && objc_getAssociatedObject(pdf, GlowGlassPanelKey) == nil, "media/PDF previews never receive independent material");
+        Check(panel.subviews.count == 1 && pdf.subviews.count == 0, "no extra preview children are installed");
+        Check(CGColorEqualToColor(panel.layer.backgroundColor, NSColor.redColor.CGColor)
+            && CGColorEqualToColor(pdf.layer.backgroundColor, NSColor.blueColor.CGColor), "preview backgrounds remain unchanged");
+        Check([panel hitTest:NSMakePoint(50,45)] == button, "preview controls retain click handling");
+        // Switcher uses the explicit panel API; removing preview discovery must
+        // leave its existing material and background restoration intact.
+        NSView *switcher = [[NSView alloc] initWithFrame:NSMakeRect(10,230,300,200)];
+        switcher.wantsLayer = YES;
+        switcher.layer.backgroundColor = NSColor.grayColor.CGColor;
+        [editor addSubview:switcher];
+        glow_glass_panel((__bridge void *)switcher,true,12);
+        GlowGlassPanelState *state = objc_getAssociatedObject(switcher, GlowGlassPanelKey);
+        Check(state.effect != nil && switcher.subviews.count == 1, "explicit Switcher material is preserved");
         glow_glass_set_enabled(handle, false);
         Check(context.effect == nil && state.effect == nil, "runtime off removes all native material layers");
-        Check(CGColorEqualToColor(panel.layer.backgroundColor, NSColor.redColor.CGColor), "runtime off restores original preview background");
+        Check(CGColorEqualToColor(switcher.layer.backgroundColor, NSColor.grayColor.CGColor), "runtime off restores explicit panel background");
+        Check(CGColorEqualToColor(panel.layer.backgroundColor, NSColor.redColor.CGColor)
+            && CGColorEqualToColor(pdf.layer.backgroundColor, NSColor.blueColor.CGColor), "runtime off leaves preview style intact");
         Check(window.contentView == editor && window.firstResponder == editor, "off preserves editor input identity");
         glow_glass_set_enabled(handle, true);
-        Check(context.effect != nil, "runtime on recreates material cleanly");
+        Check(context.effect != nil && state.effect != nil, "runtime on recreates window and explicit panel material cleanly");
+        Check(objc_getAssociatedObject(panel, GlowGlassPanelKey) == nil
+            && objc_getAssociatedObject(pdf, GlowGlassPanelKey) == nil, "runtime on does not add preview materials");
         NSView *fallback = GlowGlassMakeEffect(12, YES);
         Check([fallback isKindOfClass:NSVisualEffectView.class], "legacy vibrancy fallback can be constructed");
         Check([fallback hitTest:NSMakePoint(0,0)] == nil, "legacy fallback never intercepts input");
@@ -67,7 +89,7 @@ int main(void) {
         glow_glass_destroy(handle);
         Check(window.contentView == editor, "destroy never replaces/removes editor contentView");
         [window close];
-        puts("PASS: actual native Glass; preserved contentView/focus; sibling z-order; input passthrough; resize; preview discovery; runtime on/off/background restore; legacy fallback construction");
+        puts("PASS: whole-editor Glass; contentView/focus/z-order/resize; unchanged media/PDF surfaces; preserved explicit Switcher material; runtime on/off; legacy fallback construction");
     }
     return 0;
 }

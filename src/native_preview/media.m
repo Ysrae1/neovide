@@ -32,7 +32,7 @@ static void *GlowMediaPlayerStatusContext = &GlowMediaPlayerStatusContext;
 @property(nonatomic, strong) NSTextField *titleLabel;
 @property(nonatomic, strong) NSTextField *messageLabel;
 @property(nonatomic, strong) NSTextField *volumeLabel;
-@property(nonatomic, strong) NSTextField *audioSymbol;
+@property(nonatomic, strong) NSImageView *audioSymbol;
 @property(nonatomic, strong) id timeObserver;
 @property(nonatomic, strong) id endObserver;
 @property(nonatomic, strong) id failureObserver;
@@ -141,9 +141,13 @@ static NSURL *GlowMediaURL(const char *path, NSString **failure) {
         [_view addSubview:_playerView];
     }
 
-    _audioSymbol = GlowMediaLabel(@"♫", 56);
-    _audioSymbol.alignment = NSTextAlignmentCenter;
-    _audioSymbol.textColor = NSColor.secondaryLabelColor;
+    // SF's text face does not contain U+266B; use its native symbol rendition.
+    _audioSymbol = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    _audioSymbol.image = [NSImage imageWithSystemSymbolName:@"music.note" accessibilityDescription:@"音频预览"];
+    _audioSymbol.symbolConfiguration = [NSImageSymbolConfiguration configurationWithPointSize:56 weight:NSFontWeightRegular];
+    _audioSymbol.imageScaling = NSImageScaleProportionallyDown;
+    _audioSymbol.imageAlignment = NSImageAlignCenter;
+    _audioSymbol.contentTintColor = NSColor.secondaryLabelColor;
     _audioSymbol.hidden = video;
     [_view addSubview:_audioSymbol];
     _titleLabel = GlowMediaLabel(@"媒体预览", 14);

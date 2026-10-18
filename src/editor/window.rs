@@ -500,6 +500,135 @@ mod tests {
     use skia_safe::{Color4f, colors};
     use std::sync::Arc;
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn notebook_icon_highlights_enlarge_only_type_foreground_by_twenty_percent() {
+        use crate::{
+            renderer::{GridRenderer, RendererSettings},
+            settings::Settings,
+            units::PixelPos,
+            window::WindowSettings,
+        };
+        use skia_safe::{Color, FontMgr, FontStyle, surfaces};
+
+        assert!(
+            FontMgr::new()
+                .match_family_style("FiraCode Nerd Font Mono", FontStyle::normal())
+                .is_some(),
+            "this regression must exercise the installed FiraCode Nerd Font Mono"
+        );
+        let settings = Arc::new(Settings::new());
+        settings.set(&WindowSettings::default());
+        settings.set(&RendererSettings::default());
+        let mut renderer = GridRenderer::new(2.0, settings);
+        renderer.update_font("FiraCode Nerd Font Mono:h16");
+        let base = Style::new(Colors::new(Some(colors::WHITE), Some(colors::BLUE), None));
+        let mut render = |text: &str, style: Style| {
+            let count = text.chars().count();
+            let style = Arc::new(style);
+            let mut grid = CharacterGrid::new((count, 1));
+            for (x, ch) in text.chars().enumerate() {
+                *grid.get_cell_mut(x, 0).unwrap() = (ch.to_string(), Some(style.clone()));
+            }
+            let window = Window {
+                grid_id: 1,
+                grid,
+                window_type: WindowType::Editor,
+                anchor_info: None,
+                grid_position: (0.0, 0.0),
+            };
+            let width = (renderer.grid_scale.width() * count as f32).ceil() as i32;
+            let height = renderer.grid_scale.height().ceil() as i32;
+            let mut surface = surfaces::raster_n32_premul((width, height)).unwrap();
+            let mut background = surfaces::raster_n32_premul((width, height)).unwrap();
+            surface.canvas().clear(Color::BLACK);
+            background.canvas().clear(Color::BLACK);
+            let mut start = 0;
+            let mut line = String::new();
+            while start < count {
+                let (next, data) = window.build_line_fragment(0, start, &mut line);
+                let fragment = LineFragment {
+                    style: &data.style,
+                    cells: &data.cells,
+                    text: &line[data.text_range.start as usize..data.text_range.end as usize],
+                    data: &data,
+                };
+                renderer.draw_background(background.canvas(), &data.cells, &data.style, 1.0);
+                let canvas = surface.canvas();
+                renderer.draw_foreground(
+                    canvas,
+                    canvas,
+                    &fragment,
+                    PixelPos::default(),
+                    1.0,
+                );
+                start = next;
+            }
+            let pixels = surface.peek_pixels().unwrap();
+            let bg = background.peek_pixels().unwrap();
+            let mut ink = (width, height, -1, -1);
+            let mut raster = Vec::new();
+            let mut bg_raster = Vec::new();
+            for y in 0..height {
+                for x in 0..width {
+                    let color = pixels.get_color((x, y));
+                    raster.push(color);
+                    bg_raster.push(bg.get_color((x, y)));
+                    if color != Color::BLACK {
+                        ink = (ink.0.min(x), ink.1.min(y), ink.2.max(x), ink.3.max(y));
+                    }
+                }
+            }
+            assert!(ink.2 >= ink.0 && ink.3 >= ink.1, "glyph must really rasterize");
+            (raster, bg_raster, ink, height)
+        };
+        for (group, glyph) in
+            [("GlowNotebookLanguage", ""), ("GlowNotebookMarkdown", "")]
+        {
+            let enlarged = base.clone().with_highlight_name(Some(group));
+            assert!(enlarged.enlarged_icon);
+            let text = format!(" {glyph} ");
+            let normal = render(&text, base.clone());
+            let scaled = render(&text, enlarged);
+            let normal_height = (normal.2.3 - normal.2.1 + 1) as f32;
+            let scaled_height = (scaled.2.3 - scaled.2.1 + 1) as f32;
+            assert!(scaled_height > normal_height, "{group} must visibly enlarge its glyph");
+            assert!(
+                (scaled_height - normal_height * 1.2).abs() <= 2.0,
+                "{group} raster height must follow 1.2x, got {normal_height}->{scaled_height}"
+            );
+            let center = (normal.3 as f32 - 1.0) / 2.0;
+            let normal_ink_center = (normal.2.1 + normal.2.3) as f32 / 2.0;
+            let scaled_ink_center = (scaled.2.1 + scaled.2.3) as f32 / 2.0;
+            assert!(
+                (scaled_ink_center - (center + (normal_ink_center - center) * 1.2)).abs() <= 1.0,
+                "{group} enlarges around its existing cell center: normal={:?}, scaled={:?}, cell_height={}, expected_center={}, actual_center={}",
+                normal.2, scaled.2, normal.3,
+                center + (normal_ink_center - center) * 1.2, scaled_ink_center
+            );
+            assert_eq!(normal.1, scaled.1, "capsule background must remain pixel-identical");
+        }
+        for group in [
+            "Normal",
+            "GlowNotebookRun",
+            "GlowNotebookRunValue",
+            "GlowNotebookRaw",
+            "GlowNotebookLanguageCap",
+            "GlowNotebookMarkdownCap",
+        ] {
+            let ordinary = base.clone().with_highlight_name(Some(group));
+            assert!(!ordinary.enlarged_icon, "only exact type-body groups opt in");
+            assert_eq!(
+                render("abc", base.clone()).0,
+                render("abc", ordinary).0,
+                "ordinary source/run/cap styles must retain their actual raster"
+            );
+        }
+        let normal_cap = render("", base.clone());
+        let scaled_style_cap = render("", base.with_highlight_name(Some("GlowNotebookLanguage")));
+        assert_eq!(normal_cap.0, scaled_style_cap.0, "native powerline caps never scale");
+    }
+
     fn make_style(color: Color4f) -> Arc<Style> {
         Arc::new(Style::new(Colors {
             foreground: Some(color),
