@@ -52,7 +52,8 @@ def main():
                   local ret={}
                   for _,label in ipairs(require('config.media.notebook_edit').cell_labels(buf)) do
                     local text='';for _,chunk in ipairs(label.chunks) do text=text..chunk[1] end
-                    if text:find('python',1,true) then ret[#ret+1]=text end
+                    -- Segment padding is presentation; status assertions use normalized spaces.
+                    if label.cell.kind=='code' then ret[#ret+1]=text:gsub('%s+',' ') end
                   end
                   return ret
                 """, source)
@@ -117,7 +118,7 @@ def main():
             print(json.dumps({"idle": "outline", "queued": "outline", "real_running": "filled",
                               "done": "outline", "error": "outline", "printed_running_text_ignored": True,
                               "stable_native_refresh": stable_native_refresh,
-                              "language_and_shift_enter": "preserved", "source_unchanged": True}))
+                              "type_icon_and_shift_enter": "preserved", "source_unchanged": True}))
         finally:
             try:
                 editor.command("qa!")

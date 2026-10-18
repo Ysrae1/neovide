@@ -80,8 +80,19 @@ assert(#labels == 4 and labels[1].row == 1 and labels[2].row == 4 and labels[3].
 local function joined(chunks)
   local text='';for _,chunk in ipairs(chunks) do text=text..chunk[1] end;return text
 end
-assert(joined(labels[1].chunks):find(' Markdown',1,true))
-assert(joined(labels[2].chunks):find(' python',1,true) and joined(labels[2].chunks):find('▷ (⇧↵)',1,true))
+assert(joined(labels[1].chunks):find('',1,true) and not joined(labels[1].chunks):find('Markdown',1,true))
+assert(joined(labels[2].chunks):find('',1,true) and not joined(labels[2].chunks):find('python',1,true))
+assert(joined(labels[2].chunks):gsub('%s+',' '):find('▷ (⇧↵)',1,true))
+assert(labels[2].width==vim.fn.strdisplaywidth(joined(labels[2].chunks)) and labels[2].accent==notebook.cell_accent())
+local cell_accent=vim.api.nvim_get_hl(0,{name='GlowNotebookCell',link=false}).bg
+assert(cell_accent==0xdfa95b)
+for _,name in ipairs({'Markdown','Language','Raw','Run'}) do
+  local body=vim.api.nvim_get_hl(0,{name='GlowNotebook'..name,link=false})
+  local cap=vim.api.nvim_get_hl(0,{name='GlowNotebook'..name..'Cap',link=false})
+  assert(body.bg==cell_accent and body.fg==0xffffff and cap.fg==cell_accent and not cap.bg)
+end
+local run_value=vim.api.nvim_get_hl(0,{name='GlowNotebookRunValue',link=false})
+assert(run_value.fg==cell_accent and run_value.bg==0x252934)
 local _, caps = joined(labels[2].chunks):gsub('','');assert(caps==2)
 local idle_label, running_label = notebook.label_chunks('code','python',false), notebook.label_chunks('code','python',true)
 for index,chunk in ipairs(idle_label) do
@@ -99,14 +110,15 @@ notebook.jump(-1);assert(vim.api.nvim_win_get_cursor(0)[1]==8)
 assert(vim.deep_equal(source,vim.api.nvim_buf_get_lines(buf,0,-1,false)))
 vim.g.neovide_native_notebook=true
 local ui=package.loaded['config.media.notebook_ui']
-local saved_owner=ui.text_borders;ui.text_borders=true
+local saved_owner,saved_border_owner=ui.text_borders,ui.border_labels;ui.text_borders=false;ui.border_labels=true
 assert(#notebook.refresh_labels(buf)==4 and #vim.api.nvim_buf_get_extmarks(buf,ns,0,-1,{})==0)
-ui.text_borders=false
+ui.text_borders=false;ui.border_labels=false
 notebook.refresh_labels(buf)
 assert(#vim.api.nvim_buf_get_extmarks(buf,ns,0,-1,{})==4)
-ui.text_borders=saved_owner
+ui.text_borders=saved_owner;ui.border_labels=saved_border_owner
 vim.o.background='light';notebook.refresh_title_colors()
 assert(vim.api.nvim_get_hl(0,{name='GlowNotebookKernelValue',link=false}).bg==0xffffff)
+assert(notebook.cell_accent()==0xad732a and vim.api.nvim_get_hl(0,{name='GlowNotebookRunValue',link=false}).bg==0xffffff)
 print(vim.json.encode({ segmented_capsules=3, surface='dark/light adaptive', previous_next='same Cells accent',
-  label_capsules='language icon + separate play', running='only triangle changes', anchor='visible content/empty row',
+  label_capsules='solid white type icon + segmented play', cell_accent='shared warm frame color', running='only triangle changes', anchor='visible content/empty row',
   native_ui='explicit border ownership / native source fallback', source='unchanged', kernels_started=0 }))

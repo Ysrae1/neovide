@@ -92,6 +92,12 @@ impl NotebookWindow {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+struct LabelGap {
+    col: f32,
+    width: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct NotebookFrame {
     rect: FrameRect,
     clip: FrameRect,
@@ -100,6 +106,8 @@ pub struct NotebookFrame {
     overlay: bool,
     dark: bool,
     anchor: Option<FrameAnchor>,
+    color: Option<u32>,
+    label_gaps: Vec<LabelGap>,
 }
 impl NotebookFrame {
     fn parse(value: &Value) -> Result<Self, String> {
@@ -145,6 +153,46 @@ impl NotebookFrame {
             active: flag("active")?,
             overlay: flag("overlay")?,
             dark: flag("dark")?,
+            color: field("color")
+                .map(|value| {
+                    value
+                        .as_u64()
+                        .filter(|v| *v <= 0xff_ffff)
+                        .map(|v| v as u32)
+                        .ok_or_else(|| "Notebook color must be RGB".to_string())
+                })
+                .transpose()?,
+            label_gaps: field("label_gaps")
+                .map(|value| {
+                    let gaps = value
+                        .as_array()
+                        .filter(|v| v.len() <= 8)
+                        .ok_or("Notebook label gaps must be an array with at most eight entries")?;
+                    gaps.iter()
+                        .map(|value| {
+                            let fields =
+                                value.as_map().ok_or("Notebook label gap must be a map")?;
+                            let number = |name| {
+                                fields
+                                    .iter()
+                                    .find(|(k, _)| k.as_str() == Some(name))
+                                    .and_then(|(_, v)| v.as_f64())
+                                    .map(|v| v as f32)
+                                    .filter(|v| v.is_finite() && *v >= 0.0 && *v <= 1_000_000.0)
+                                    .ok_or_else(|| {
+                                        format!("Notebook label gap {name} must be bounded")
+                                    })
+                            };
+                            let gap = LabelGap { col: number("col")?, width: number("width")? };
+                            if gap.width <= 0.0 {
+                                return Err("Notebook label gap width must be positive".into());
+                            }
+                            Ok::<_, String>(gap)
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?
+                .unwrap_or_default(),
         })
     }
 }
@@ -265,10 +313,28 @@ impl NotebookRenderer {
             let mut paint = Paint::default();
             paint.set_anti_alias(true);
             paint.set_style(Style::Stroke);
-            paint.set_color(Color::from_argb(if frame.active { 235 } else { 155 }, r, g, b));
-            paint.set_stroke_width(
-                (scale.height() * if frame.active { 0.065 } else { 0.045 }).clamp(1.0, 3.5),
-            );
+            let color = frame
+                .color
+                .map(|rgb| Color::from_rgb((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8))
+                .unwrap_or_else(|| Color::from_rgb(r, g, b));
+            paint.set_color(color);
+            // Same physical-pixel units as box_drawing's default thin=2.
+            let stroke = if frame.active { 2.5 } else { 2.0 };
+            paint.set_stroke_width(stroke);
+            for gap in &frame.label_gaps {
+                // The text-grid capsule owns this segment of the top edge.
+                // Bounds already carry the owner's scroll/window animation.
+                canvas.clip_rect(
+                    Rect::from_xywh(
+                        bounds.left + gap.col * scale.width(),
+                        bounds.top - stroke,
+                        gap.width * scale.width(),
+                        stroke * 2.0,
+                    ),
+                    skia_safe::ClipOp::Difference,
+                    false,
+                );
+            }
             let radius =
                 (scale.height() * 0.42).min(bounds.height() / 2.0).min(bounds.width() / 2.0);
             canvas.draw_round_rect(bounds, radius, radius, &paint);
@@ -313,6 +379,28 @@ mod tests {
         assert!(FrameSnapshot::parse(&[]).is_err());
     }
     #[test]
+    fn capsule_gaps_preserve_connecting_line_and_opaque_two_pixel_theme_stroke() {
+        let Value::Map(mut fields) = packet() else { unreachable!() };
+        fields[0].1 = rect(1.0, 1.0, 8.0, 4.0);
+        fields.push(("color".into(), 0xaa5533_u32.into()));
+        let gap = |col: f64, width: f64| {
+            Value::Map(vec![("col".into(), col.into()), ("width".into(), width.into())])
+        };
+        fields.push(("label_gaps".into(), Value::Array(vec![gap(2.0, 1.0), gap(5.0, 1.0)])));
+        let mut renderer = NotebookRenderer::default();
+        renderer.replace(FrameSnapshot::parse(&[Value::Array(vec![Value::Map(fields)])]).unwrap());
+        let mut surface = surfaces::raster_n32_premul((110, 130)).unwrap();
+        surface.canvas().clear(Color::WHITE);
+        renderer.draw(surface.canvas(), PixelSize::new(10.0, 20.0).into(), false, &[], &[]);
+        let pixels = surface.peek_pixels().unwrap();
+        assert_eq!(pixels.get_color((35, 20)), Color::WHITE, "type capsule has its own gap");
+        assert_eq!(pixels.get_color((65, 20)), Color::WHITE, "run capsule has its own gap");
+        let accent = Color::from_rgb(0xaa, 0x55, 0x33);
+        assert_eq!(pixels.get_color((50, 19)), accent, "line connects both capsules");
+        assert_eq!(pixels.get_color((50, 20)), accent, "inactive stroke is two opaque pixels");
+        assert_eq!(pixels.get_color((35, 99)), accent, "gap only clips top, never bottom");
+    }
+    #[test]
     fn notebook_frames_follow_owner_scroll_and_mid_animation_reversal() {
         use super::super::{RenderedWindow, RendererSettings, WindowDrawCommand};
         use crate::units::{GridPos, GridRect};
@@ -340,6 +428,8 @@ mod tests {
             overlay: false,
             dark: false,
             anchor: Some(FrameAnchor { window: 1000, epoch: 1, scroll: true }),
+            color: None,
+            label_gaps: vec![],
         };
         let mut renderer = NotebookRenderer::default();
         renderer.replace(FrameSnapshot(vec![frame.clone()]));
@@ -407,6 +497,8 @@ mod tests {
             overlay: true,
             dark: false,
             anchor: None,
+            color: None,
+            label_gaps: vec![],
         };
         let mut renderer = NotebookRenderer::default();
         renderer.replace(FrameSnapshot(vec![frame]));

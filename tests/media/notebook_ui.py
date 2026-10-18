@@ -31,6 +31,17 @@ try:
     nvim.exec_lua("""
         _G.ns=vim.api.nvim_create_namespace('molten-extmarks')
         _G.out=vim.api.nvim_buf_set_extmark(0,ns,6,0,{virt_lines={{{'Out[1]: Done','Normal'}},{{'42','Normal'}}}})
+        local edit=require('config.media.notebook_edit')
+        -- This isolated source buffer has no kernel/session; reuse the real
+        -- formatter while providing its cell list without starting a kernel.
+        edit.cell_labels=function(buf)
+          local labels={}
+          for index,cell in ipairs(edit.cells(buf)) do
+            labels[#labels+1]={index=index,cell=cell,chunks=edit.label_chunks(cell.kind,'python',false)}
+          end
+          return labels
+        end
+        vim.api.nvim_set_hl(0,'GlowNotebookCell',{bg=0xaa7733})
         _G.ui=require('config.media.notebook_ui'); ui.attach(vim.api.nvim_get_current_buf()); ui.refresh()
     """)
     nvim.command('redraw')
@@ -47,7 +58,17 @@ try:
     assert raw[2]['virt_lines'][1][0][0] == '42', 'Molten output text unchanged'
     first_row = nvim.exec_lua('return vim.fn.screenpos(0,7,1).row-1')
     last_row = nvim.exec_lua('return vim.fn.screenpos(0,7,1).row-1')
-    assert abs(inputs[0]['rect']['row'] - (first_row - .65)) < .01, (inputs, first_row)
+    assert abs(inputs[0]['rect']['row'] - (first_row - .5)) < .01, (inputs, first_row)
+    assert inputs[0]['color'] == 0xaa7733, 'border uses the capsule theme accent exactly'
+    gaps = inputs[0]['label_gaps']
+    assert len(gaps) == 2, 'type and run capsules each cut only their own top segment'
+    assert gaps[1]['col'] - gaps[0]['col'] - gaps[0]['width'] >= 2, 'visible stroke connects the two capsules'
+    labels = nvim.exec_lua("""local result={};local ns=vim.api.nvim_get_namespaces()['glow.notebook.layout']
+      for _,mark in ipairs(vim.api.nvim_buf_get_extmarks(0,ns,0,-1,{details=true})) do
+        if mark[4].virt_lines_above then result[#result+1]=mark end end;return result""")
+    assert len(labels) == 3 and all(len(mark[3]['virt_lines']) == 1 for mark in labels), 'labels reuse one existing virtual row per cell'
+    label_text = ''.join(chunk[0] for chunk in labels[0][3]['virt_lines'][0])
+    assert 'python' not in label_text and 'Markdown' not in label_text and '▷' in label_text
     out_rect = outputs[0]['rect']
     assert abs(out_rect['row'] - (last_row + 1.05)) < .01, (out_rect, last_row)
     assert out_rect['row'] > inputs[0]['rect']['row'] + inputs[0]['rect']['height'], 'input and output boxes are separate'
@@ -57,6 +78,21 @@ try:
     assert not any('jupyter:' in line for line in screen), screen
     assert not any('# %%' in line for line in screen), 'cell markers are hidden without removing source'
     assert any('print(42)' in line for line in screen), screen
+    # Jupytext may reload this same buffer after session restoration. Replacing
+    # identical text still relocates extmarks; metadata shape alone is not a
+    # sufficient cache key for its conceal positions.
+    # Remove the synthetic output first: it has no Molten owner to move it back.
+    nvim.exec_lua("""vim.api.nvim_buf_del_extmark(0,ns,out)
+      vim.api.nvim_buf_set_lines(0,0,-1,false,...);vim.bo.modified=false""", source)
+    reload_tick = nvim.api.buf_get_changedtick(0)
+    nvim.exec_lua('ui.refresh()')
+    concealed = nvim.exec_lua("""local ns=vim.api.nvim_get_namespaces()['glow.notebook.metadata']
+      return vim.api.nvim_buf_get_extmarks(0,ns,0,-1,{details=true})""")
+    assert [mark[1] for mark in concealed] == [0, 1, 2, 3], 'same-shape reload must restore metadata marks to its actual prefix'
+    assert nvim.current.buffer[:] == source and nvim.api.buf_get_changedtick(0) == reload_tick
+    assert nvim.current.buffer.options['modified'] is False, 'conceal repair must not dirty the reloaded source'
+    nvim.exec_lua("""out=vim.api.nvim_buf_set_extmark(0,ns,6,0,
+      {virt_lines={{{'Out[1]: Done','Normal'}},{{'42','Normal'}}}});ui.refresh()""")
     nvim.exec_lua('ui.toggle_metadata(); ui.refresh()')
     nvim.command('redraw')
     assert nvim.exec_lua('return vim.fn.screenpos(0,2,1).row') > 0, 'metadata can be revealed without changing source'
