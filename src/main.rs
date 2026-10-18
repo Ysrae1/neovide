@@ -22,6 +22,7 @@ mod dimensions;
 mod editor;
 mod error_handling;
 mod frame;
+mod image_preview;
 #[cfg(target_os = "macos")]
 mod ipc;
 mod platform;

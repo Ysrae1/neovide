@@ -6,6 +6,7 @@ pub mod box_drawing;
 pub mod cursor_renderer;
 pub mod fonts;
 pub mod grid_renderer;
+pub(crate) mod image_preview;
 pub mod opengl;
 pub mod profiler;
 pub mod progress_bar;
@@ -171,6 +172,7 @@ pub enum DrawCommand {
     StartupPrompt,
     ReplayStartupMessages,
     UIReady,
+    ImagePreview(image_preview::ImageCommand),
     Window { grid_id: u64, command: WindowDrawCommand },
 }
 
@@ -181,6 +183,7 @@ pub enum StartupMessageFlush {
 }
 
 pub struct Renderer {
+    images: image_preview::ImageRenderer,
     bloom_renderer: bloom::BloomRenderer,
     cursor_renderer: CursorRenderer,
     pub grid_renderer: GridRenderer,
@@ -232,6 +235,7 @@ impl Renderer {
         let progress_bar = ProgressBar::new();
 
         Renderer {
+            images: image_preview::ImageRenderer::default(),
             bloom_renderer: bloom::BloomRenderer::default(),
             rendered_windows,
             cursor_renderer,
@@ -380,6 +384,10 @@ impl Renderer {
             })
             .collect_vec();
 
+        // Native previews belong to ordinary editor splits. Draw them before floating
+        // windows so menus and error messages retain their normal stacking order.
+        self.images.draw(root_canvas, grid_scale);
+
         let floating_window_regions = floating_layers
             .into_iter()
             .flat_map(|mut layer| {
@@ -393,12 +401,19 @@ impl Renderer {
             })
             .collect_vec();
 
+        let image_bloom_exclusion =
+            self.images.bloom_exclusion(grid_scale, &floating_window_regions);
         self.window_regions =
             root_window_regions.into_iter().chain(floating_window_regions).collect();
         self.draw_message_selection(root_canvas, grid_scale);
         self.cursor_renderer.draw(&mut self.grid_renderer, root_canvas);
 
+        root_canvas.save();
+        if let Some(mask) = image_bloom_exclusion {
+            root_canvas.clip_path(&mask, skia_safe::ClipOp::Difference, false);
+        }
         self.bloom_renderer.draw(root_canvas, &settings, default_background);
+        root_canvas.restore();
 
         self.profiler.draw(root_canvas, dt);
 
@@ -589,6 +604,7 @@ impl Renderer {
 
     fn handle_draw_command(&mut self, draw_command: DrawCommand, result: &mut DrawCommandResult) {
         match draw_command {
+            DrawCommand::ImagePreview(command) => self.images.handle(command),
             DrawCommand::Window { grid_id, command: WindowDrawCommand::Close } => {
                 self.rendered_windows.remove(&grid_id);
             }
@@ -700,6 +716,7 @@ impl Renderer {
     }
 
     pub fn clear(&mut self) {
+        self.images.clear();
         self.rendered_windows.clear();
         self.window_regions.clear();
         self.cursor_renderer = CursorRenderer::new(self.settings.clone());

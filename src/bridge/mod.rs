@@ -3,6 +3,7 @@ mod clipboard;
 mod command;
 mod events;
 mod handler;
+mod image_preview;
 mod restart;
 pub mod session;
 mod setup;

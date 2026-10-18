@@ -34,6 +34,9 @@ pub async fn setup_neovide_specific_state(
     nvim.set_var("neovide", Value::from(true))
         .await
         .context("Could not communicate with neovim process")?;
+    nvim.set_var("neovide_native_image", Value::from(true))
+        .await
+        .context("Could not advertise native image preview")?;
 
     nvim.exec2("runtime! ginit.vim", nvim_dict!())
         .await

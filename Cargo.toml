@@ -58,7 +58,15 @@ gl = "0.14.0"
 glamour = { version = "0.18.0", features = ["serde"] }
 glutin = "0.32.3"
 glutin-winit = "0.5.0"
-image = { version = "0.25.5", default-features = false, features = ["ico"] }
+image = { version = "0.25.5", default-features = false, features = [
+  "bmp",
+  "gif",
+  "ico",
+  "jpeg",
+  "png",
+  "tiff",
+  "webp",
+] }
 indoc = "2.0.5"
 itertools = "0.14.0"
 log = "0.4.22"

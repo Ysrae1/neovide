@@ -97,6 +97,7 @@ struct NeovimState {
 
 #[derive(Clone)]
 pub struct NeovimHandler {
+    image_requests: super::image_preview::ImageRequests,
     // The EventLoopProxy is not sync on all platforms, so wrap it in a mutex
     proxy: Arc<Mutex<EventLoopProxy<EventPayload>>>,
     redraw_event_sender: LoggingSender<RedrawEvent>,
@@ -130,6 +131,7 @@ impl NeovimHandler {
         clipboard: ClipboardHandle,
     ) -> Self {
         Self {
+            image_requests: super::image_preview::ImageRequests::new(proxy.clone(), route_id),
             proxy: Arc::new(Mutex::new(proxy)),
             redraw_event_sender: LoggingSender::attach(redraw_event_sender, "neovim_handler"),
             ui_command_sender: LoggingSender::attach(ui_command_sender, "UICommand"),
@@ -225,6 +227,9 @@ impl Handler for NeovimHandler {
         trace!("Neovim notification: {:?}", event_name);
 
         match event_name.as_ref() {
+            name if name.starts_with("neovide.image.") => {
+                self.image_requests.handle(name, &arguments, neovim);
+            }
             "redraw" => {
                 for events in arguments {
                     let parsed_events = parse_redraw_event(events)
