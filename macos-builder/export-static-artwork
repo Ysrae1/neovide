@@ -23,6 +23,7 @@ command -v python3 >/dev/null 2>&1 || fail "Python 3 is required to update the i
 [ -x "$project_root/macos-builder/export-static-icon" ] || fail "Missing static icon exporter."
 [ -f "$project_root/macos-builder/export-static-icon.swift" ] || fail "Missing native shadow compositor."
 [ -f "$project_root/macos-builder/compensate-icon.swift" ] || fail "Missing color compensation generator."
+[ -f "$project_root/macos-builder/export-icon-variants.swift" ] || fail "Missing cross-platform icon exporter."
 [ -f "$project_root/macos-builder/update-installer-icon.py" ] || fail "Missing installer source updater."
 [ -f "$assets_dir/Neovide.icon/icon.json" ] || fail "Missing layered icon source."
 [ -f "$sketch_source" ] || fail "Missing editable installer background."
@@ -41,6 +42,8 @@ trap 'rm -rf "$work_dir"' EXIT
 # 3. Core Graphics derives the outside shadow from that exact image's alpha.
 # Never import or subtract the old Sketch rounded base/shadow.
 "$project_root/macos-builder/export-static-icon"
+# Keep every active platform icon on the same compensated native artwork.
+swift "$project_root/macos-builder/export-icon-variants.swift"
 
 refresh_sketch() {
   local document="$1"

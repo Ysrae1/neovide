@@ -18,7 +18,7 @@ portion obscured by the gear ring. The [Neovim][neovim] logo is &copy; [Jason
 Long][jason-long]. It is licensed under the [Creative Commons Attribution 3.0
 Unported License][cc-by-3.0].
 
-[neovide-logo]: ./neovide.svg
+[neovide-logo]: ./original%20icon/neovide.svg
 
 [chris-bouchard]: https://github.com/chrisbouchard
 [jason-long]: https://twitter.com/jasonlong
@@ -29,9 +29,17 @@ Unported License][cc-by-3.0].
 [cc-by-4.0]: https://creativecommons.org/licenses/by/4.0/
 [cc-by-3.0]: https://creativecommons.org/licenses/by/3.0/
 
-## Custom macOS Liquid Glass icon
+## Original icon archive
 
-This fork's macOS icon is a Liquid Glass adaptation by Ysrae1 of
+[original icon](<original icon/README.md>) preserves the upstream Neovide PNG,
+ICO, and SVG files with their provenance and license references. Active icon
+paths in this directory contain this fork's Liquid Glass adaptation. The
+`.desktop` launcher and installer background are separate assets, not original
+icon variants.
+
+## Custom Liquid Glass icon
+
+This fork's icon family is a Liquid Glass adaptation by Ysrae1 of
 [Marc Oliver Orth's Neovide macOS icon](https://github.com/marc2o/Neovide-macOS-Icon).
 The original icon's MIT license and attribution are included in
 [Icon-LICENSE.txt](Icon-LICENSE.txt) and [Icon-Attribution.txt](Icon-Attribution.txt).
@@ -73,9 +81,17 @@ second outline. Core Graphics owns the static fallback's outside shadow; Icon
 Composer retains the internal material and layer effects. The native application
 continues to use its compiled layered icon.
 
+The shared `neovide-16x16.png`, `neovide-32x32.png`, `neovide-48x48.png`, and
+`neovide-256x256.png`, Windows `neovide.ico`, and shared `neovide.svg` are generated
+by `swift macos-builder/export-icon-variants.swift` from the same compensated
+native render as `neovide-1024.png`. The ICO contains multiple image sizes. The SVG wraps that
+rendered PNG so it preserves the glass material; it is not editable vector
+artwork. Edit `Neovide.icon` and regenerate the variants instead. The upstream
+vector remains available in `original icon/neovide.svg`.
+
 `macos-builder/make-icns` generates the legacy ICNS and the retina DMG background
-TIFF from the PNG sources. The shared SVG, Windows ICO, and small PNG icons retain
-the upstream design.
+TIFF from the PNG sources. Regeneration never overwrites the `original icon`
+archive or the preserved material inside `Neovide.icon`.
 
 The installer background uses the same adapted icon. Its editable Sketch source
 is [Neovide Liquid Glass Installer.sketch](<dmg-background/Neovide Liquid Glass Installer.sketch>),
@@ -97,7 +113,7 @@ image sizes and layer identities and replaces the archive atomically. Its
 
 For the complete sequence, run `macos-builder/export-static-artwork`, followed by
 `macos-builder/make-icns`. The first command performs compensation, native icon export,
-Sketch panel replacement, both PNG exports, PDF export and cache refresh in
+PNG/ICO/SVG variant generation, Sketch panel replacement, both background PNG exports, PDF export and cache refresh in
 order. To synchronize the designer's original project at the same time:
 
 ```bash
@@ -117,4 +133,6 @@ machine it also synchronizes the original project above when present. Set
 additional synchronization. Keep `icon-color-compensation.json` and the complete
 `Neovide.icon` source together in the selected custom-assets directory, including
 the preserved original material; old flattened PNGs cannot replace this step.
+Keep the `original icon` archive alongside those custom assets as well; the
+updater copies it for provenance and restores the checkout's assets when done.
 

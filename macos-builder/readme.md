@@ -99,11 +99,21 @@ see [the asset documentation](../assets/README.md) for the original logo notices
 and editable artwork.
 
 When changing the static icon, run `macos-builder/export-static-artwork` to prepare
-compensation, export the icon, replace the embedded icon in the editable Sketch installer panel, and
-regenerate both PNG background sizes and the PDF. It also refreshes the Sketch
+compensation, export the icon, generate the shared PNG/ICO/SVG variants, replace
+the embedded icon in the editable Sketch installer panel, and regenerate both
+PNG background sizes and the PDF. It also refreshes the Sketch
 document's cached background. See [assets/README.md](../assets/README.md).
 Its native Core Graphics shadow follows the Icon Composer export's alpha;
 never add a shadow or rounded mask from the old Sketch base.
+
+The variant step calls `swift macos-builder/export-icon-variants.swift` on the
+new `assets/neovide-1024.png`. It writes the 16, 32, 48, and 256 pixel PNGs and a
+Windows ICO containing multiple sizes. `assets/neovide.svg` embeds the rendered
+PNG to preserve the exact glass appearance; it is not editable vector artwork.
+The editable material and layers remain in `assets/Neovide.icon`. Unmodified
+upstream PNG/ICO/SVG files are preserved separately in
+[assets/original icon](<../assets/original icon/README.md>); generation does not
+write into that archive or change the preserved original material.
 
 Save and close Icon Composer and Sketch documents before running this export. Set
 `NEOVIDE_SKETCH_SOURCE` to the designer's external `.sketch` project to synchronize

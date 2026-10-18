@@ -63,7 +63,7 @@ There are tiers for individuals and teams, and one-time contributions are welcom
 
 ## Icon credits
 
-The custom macOS icon is based on [Neovide-macOS-Icon](https://github.com/marc2o/Neovide-macOS-Icon)
+The custom icon family is based on [Neovide-macOS-Icon](https://github.com/marc2o/Neovide-macOS-Icon)
 by Marc Oliver Orth (marc2o). Ysrae1 adapted it for Liquid Glass, including color compensation and
 installer artwork. See the [asset notes](assets/README.md) and the original icon's
 [MIT license](assets/Icon-LICENSE.txt).
