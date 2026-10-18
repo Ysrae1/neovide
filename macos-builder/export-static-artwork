@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Keep the static fallback and the editable installer panel on one native icon.
+set -euo pipefail
+
+project_root="$(cd "$(dirname "$0")/.." && pwd)"
+composer_tool="${ICON_COMPOSER_TOOL:-/Applications/Icon Composer.app/Contents/Executables/ictool}"
+sketch_tool="${SKETCH_TOOL:-/Applications/Sketch.app/Contents/Resources/sketchtool/bin/sketchtool}"
+assets_dir="$project_root/assets"
+sketch_source="$assets_dir/dmg-background/Neovide Liquid Glass Installer.sketch"
+background_layer="245EAC7B-A579-45A1-AC9F-B083EF0E1BBB"
+
+fail() { echo "Native Neovide artwork: $*" >&2; exit 1; }
+case "${1:-}" in
+  ''|--check) ;;
+  *) fail "Usage: $0 [--check]" ;;
+esac
+[ "$#" -le 1 ] || fail "Usage: $0 [--check]"
+[ -x "$composer_tool" ] || fail "Icon Composer's ictool is required: $composer_tool"
+[ -x "$sketch_tool" ] || fail "Sketch's sketchtool is required: $sketch_tool"
+command -v swift >/dev/null 2>&1 || fail "Swift with Core Graphics support is required."
+command -v python3 >/dev/null 2>&1 || fail "Python 3 is required to update the installer source."
+[ -x "$project_root/macos-builder/export-static-icon" ] || fail "Missing static icon exporter."
+[ -f "$project_root/macos-builder/export-static-icon.swift" ] || fail "Missing native shadow compositor."
+[ -f "$project_root/macos-builder/update-installer-icon.py" ] || fail "Missing installer source updater."
+[ -f "$assets_dir/Neovide.icon/icon.json" ] || fail "Missing layered icon source."
+[ -f "$sketch_source" ] || fail "Missing editable installer background."
+if [ "${1:-}" = --check ]; then
+  echo "Native artwork tools and sources are available."
+  exit 0
+fi
+
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/neovide-static-artwork.XXXXXX")"
+trap 'rm -rf "$work_dir"' EXIT
+
+# 1. Icon Composer renders the material and final continuous corner shape.
+# 2. Core Graphics derives the outside shadow from that exact image's alpha.
+# Never import or subtract the old Sketch rounded base/shadow.
+"$project_root/macos-builder/export-static-icon"
+
+# Replace both the installer panel's icon and its design-sheet reference.
+python3 "$project_root/macos-builder/update-installer-icon.py" "$assets_dir/neovide-1024.png"
+
+# Render the updated panel, rather than packaging an old flattened background.
+"$sketch_tool" export layers "$sketch_source" --item="$background_layer" \
+  --formats=png --scales=1,2 --output="$work_dir" --overwriting=YES
+"$sketch_tool" export layers "$sketch_source" --item="$background_layer" \
+  --formats=pdf --scales=1 --output="$work_dir" --overwriting=YES
+for output in neovide-dmg-background.png neovide-dmg-background@2x.png neovide-dmg-background.pdf; do
+  [ -s "$work_dir/$output" ] || fail "Sketch did not export $output"
+done
+cp "$work_dir/neovide-dmg-background.png" "$assets_dir/neovide-dmg-background.png"
+cp "$work_dir/neovide-dmg-background@2x.png" "$assets_dir/neovide-dmg-background@2x.png"
+cp "$work_dir/neovide-dmg-background.pdf" "$assets_dir/dmg-background/source.pdf"
+python3 "$project_root/macos-builder/update-installer-icon.py" \
+  "$assets_dir/neovide-1024.png" "$assets_dir/neovide-dmg-background@2x.png"
+echo "Updated the native static icon, Sketch installer panel, PNGs and PDF."

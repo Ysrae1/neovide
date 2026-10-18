@@ -78,3 +78,9 @@ then run the same helper with `assets/neovide-dmg-background@2x.png` as its seco
 argument to refresh the document's cached background image. The helper validates
 image sizes and layer identities and replaces the archive atomically.
 
+For the complete sequence, run `macos-builder/export-static-artwork`, followed by
+`macos-builder/make-icns`. The first command performs the native icon export,
+Sketch panel replacement, both PNG exports, PDF export and cache refresh in
+order. The `neovide-update` maintenance entry calls both commands before Rust
+compilation and packaging, after copying the selected custom assets.
+

@@ -93,10 +93,19 @@ license and the adaptation attribution are copied into the app's Resources;
 see [the asset documentation](../assets/README.md) for the original logo notices
 and editable artwork.
 
-When changing the static icon, first run `macos-builder/export-static-icon` and
-sync/export the installer artwork as described in [assets/README.md](../assets/README.md).
+When changing the static icon, run `macos-builder/export-static-artwork` to export
+the icon, replace the embedded icon in the editable Sketch installer panel, and
+regenerate both PNG background sizes and the PDF. It also refreshes the Sketch
+document's cached background. See [assets/README.md](../assets/README.md).
 Its native Core Graphics shadow follows the Icon Composer export's alpha;
 never add a shadow or rounded mask from the old Sketch base.
+
+The local `neovide-update` maintenance entry runs this pipeline after copying
+custom assets and before `make-icns`, Rust compilation or packaging. Missing
+tools or failed artwork exports stop the update before compilation; the existing
+asset restoration and manual DMG installation flow are retained. Use
+`ICON_COMPOSER_TOOL` and `SKETCH_TOOL` to select tools outside their default
+application locations. `export-static-artwork --check` only checks prerequisites.
 
 Before packaging changed static artwork, run `macos-builder/make-icns` to
 regenerate `Neovide.icns` and the retina background TIFF from the supplied PNGs.
