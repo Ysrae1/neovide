@@ -220,6 +220,105 @@ mod tests {
         assert_eq!(base.a(), 198, "ordinary editor background remains 78% opaque");
         assert!((renderer.background_opacity(normal, 0, 1.0) - 0.78).abs() < 0.001);
     }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn avante_solid_caps_keep_panel_corners_glass_and_match_title_body() {
+        let settings = Arc::new(Settings::new());
+        settings.set(&RendererSettings::default());
+        let mut renderer = GridRenderer::new(1.0, settings.clone());
+        let cell_size = crate::units::PixelSize::new(16.0, 32.0);
+        renderer.grid_scale = GridScale::new(cell_size);
+        renderer.box_char_renderer.update_dimensions(cell_size, 32.0);
+        let bounds = Rect::from_wh(80.0, 32.0);
+        let accent = Color::from_rgb(95, 175, 175);
+
+        for panel in [Color::from_rgb(243, 243, 243), Color::from_rgb(32, 36, 43)] {
+            for opacity in [1.0, 0.8] {
+                for liquid_glass in [false, true] {
+                    settings.set(&WindowSettings { liquid_glass, ..WindowSettings::default() });
+                    for name in [
+                        "AvanteReversedTitle",
+                        "AvanteReversedSubtitle",
+                        "AvanteReversedThirdTitle",
+                        "StatusLine",
+                    ] {
+                        let cap = Some(Arc::new(
+                            Style {
+                                blend: 40,
+                                ..Style::new(Colors::new(
+                                    Some(accent.into()),
+                                    Some(panel.into()),
+                                    None,
+                                ))
+                            }
+                            .with_highlight_name(Some(name)),
+                        ));
+                        let body = Some(Arc::new(Style::new(Colors::new(
+                            Some(Color::WHITE.into()),
+                            Some(accent.into()),
+                            None,
+                        ))));
+                        let mut background = PictureRecorder::new();
+                        let canvas = background.begin_recording(bounds, false);
+                        renderer.draw_background(canvas, &(0..5), &cap, opacity);
+                        renderer.draw_background(canvas, &(1..4), &body, opacity);
+                        let background = background.finish_recording_as_picture(None).unwrap();
+
+                        let mut text = PictureRecorder::new();
+                        let mut boxes = PictureRecorder::new();
+                        let text_canvas = text.begin_recording(bounds, false);
+                        let box_canvas = boxes.begin_recording(bounds, false);
+                        let line = crate::editor::Line::from_test_cells(&["", " ", " ", " ", ""]);
+                        let mut drawn_caps = 0;
+                        for mut fragment in line.fragments().filter(|f| matches!(f.text, "" | ""))
+                        {
+                            fragment.style = &cap;
+                            assert_eq!(
+                                renderer.draw_foreground(
+                                    text_canvas,
+                                    box_canvas,
+                                    &fragment,
+                                    PixelPos::ZERO,
+                                    opacity,
+                                ),
+                                (false, true)
+                            );
+                            drawn_caps += 1;
+                        }
+                        assert_eq!(drawn_caps, 2);
+                        let boxes = boxes.finish_recording_as_picture(None).unwrap();
+                        let mut surface = surfaces::raster_n32_premul((80, 32)).unwrap();
+                        surface.canvas().clear(Color::TRANSPARENT);
+                        surface.canvas().draw_picture(&background, None, None);
+                        surface.canvas().draw_picture(&boxes, None, None);
+                        let pixels = surface.peek_pixels().unwrap();
+                        let panel_pixel = pixels.get_color((0, 0));
+                        assert_eq!(panel_pixel, pixels.get_color((79, 0)));
+                        assert!(
+                            (panel_pixel.a() as f32 - 153.0 * opacity).abs() <= 1.0,
+                            "{name} exterior must retain the panel's glass alpha"
+                        );
+                        let left = pixels.get_color((15, 16));
+                        let right = pixels.get_color((64, 16));
+                        assert_eq!(left, right, "both ends must use the same material");
+                        if liquid_glass && name.starts_with("AvanteReversed") {
+                            assert_eq!(
+                                left,
+                                pixels.get_color((32, 16)),
+                                "{name} shape must join its solid title body at opacity {opacity}"
+                            );
+                        } else {
+                            assert!(
+                                (left.a() as f32 - 153.0 * opacity).abs() <= 1.0,
+                                "ordinary caps and non-Glass windows keep their original blend"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Struct with named fields to be returned from draw_background
@@ -416,13 +515,25 @@ impl GridRenderer {
         }
 
         let foreground = style.foreground(&self.default_style.colors).to_color();
+        let shape_opacity = self.background_opacity(foreground, style.blend, opacity);
+        #[cfg(target_os = "macos")]
+        let shape_opacity = if style.avante_solid_cap
+            && style.blend > 0
+            && self.settings.get::<WindowSettings>().liquid_glass
+        {
+            // These endcaps are solid title shapes over a translucent panel.
+            // Their cell background still follows its explicit highlight blend.
+            opacity
+        } else {
+            shape_opacity
+        };
         if self.box_char_renderer.draw_glyph(
             text,
             boxchar_canvas,
             region,
             foreground,
             window_position,
-            Some(self.background_opacity(foreground, style.blend, opacity)),
+            Some(shape_opacity),
         ) {
             return (text_drawn, true);
         } else if !text.is_empty() {

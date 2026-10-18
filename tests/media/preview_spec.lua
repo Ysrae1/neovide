@@ -33,8 +33,54 @@ p.zoom(100); assert(last('action').args[3]==5)
 p.zoom(.0001); assert(last('action').args[3]==.25)
 p.refresh_source('/tmp/index.html'); vim.wait(30); assert(last('open').args[1]~=webid)
 p.close()
+-- Pure title uses the real shared capsule formatter; no PDF file is read.
+local pdf={kind='pdf',title='duplicate-name.pdf',status={state='ready',page=2,pages=2,zoom=.7}}
+local function rendered(view,width)
+  return vim.api.nvim_eval_statusline(p.render_title(view,width),{winid=vim.api.nvim_get_current_win(),use_winbar=true,maxwidth=width,highlights=true})
+end
+local wide=rendered(pdf,130)
+assert(wide.str:find('PDF  2/2 · 70%',1,true) and wide.str:find('PAGE  [p ]p',1,true))
+assert(wide.str:find('ZOOM  + − · 0',1,true) and wide.str:find('FOCUS  i',1,true) and wide.str:find('CLOSE  q',1,true))
+assert(not wide.str:find('duplicate%-name') and not wide.str:find('已就绪',1,true))
+assert(not wide.str:find(' ',1,true) and not wide.str:find(' ',1,true),'caps touch their values')
+for _,width in ipairs({80,64,40,24,12,1}) do
+  local small=rendered(pdf,width)
+  assert(small.width<=width and not small.str:find('<',1,true),'title budget at '..width)
+  assert(small.str:find('q',1,true),'close remains visible at '..width)
+end
+local failure=rendered({kind='pdf',status={state='error',page=2,pages=2,zoom=.7}},130)
+assert(failure.str:find('ERROR',1,true) and failure.str:find('RETRY  r',1,true))
+assert(p.open('/tmp/title-only.pdf',{kind='pdf'}))
+local pdfid=last('open').args[1]
+p.on_status(pdfid,vim.json.encode(pdf.status))
+assert(vim.wo.winbar==p.render_title({kind='pdf',status=pdf.status},vim.api.nvim_win_get_width(0)))
+assert(p.status().page==2 and p.status().pages==2 and p.status().zoom==.7)
+for _,background in ipairs({'dark','light'}) do
+  vim.o.background=background;vim.api.nvim_exec_autocmds('ColorScheme',{pattern='preview-title-test'})
+  local cap=vim.api.nvim_get_hl(0,{name='GlowMediaInfoCap',link=false})
+  local body=vim.api.nvim_get_hl(0,{name='GlowMediaInfo',link=false})
+  assert(not cap.bg and cap.fg==body.bg,'shared capsule colors update with theme')
+end
+p.close()
+-- Native PDF focus does not necessarily change Neovim's current source window.
+-- A status callback must close only the owner identified by that preview id.
+local source_win=vim.api.nvim_get_current_win()
+local source_buf=vim.api.nvim_get_current_buf()
+local source_q=vim.fn.maparg('q','n',false,true)
+assert(p.open('/tmp/close-owner.pdf',{kind='pdf'}))
+local owner_win=vim.api.nvim_get_current_win()
+local owner_id=last('open').args[1]
+vim.api.nvim_set_current_win(source_win)
+p.close(owner_id+1000)
+assert(vim.api.nvim_win_is_valid(owner_win),'unknown/late close id cannot close another preview')
+p.on_status(owner_id,vim.json.encode({kind='pdf',state='ready',close_requested=true}))
+assert(not vim.api.nvim_win_is_valid(owner_win) and vim.api.nvim_win_is_valid(source_win),'native request closes PDF owner only')
+assert(vim.api.nvim_get_current_win()==source_win and vim.api.nvim_win_get_buf(source_win)==source_buf)
+assert(last('close').args[1]==owner_id,'existing native close notification')
+assert(vim.deep_equal(source_q,vim.fn.maparg('q','n',false,true)),'source macro q mapping unchanged')
+p.on_status(owner_id,vim.json.encode({close_requested=true})) -- ignored late callback
 vim.g.neovide_native_preview=false
 vim.notify=function() end
 assert(not p.open('/tmp/a.mp3'))
-print('preview lifecycle/bounds/late status/zoom: PASS')
+print('preview lifecycle/title; PDF native close targets owner and preserves source macro q: PASS')
 vim.cmd.qa()

@@ -52,6 +52,8 @@ pub struct Style {
     /// Scale only the foreground of Notebook type-icon capsules.
     pub enlarged_icon: bool,
     pub notebook_title: Option<NotebookTitleGroup>,
+    /// Avante's solid title endcap over its independently blended panel base.
+    pub avante_solid_cap: bool,
 }
 
 impl Style {
@@ -66,11 +68,16 @@ impl Style {
             underline: None,
             enlarged_icon: false,
             notebook_title: None,
+            avante_solid_cap: false,
         }
     }
 
     pub fn with_highlight_name(mut self, name: Option<&str>) -> Self {
         self.enlarged_icon = matches!(name, Some("GlowNotebookLanguage" | "GlowNotebookMarkdown"));
+        self.avante_solid_cap = matches!(
+            name,
+            Some("AvanteReversedTitle" | "AvanteReversedSubtitle" | "AvanteReversedThirdTitle")
+        );
         self.notebook_title = match name {
             Some(
                 "GlowNotebookKernel"

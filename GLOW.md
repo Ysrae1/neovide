@@ -18,7 +18,7 @@ end
 
 | 参数 | 默认值 | 范围 | 作用 |
 | --- | --- | --- | --- |
-| `neovide_bloom` | `true` | 布尔值 | 柔光开关，配套配置快捷键 `<leader>uG` |
+| `neovide_bloom` | `true` | 布尔值 | 柔光开关，配套配置快捷键 `<leader>uB`（Space → u → Shift+B）；`<leader>uG` 保留 Git Signs |
 | `neovide_bloom_strength` | `0.20` | 0–1 | 线性光能的强度 |
 | `neovide_bloom_radius` | `8.0` | 0–32 | 柔光范围，按帧缓冲像素计算；对应高斯模糊的约 3σ |
 | `neovide_bloom_brightness` | `1.10` | 0–8 | 柔光层的亮度，独立于范围 |
@@ -152,7 +152,7 @@ git push origin glow-preview
 
 Neo-tree 的 Enter、双击、分屏和新 Tab 入口继续保留图片预览，并支持上述音视频扩展名、HTML、PDF 与 `.ipynb`；Notebook 默认进入原生编辑。音频入口包含 MP3/M4A/AAC/WAV/AIFF/CAF/FLAC；视频入口包含 MP4/M4V/MOV/MPG/MPEG。实际编码是否可播放由系统解码器决定，文件后缀不构成兼容性保证。
 
-图片预览顶栏使用 VIEW、ZOOM、PAN、CLOSE 胶囊，仅显示状态和快捷键；文件名沿用底部状态栏。胶囊使用主题配色并适配窄窗口。
+图片预览顶栏使用 VIEW、ZOOM、PAN、CLOSE 胶囊，PDF 顶栏使用 PDF 状态、PAGE、ZOOM、FOCUS、CLOSE 胶囊，仅显示状态和快捷键；文件名沿用底部状态栏。胶囊使用主题配色并适配窄窗口。
 
 Dashboard 最近文件、文件搜索、普通 `:edit` 和缓冲区选择入口也会自动打开图片、PDF、音视频预览，沿用调用方选择的窗口、分屏或标签页。二进制文件通过专门读取事件建立受保护的预览描述，不作为文本加载；已切换到别的文件时，排队中的旧预览不会抢回窗口。HTML 保留源码编辑，Notebook 保留 Jupytext 转换，插件浮窗与特殊缓冲区不参与自动路由。
 
@@ -168,7 +168,7 @@ JPEG XL 使用专用预览器补齐当前 ImageMagick 构建缺少的 JXL 解码
 
 原生网页、音视频和 PDF 面板按所有 Neovim 浮窗的实际区域裁切，并将这些区域的鼠标事件交还编辑器；补全、选择器、菜单等浮窗可以覆盖原生面板并接收点击。该规则按浮窗几何统一处理，不依赖特定插件名称。
 
-PDF 使用系统 PDFKit，提供页码、上一页/下一页、缩放与适应按钮、连续纵向滚动及文本选择。编辑器焦点下 `]p`/`[p` 或 PageDown/PageUp 翻页，`+`/`=`、`-` 缩放，`0` 适应当前面板，`i`/Enter 进入 PDF 焦点，`q`/Esc 关闭；PDF 焦点下可选择文字并用 Cmd+C 复制，Cmd+Esc 返回编辑器。Tab 生命周期与其他原生面板一致，关闭释放文档与视图。
+PDF 使用系统 PDFKit，提供页码、上一页/下一页、缩放与适应按钮、连续纵向滚动及文本选择。编辑器焦点下 `]p`/`[p` 或 PageDown/PageUp 翻页，`+`/`=`、`-` 缩放，`0` 适应当前面板，`i`/Enter 进入 PDF 焦点，`q`/Esc 关闭；PDF 焦点下可选择文字并用 Cmd+C 复制，正文获得焦点时 `q`/Esc 也直接关闭所属 PDF 面板，页码输入框仍保留正常输入；Cmd+Esc 返回编辑器。Tab 生命周期与其他原生面板一致，关闭释放文档与视图。
 
 原生 PDF 与 TeX 使用真实 SyncTeX 双向定位。TeX 缓冲区中 `:GlowTexForward` 或已有 VimTeX 查看快捷键 `<localleader>lv` 会打开／复用同一 PDF 面板，定位并短暂标记当前源码位置；在 PDF 正文中 `Cmd+单击` 返回对应源文件与行。支持已有 `.synctex` 和 `.synctex.gz`，不自动编译用户文档；VimTeX 编译配置已带 `-synctex=1`。缺少 PDF、映射或命令时显示明确反馈。新构建默认走原生面板，设置 `vim.g.glow_tex_viewer = "skim"` 可继续使用原 Skim 流程；其他 Neovide 构建保留 Skim。跳转查询和 PDF 状态传递均异步，Tab 离开或预览关闭后忽略过期结果。
 
@@ -185,7 +185,7 @@ macOS 26 及以后使用系统 `NSGlassEffectView`，作为整个 winit／Metal 
 | 浮窗附加模糊（0～100） | `:GlowGlass blur 24` |
 | 恢复配置默认／查看状态 | `:GlowGlass reset`／`status` |
 
-透明度和模糊省略数字时会弹出输入框。透明度命令只淡化普通背景，文字与选中高亮保持清楚；底层仍可独立设置 `g:neovide_opacity`、`g:neovide_normal_opacity`、`g:neovide_floating_blur_amount_x/y`，材质由 `g:neovide_liquid_glass` 开关。新构建配套配置默认开启，普通编辑背景不透明度为 `.78`，Neo-tree 背景以及编辑区／Neo-tree 当前行背景为 `.60`；浮窗、菜单、补全、选择器、Avante 面板及分割线／边框统一为 `.60`；Dashboard 终端动画面板在 Liquid Glass 开启时也使用该透明度，原有主题颜色不变。文字、Visual 选区、实心选中项和胶囊保留原有不透明度，浮窗模糊为 `24/24`；普通浮窗保留阴影，搜索器内部组合面板避免重复叠加子窗口阴影。空闲命令行不预留底部整行，输入命令时按需显示。所有这些 Glass 配套调整仅在 `vim.g.neovide` 前端启用，终端 Neovim 不修改高亮、透明度或字体。Neovide 普通分屏不绘制可见分隔线，分隔格仍保留原位置和鼠标调整大小区域；其底色与 Neo-tree 材质一致。侧栏顶栏按显示列截断和补齐，窄于标题时分隔边界仍与侧栏右缘对齐。显式高亮 `blend` 优先于 Normal 同色背景的默认透明度，避免当前行因颜色相同而退回实心。Apple 未公开玻璃模糊半径参数，`blur` 真实调整的是 Neovide 浮窗的附加模糊，系统玻璃由 macOS 管理。[Apple NSGlassEffectView 文档](https://developer.apple.com/documentation/appkit/nsglasseffectview)。
+透明度和模糊省略数字时会弹出输入框。透明度命令只淡化普通背景，文字与选中高亮保持清楚；底层仍可独立设置 `g:neovide_opacity`、`g:neovide_normal_opacity`、`g:neovide_floating_blur_amount_x/y`，材质由 `g:neovide_liquid_glass` 开关。新构建配套配置默认开启，普通编辑背景不透明度为 `.78`，Neo-tree 背景以及编辑区／Neo-tree 当前行背景为 `.60`；浮窗、菜单、补全、选择器、Avante 面板及其内部边框统一为 `.60`；Dashboard 终端动画面板在 Liquid Glass 开启时也使用该透明度，原有主题颜色不变。文字、Visual 选区、实心选中项和胶囊保留原有不透明度，浮窗模糊为 `24/24`；普通浮窗保留阴影，搜索器内部组合面板避免重复叠加子窗口阴影。空闲命令行不预留底部整行，输入命令时按需显示。所有这些 Glass 配套调整仅在 `vim.g.neovide` 前端启用，终端 Neovim 不修改高亮、透明度或字体。Neovide 普通分屏不绘制可见分隔线，分隔格仍保留原位置和鼠标调整大小区域；普通编辑窗口右侧的分隔格沿用该编辑器的 Normal 底色与背景透明度，右侧为 PDF 等不透明内容时不再引入第三种底材；紧邻 Avante 玻璃侧栏的空隙与它的内部间隔延续 Avante 自身材质，Neo-tree 自身分隔格仍沿用侧栏材质。侧栏顶栏按显示列截断和补齐，窄于标题时分隔边界仍与侧栏右缘对齐。显式高亮 `blend` 优先于 Normal 同色背景的默认透明度，避免当前行因颜色相同而退回实心。Apple 未公开玻璃模糊半径参数，`blur` 真实调整的是 Neovide 浮窗的附加模糊，系统玻璃由 macOS 管理。[Apple NSGlassEffectView 文档](https://developer.apple.com/documentation/appkit/nsglasseffectview)。
 
 ### 原生 Notebook 编辑与执行
 

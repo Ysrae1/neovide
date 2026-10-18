@@ -2,15 +2,86 @@
 Run with the Notebook venv Python (pynvim required).
 """
 from pathlib import Path
+import sys
 import pynvim
 
 ROOT = Path(__file__).resolve().parents[2]
+if '--split-strip-only' in sys.argv or '--avante-strip-only' in sys.argv:
+    avante = '--avante-strip-only' in sys.argv
+    probe = pynvim.attach('child', argv=['nvim', '--embed', '--headless', '-u', 'NONE', '-i', 'NONE', '-n'])
+    try:
+        probe.ui_attach(120, 22, rgb=True, ext_linegrid=True, ext_hlstate=True)
+        probe.exec_lua('vim.opt.rtp:prepend(...)', str(ROOT / 'portable/payload/nvim'))
+        points = probe.exec_lua("""
+          local avante=...
+          vim.g.neovide=true;vim.g.neovide_liquid_glass=true;vim.g.neovide_normal_opacity=.78
+          vim.o.laststatus=3;vim.o.termguicolors=true;vim.o.showmode=false
+          vim.api.nvim_set_hl(0,'Normal',{fg=0xc9c7be,bg=0x0b0e14})
+          vim.api.nvim_set_hl(0,'NeoTreeNormal',{bg=0x05080e,blend=40})
+          vim.api.nvim_set_hl(0,'NeoTreeWinSeparator',{fg=0x05080e,bg=0x05080e,blend=40})
+          vim.api.nvim_set_hl(0,'WinSeparator',{fg=0x05080e,bg=0x05080e,blend=40})
+          vim.api.nvim_set_hl(0,'AvanteSidebarNormal',{fg=0xc9c7be,bg=0x0b0e14,blend=40})
+          vim.api.nvim_set_hl(0,'AvanteSidebarWinSeparator',{fg=0x05080e,bg=0x05080e,blend=40})
+          vim.api.nvim_buf_set_lines(0,0,-1,false,{'source text'})
+          vim.bo.filetype='tex';local source=vim.api.nvim_get_current_win()
+          if avante then vim.wo.winhighlight='CursorLine:Normal,WinSeparator:AvanteSidebarWinSeparator' end
+          vim.cmd('rightbelow vnew');vim.api.nvim_buf_set_lines(0,0,-1,false,{'PDF placeholder'})
+          vim.bo.filetype='glow_pdf';local pdf=vim.api.nvim_get_current_win()
+          local panel_hl='CursorLine:Normal,WinSeparator:AvanteSidebarWinSeparator,Normal:AvanteSidebarNormal'
+          if avante then vim.bo.filetype='Avante';vim.wo.winhighlight=panel_hl end
+          local before={vim.api.nvim_win_get_position(pdf),vim.api.nvim_win_get_width(source),vim.api.nvim_win_get_width(pdf)}
+          local tree=vim.api.nvim_get_hl(0,{name='NeoTreeNormal',link=false})
+          local helper=require('config.appearance.transparency');helper.setup();helper.apply();vim.cmd.redraw()
+          assert(vim.deep_equal(before,{vim.api.nvim_win_get_position(pdf),vim.api.nvim_win_get_width(source),vim.api.nvim_win_get_width(pdf)}))
+          assert(vim.deep_equal(tree,vim.api.nvim_get_hl(0,{name='NeoTreeNormal',link=false})),'tree material changed')
+          if avante then
+            assert(vim.wo[source].winhighlight=='CursorLine:Normal,WinSeparator:AvanteSidebarWinSeparator','adjacent glass sidebar owns the blank boundary')
+            assert(vim.wo[pdf].winhighlight==panel_hl,'Avante panel mappings unchanged')
+            vim.api.nvim_set_option_value('winhighlight','CursorLine:Normal,WinSeparator:AvanteSidebarWinSeparator',{win=source})
+            assert(vim.wait(500,function()return vim.wo[source].winhighlight=='CursorLine:Normal,WinSeparator:AvanteSidebarWinSeparator'end,10),'plugin remap reapplication')
+          end
+          return {separator={0,vim.api.nvim_win_get_width(source)},source={0,20},pdf={0,before[1][2]+25}}
+        """, avante)
+        probe.eval('1')
+        attrs, cells = {}, {}
+        for message in probe._session._pending_messages:
+            if message[0] != 'notification' or message[1] != 'redraw':
+                continue
+            for event in message[2]:
+                if event[0] == 'hl_attr_define':
+                    for item in event[1:]: attrs[item[0]] = item[1]
+                elif event[0] == 'grid_line':
+                    for grid, row, column, entries, *_ in event[1:]:
+                        if grid != 1: continue
+                        highlight = 0
+                        for entry in entries:
+                            if len(entry) > 1: highlight = entry[1]
+                            for _ in range(entry[2] if len(entry) > 2 else 1):
+                                cells[(row, column)] = (entry[0], highlight); column += 1
+        materials = {}
+        for name, point in points.items():
+            assert 0 <= point[0] < 22 and 0 <= point[1] < 120
+            # A cleared grid starts with default-highlight blanks; Neovim
+            # need not resend unchanged empty space in either editor window.
+            text, highlight = cells.get(tuple(point), (' ', 0))
+            assert text == ' ', (name, point, text)
+            hl = attrs.get(highlight, {})
+            materials[name] = (hl.get('background', 0x0b0e14), hl.get('blend', 0))
+        assert materials['source'] == (0x0b0e14, 0), materials
+        assert materials['separator'] == (0x0b0e14, 40 if avante else 0), materials
+        assert materials['pdf'] == (0x0b0e14, 40 if avante else 0), materials
+        print('PASS: actual Neovim separator follows adjacent glass sidebar or left editor beside opaque PDF; adjacent ' + ('Avante material/mappings' if avante else 'PDF base') + ', blank drag column/layout and Tree material preserved (GUI not tested)')
+    finally:
+        try: probe.command('qa!')
+        except Exception: pass
+    raise SystemExit(0)
+
 nvim = pynvim.attach('child', argv=['nvim', '--embed', '--headless', '-u', 'NONE', '-i', 'NONE', '-n'])
 try:
     nvim.ui_attach(50, 15, rgb=True, ext_linegrid=True, ext_hlstate=True)
     nvim.exec_lua('vim.opt.rtp:prepend(...)', str(ROOT / 'portable/payload/nvim'))
     nvim.exec_lua("""
-      vim.g.neovide=true;vim.o.termguicolors=true
+      vim.g.neovide=true;vim.g.neovide_liquid_glass=true;vim.o.termguicolors=true
       vim.api.nvim_set_hl(0,'Normal',{fg=0x5c6166,bg=0xfafafa})
       vim.api.nvim_set_hl(0,'Visual',{bg=0xeeeeee,bold=true})
       vim.api.nvim_set_hl(0,'GlowNotebookLanguage',{fg=0xffffff,bg=0xffd68a})
@@ -23,7 +94,7 @@ try:
       _visual=_global_hl('Visual')
       _capsule=_global_hl('GlowNotebookLanguage')
       _normal=_global_hl('Normal')
-      _solid={};for _,name in ipairs({'StatusLine','PmenuSel','TelescopePromptTitle','AvanteTitle','AvanteReversedTitle'}) do _solid[name]=_global_hl(name) end
+      _solid={};for _,name in ipairs({'StatusLine','PmenuSel','TelescopePromptTitle','AvanteTitle'}) do _solid[name]=_global_hl(name) end
       _theme={NeoTreeNormal={bg=0xf3f3f3},NeoTreeNormalNC={bg=0xf3f3f3},
         NeoTreeCursorLine={bg=0xfafafa},CursorLine={bg=0xefefef},
         WinSeparator={fg=0x556677},NeoTreeWinSeparator={fg=0x181a1f,bg=0x181a1f},
@@ -54,11 +125,12 @@ try:
       end
       for name,attrs in pairs(_theme) do
         local actual=_global_hl(name)
-        assert(actual.blend==40,name..' panel/separator blend')
+        assert(actual.blend==(name=='WinSeparator' and 0 or 40),name..' panel/separator blend')
         local inherited=name=='AvantePromptInput'
-        local tree_separator=name=='NeoTreeWinSeparator' or name=='WinSeparator' or name=='AvanteSidebarWinSeparator'
-        assert(actual.background==(tree_separator and _theme.NeoTreeNormal.bg or inherited and _normal.background or attrs.bg) and
-          actual.foreground==(tree_separator and _theme.NeoTreeNormal.bg or inherited and _normal.foreground or attrs.fg),name..' original/inherited/matched colors')
+        local tree_separator=name=='NeoTreeWinSeparator'
+        local avante_separator=name=='AvanteSidebarWinSeparator' or name=='AvanteSidebarWinHorizontalSeparator'
+        assert(actual.background==(name=='WinSeparator' and _normal.background or tree_separator and _theme.NeoTreeNormal.bg or avante_separator and _surfaces.NormalFloat.bg or inherited and _normal.background or attrs.bg) and
+          actual.foreground==(name=='WinSeparator' and _normal.background or tree_separator and _theme.NeoTreeNormal.bg or avante_separator and _surfaces.NormalFloat.bg or inherited and _normal.foreground or attrs.fg),name..' original/inherited/matched colors')
       end
       for _,name in ipairs({'AvanteSidebarNormal','AvantePromptInputBorder','AvantePopupHint'}) do
         assert(_global_hl(name).blend==40,name..' same glass material')
@@ -97,7 +169,7 @@ try:
       end})
       vim.api.nvim_exec_autocmds('ColorScheme',{pattern='test'})
       assert(vim.wait(500,function()
-        for name in pairs(_theme) do if _global_hl(name).blend~=40 then return false end end
+        for name in pairs(_theme) do if _global_hl(name).blend~=(name=='WinSeparator' and 0 or 40) then return false end end
         return true
       end,10),'transparency survives theme integration replay')
       assert(vim.deep_equal(_visual,_global_hl('Visual')))
@@ -107,6 +179,9 @@ try:
       assert(_global_hl('NeoTreeWinSeparator').background==_global_hl('NeoTreeNormal').background and
         _global_hl('NeoTreeWinSeparator').foreground==_global_hl('NeoTreeNormal').background,'tree separator matches its material')
       for name,attrs in pairs(_solid) do assert(vim.deep_equal(attrs,_global_hl(name)),'solid '..name) end
+      assert(_global_hl('AvanteReversedTitle').foreground==0x98c379 and
+        _global_hl('AvanteReversedTitle').background==_global_hl('AvanteSidebarNormal').background and
+        _global_hl('AvanteReversedTitle').blend==40,'cap outer corner uses panel background')
       -- A container linked to Normal needs its own alpha but must keep following
       -- theme changes without forcing Normal, text or unrelated groups to blend.
       vim.api.nvim_set_hl(0,'Normal',{fg=0x112244,bg=0xf0f1f2})
@@ -145,6 +220,7 @@ try:
       vim.wo.winhighlight='';vim.wo.fillchars='vert:│'
       local editor=vim.api.nvim_get_current_win()
       vim.cmd('rightbelow vnew');vim.api.nvim_buf_set_lines(0,0,-1,false,{'Avante panel'})
+      vim.bo.filetype='Avante'
       vim.wo.winhighlight='Normal:AvanteSidebarNormal,WinSeparator:AvanteSidebarWinSeparator'
       vim.wo.fillchars='vert:│'
       vim.wo.winbar='%#AvanteSidebarWinHorizontalSeparator# Panel %=%#AvanteTitle# Solid '
@@ -159,7 +235,7 @@ try:
       assert(vim.api.nvim_win_call(tree,function()return vim.opt_local.fillchars:get().vert==' 'end),'Neovide tree separator is blank')
       assert(vim.api.nvim_win_call(editor,function()return vim.opt_local.fillchars:get().vert==' 'end),'all Neovide split separators are blank')
       _component_cells={}
-      for _,item in ipairs({{'NeoTreeWinSeparator',tree},{'WinSeparator',editor},{'AvanteSidebarWinSeparator',avante}}) do
+      for _,item in ipairs({{'NeoTreeWinSeparator',tree},{'AvanteSidebarWinSeparator',editor},{'AvanteSidebarWinSeparator',avante}}) do
         local origin=vim.api.nvim_win_get_position(item[2])
         local body=vim.fn.screenpos(item[2],1,1)
         _component_cells[#_component_cells+1]={name=item[1],row=body.row,col=origin[2]+vim.api.nvim_win_get_width(item[2])+1}
@@ -200,14 +276,15 @@ try:
                        hl.get('background') == expected.get('background') for hl in attributes.values()), position
             assert cell[0].strip(), (position, cell)
         else:
-            assert attributes[cell[1]].get('blend') == 40, (position, cell, attributes[cell[1]])
+            assert attributes[cell[1]].get('blend', 0) == (0 if position['name'] == 'WinSeparator' else 40), (position, cell, attributes[cell[1]])
             if position['name'] in ['NeoTreeWinSeparator', 'WinSeparator', 'AvanteSidebarWinSeparator']:
-                assert cell[0] == ' ' and attributes[cell[1]]['foreground'] == attributes[cell[1]]['background'] == 0xf3f3f3
+                expected_background = {'WinSeparator': 0xf0f1f2, 'AvanteSidebarWinSeparator': 0xe8ebef, 'NeoTreeWinSeparator': 0xf3f3f3}[position['name']]
+                assert cell[0] == ' ' and attributes[cell[1]]['foreground'] == attributes[cell[1]]['background'] == expected_background
     nvim.exec_lua("""
       local treebuf=vim.api.nvim_win_get_buf(_tree)
       vim.bo[treebuf].filetype='python';_transparency.apply()
       assert(vim.api.nvim_win_call(_tree,function()return vim.opt_local.fillchars:get().vert==' 'end),'ordinary Python keeps its blank separator')
-      assert(_global_hl('WinSeparator').foreground==_global_hl('NeoTreeNormal').background,'shared separator material')
+      assert(_global_hl('WinSeparator').foreground==_global_hl('Normal').background,'ordinary separator follows editor base')
       vim.o.laststatus=3 -- The app uses one global statusline; divider rows are fillchars.
       vim.cmd('rightbelow new')
       vim.wo.winbar='';vim.wo.winhighlight=''

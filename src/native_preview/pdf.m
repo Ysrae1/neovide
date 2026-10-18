@@ -36,6 +36,7 @@
 @property(nonatomic) double requestedZoom;
 @property(nonatomic) BOOL fit;
 @property(nonatomic) BOOL destroyed;
+@property(nonatomic) BOOL closeRequested;
 @property(nonatomic, strong) NSDictionary *syncTarget;
 @property(nonatomic, strong) NSDictionary *inverseSync;
 @property(nonatomic) NSUInteger syncSequence;
@@ -47,6 +48,7 @@
 - (void)updateControls;
 - (void)command:(NSString *)action value:(double)value;
 - (void)blur;
+- (NSEvent *)handleKeyEvent:(NSEvent *)event;
 - (void)destroy;
 - (void)syncPage:(NSUInteger)page x:(double)x y:(double)y width:(double)width height:(double)height;
 - (void)inverseAtPoint:(NSPoint)point;
@@ -159,22 +161,7 @@ static NSButton *GlowPDFButton(NSString *title, id target, SEL action, NSString 
             [context inverseAtPoint:[context.pdfView convertPoint:event.locationInWindow fromView:nil]];
             return nil;
         }
-        NSResponder *responder = context.view.window.firstResponder;
-        if (![responder isKindOfClass:NSView.class] || ![(NSView *)responder isDescendantOf:context.view]) return event;
-        NSEventModifierFlags modifiers = event.modifierFlags & (NSEventModifierFlagCommand
-            | NSEventModifierFlagShift | NSEventModifierFlagControl | NSEventModifierFlagOption);
-        if (event.keyCode == 48 && (modifiers == NSEventModifierFlagControl
-            || modifiers == (NSEventModifierFlagControl | NSEventModifierFlagShift))) {
-            [context blur]; return event;
-        }
-        if (modifiers == NSEventModifierFlagCommand && event.keyCode == 53) {
-            [context blur]; return nil;
-        }
-        if (modifiers == (NSEventModifierFlagCommand | NSEventModifierFlagShift)
-            && [@[@"[", @"]", @"{", @"}"] containsObject:event.charactersIgnoringModifiers ?: @""]) [context blur];
-        if (modifiers == NSEventModifierFlagCommand && [event.charactersIgnoringModifiers.lowercaseString isEqualToString:@"c"]
-            && [NSApp sendAction:@selector(copy:) to:nil from:context.pdfView]) return nil;
-        return event;
+        return [context handleKeyEvent:event];
     }];
     NSString *text = path ? [NSString stringWithUTF8String:path] : nil;
     if (text.isAbsolutePath) _url = [NSURL fileURLWithPath:text];
@@ -184,6 +171,36 @@ static NSButton *GlowPDFButton(NSString *title, id target, SEL action, NSString 
     }
     [self load];
     return self;
+}
+
+- (NSEvent *)handleKeyEvent:(NSEvent *)event {
+    GlowPDFContext *context = self;
+    if (self.destroyed || self.view.hidden || event.window != self.view.window) return event;
+    NSResponder *responder = context.view.window.firstResponder;
+    if (![responder isKindOfClass:NSView.class] || ![(NSView *)responder isDescendantOf:context.view]) return event;
+    NSEventModifierFlags modifiers = event.modifierFlags & (NSEventModifierFlagCommand
+        | NSEventModifierFlagShift | NSEventModifierFlagControl | NSEventModifierFlagOption);
+    BOOL editing = [responder isKindOfClass:NSTextView.class] && [(NSTextView *)responder isFieldEditor];
+    if (!modifiers && !editing && (event.keyCode == 53 || [event.charactersIgnoringModifiers isEqualToString:@"q"])) {
+        // PDFKit owns these keystrokes while its controls are focused;
+        // Neovim's current window may still be the SyncTeX source. Route
+        // closure by this preview's status/id instead of injecting q.
+        context.closeRequested = YES;
+        [context blur];
+        return nil;
+    }
+    if (event.keyCode == 48 && (modifiers == NSEventModifierFlagControl
+        || modifiers == (NSEventModifierFlagControl | NSEventModifierFlagShift))) {
+        [context blur]; return event;
+    }
+    if (modifiers == NSEventModifierFlagCommand && event.keyCode == 53) {
+        [context blur]; return nil;
+    }
+    if (modifiers == (NSEventModifierFlagCommand | NSEventModifierFlagShift)
+        && [@[@"[", @"]", @"{", @"}"] containsObject:event.charactersIgnoringModifiers ?: @""]) [context blur];
+    if (modifiers == NSEventModifierFlagCommand && [event.charactersIgnoringModifiers.lowercaseString isEqualToString:@"c"]
+        && [NSApp sendAction:@selector(copy:) to:nil from:context.pdfView]) return nil;
+    return event;
 }
 
 - (void)load {
@@ -399,6 +416,7 @@ const char *glow_pdf_status(void *handle) {
         NSMutableDictionary *status = [@{@"kind": @"pdf", @"state": context.state ?: @"error", @"error": context.error ?: @"",
             @"page": @(index == NSNotFound ? 0 : index + 1), @"pages": @(context.pdfView.document.pageCount),
             @"zoom": @(context.pdfView.scaleFactor)} mutableCopy];
+        if (context.closeRequested) status[@"close_requested"] = @YES;
         if (context.inverseSync) status[@"synctex"] = context.inverseSync;
         NSData *json = [NSJSONSerialization dataWithJSONObject:status options:0 error:NULL];
         NSString *text = json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : nil;

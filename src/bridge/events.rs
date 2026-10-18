@@ -786,6 +786,15 @@ fn parse_hl_name(infos: Value) -> Option<String> {
     if let Some(name) = names.iter().find(|name| name.starts_with("GlowNotebook")) {
         return Some(name.clone());
     }
+    // Avante's winbar endcaps also carry a UI base before their syntax group.
+    if let Some(name) = names.iter().find(|name| {
+        matches!(
+            name.as_str(),
+            "AvanteReversedTitle" | "AvanteReversedSubtitle" | "AvanteReversedThirdTitle"
+        )
+    }) {
+        return Some(name.clone());
+    }
 
     names.into_iter().next()
 }
@@ -1230,6 +1239,54 @@ mod tests {
     use rmpv::Value;
 
     use super::{MessageKind, RedrawEvent, parse_msg_show};
+
+    #[test]
+    fn avante_solid_caps_keep_syntax_name_from_real_winbar_composition() {
+        let packets = if let Ok(path) = std::env::var("GLOW_AVANTE_CAP_HL_FIXTURE") {
+            let mut input = std::fs::File::open(path).unwrap();
+            rmpv::decode::read_value(&mut input).unwrap().as_array().unwrap().clone()
+        } else {
+            ["WinBar", "WinBarNC"]
+                .into_iter()
+                .flat_map(|base| {
+                    ["AvanteReversedTitle", "AvanteReversedSubtitle", "AvanteReversedThirdTitle"]
+                        .into_iter()
+                        .map(move |name| {
+                            // The UI base precedes syntax in actual ext_hlstate packets.
+                            Value::Array(vec![
+                                300.into(),
+                                Value::Map(vec![("blend".into(), 40.into())]),
+                                Value::Map(vec![]),
+                                Value::Array(vec![
+                                    Value::Map(vec![
+                                        ("kind".into(), "ui".into()),
+                                        ("ui_name".into(), base.into()),
+                                        ("hi_name".into(), base.into()),
+                                    ]),
+                                    Value::Map(vec![
+                                        ("kind".into(), "syntax".into()),
+                                        ("hi_name".into(), name.into()),
+                                    ]),
+                                ]),
+                            ])
+                        })
+                })
+                .collect()
+        };
+        assert!(!packets.is_empty());
+        for packet in &packets {
+            let RedrawEvent::HighlightAttributesDefine { style, name, .. } =
+                super::parse_hl_attr_define(packet.as_array().unwrap().clone()).unwrap()
+            else {
+                panic!("highlight event")
+            };
+            assert!(
+                style.with_highlight_name(name.as_deref()).avante_solid_cap,
+                "Avante endcap syntax name was lost behind WinBar/WinBarNC: {name:?}"
+            );
+        }
+        eprintln!("validated {} actual/captured composite Avante highlights", packets.len());
+    }
 
     #[test]
     fn notebook_title_alignment_keeps_syntax_name_from_real_winbar_composition() {
