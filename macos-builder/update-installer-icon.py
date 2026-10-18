@@ -94,13 +94,13 @@ def checked_archive(data):
     return archive
 
 
-def update(icon, background):
+def update(icon, background, sketch=SKETCH):
     replacements = [(ICON_IDS, read_png(icon, (1024, 1024)))]
     if background is not None:
         replacements.append(({BACKGROUND_ID}, read_png(background, (1300, 900))))
 
-    initial_stat = SKETCH.stat()
-    original = SKETCH.read_bytes()
+    initial_stat = sketch.stat()
+    original = sketch.read_bytes()
     temporary_path = None
     with checked_archive(original) as archive:
         infos = archive.infolist()
@@ -150,13 +150,20 @@ def update(icon, background):
         changed_json = {}
         for name in documents:
             source = contents[name].decode("utf-8")
-            for old_reference, new_reference in reference_changes.items():
-                if old_reference != new_reference:
-                    source = re.sub(
-                        r'("_ref"\s*:\s*)' + re.escape(json.dumps(old_reference)),
-                        lambda match: match[1] + json.dumps(new_reference),
-                        source,
-                    )
+
+            def replace_reference(match):
+                old_reference = json.loads(match[2])
+                new_reference = reference_changes.get(old_reference, old_reference)
+                if new_reference == old_reference:
+                    return match[0]
+                return match[1] + json.dumps(new_reference)
+
+            # Sketch may encode path separators as either / or \/.
+            source = re.sub(
+                r'("_ref"\s*:\s*)("(?:\\.|[^"\\])*")',
+                replace_reference,
+                source,
+            )
             encoded = source.encode("utf-8")
             if encoded != contents[name]:
                 changed_json[name] = encoded
@@ -172,7 +179,7 @@ def update(icon, background):
 
         try:
             descriptor, temporary_name = tempfile.mkstemp(
-                prefix=f".{SKETCH.name}.", suffix=".tmp", dir=SKETCH.parent
+                prefix=f".{sketch.name}.", suffix=".tmp", dir=sketch.parent
             )
             temporary_path = Path(temporary_name)
             os.close(descriptor)
@@ -197,10 +204,14 @@ def update(icon, background):
                     if result.read(name) != image:
                         raise ValueError(f"Written image differs from the source: {name}")
                 for name, data in changed_json.items():
-                    json.loads(data)
+                    document = json.loads(data)
                     if result.read(name) != data:
                         raise ValueError(f"Written Sketch page differs from the update: {name}")
-            current_stat = SKETCH.stat()
+                    for item in objects(document):
+                        reference = item.get("_ref")
+                        if reference in removed:
+                            raise ValueError(f"Sketch still references a removed image: {reference}")
+            current_stat = sketch.stat()
             if (
                 current_stat.st_ino,
                 current_stat.st_size,
@@ -214,7 +225,7 @@ def update(icon, background):
             os.chmod(temporary_path, stat.S_IMODE(initial_stat.st_mode))
             with temporary_path.open("rb") as pending:
                 os.fsync(pending.fileno())
-            os.replace(temporary_path, SKETCH)
+            os.replace(temporary_path, sketch)
             temporary_path = None
         finally:
             if temporary_path is not None:
@@ -224,13 +235,14 @@ def update(icon, background):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--sketch", type=Path, default=SKETCH, help="Editable Sketch document to update")
     parser.add_argument("icon_png", type=Path, help="The exported 1024 × 1024 static icon")
     parser.add_argument(
         "background_png", nargs="?", type=Path, help="Optional rendered 1300 × 900 installer background"
     )
     args = parser.parse_args()
     try:
-        update(args.icon_png, args.background_png)
+        update(args.icon_png, args.background_png, args.sketch)
     except (OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
         parser.exit(1, f"Cannot update installer source: {error}\n")
 
