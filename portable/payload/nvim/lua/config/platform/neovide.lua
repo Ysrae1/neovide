@@ -112,5 +112,6 @@ require("config.media.preview").setup()
 require("config.media.notebook").setup()
 require("config.media.notebook_edit").setup()
 require("config.media.book").setup()
+require("config.media.open").setup()
 
 return M
