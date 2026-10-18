@@ -204,6 +204,9 @@ impl Editor {
 
     pub fn handle_redraw_event(&mut self, event: RedrawEvent) {
         match event {
+            RedrawEvent::NotebookFrames(snapshot) => {
+                self.draw_command_batcher.queue(DrawCommand::NotebookFrames(snapshot));
+            }
             RedrawEvent::SetTitle { mut title } => {
                 tracy_zone!("EditorSetTitle");
                 if title.is_empty() {
@@ -445,17 +448,15 @@ impl Editor {
                     self.startup_message_capture = StartupMessageCapture::MessageUiRestored;
                 }
             }
-            RedrawEvent::WindowViewport {
-                grid,
-                // Don't send viewport events if they don't have a scroll delta
-                scroll_delta: Some(scroll_delta),
-                ..
-            } => {
+            RedrawEvent::WindowViewport { grid, window, scroll_delta, .. } => {
                 tracy_zone!("EditorWindowViewport");
                 self.set_ui_ready();
                 self.draw_command_batcher.queue(DrawCommand::Window {
                     grid_id: grid,
-                    command: WindowDrawCommand::Viewport { scroll_delta },
+                    command: WindowDrawCommand::Viewport {
+                        window_id: window,
+                        scroll_delta: scroll_delta.unwrap_or(0.0),
+                    },
                 });
             }
             RedrawEvent::WindowViewportMargins { grid, top, bottom, left, right } => {

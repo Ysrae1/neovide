@@ -113,6 +113,8 @@ pub fn show_editor_switcher_panel(rows: Vec<EditorSwitcherRow>, custom_icon_path
     ));
     container_view.addSubview(root_ns_view);
     window.setContentView(Some(container_view.as_ref()));
+    super::super::glass::panel(container_view.as_ref());
+    super::super::glass::surface(root_ns_view);
 
     let icon = load_neovide_icon(custom_icon_path);
     let state = EditorSwitcherState::new(EditorSwitcherStateParts {

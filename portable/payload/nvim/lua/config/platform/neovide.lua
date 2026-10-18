@@ -25,6 +25,7 @@ vim.g.neovide_opacity = 0.95
 vim.g.neovide_normal_opacity = 0.9
 vim.g.neovide_refresh_rate = 120
 vim.g.neovide_window_blurred = true
+require("config.platform.glass").setup()
 vim.g.neovide_theme = "auto"
 vim.g.neovide_remember_window_size = true
 vim.g.neovide_profiler = false

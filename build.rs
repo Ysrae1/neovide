@@ -111,9 +111,14 @@ fn build_native_previews() {
         other => panic!("Unsupported macOS preview architecture: {other}"),
     };
     println!("cargo:rerun-if-changed=src/native_preview/media.h");
+    println!("cargo:rerun-if-changed=src/platform/macos/glass.h");
     let mut objects = Vec::new();
-    for name in ["media", "web", "pdf"] {
-        let source = format!("src/native_preview/{name}.m");
+    for (name, source) in [
+        ("media", "src/native_preview/media.m"),
+        ("web", "src/native_preview/web.m"),
+        ("pdf", "src/native_preview/pdf.m"),
+        ("glass", "src/platform/macos/glass.m"),
+    ] {
         println!("cargo:rerun-if-changed={source}");
         let object = out.join(format!("glow_{name}.o"));
         let status = Command::new("xcrun")

@@ -10,6 +10,7 @@ pub enum NativeCommand {
     Show(u64, ImageView),
     Close(u64),
     Action { id: u64, action: String, value: f64 },
+    PdfSync { id: u64, page: u64, x: f64, y: f64, width: f64, height: f64 },
 }
 
 impl NativeCommand {
@@ -37,6 +38,37 @@ impl NativeCommand {
                 Self::Show(id, ImageView::parse(args.get(1).ok_or("Missing viewport")?)?)
             }
             "neovide.preview.close" => Self::Close(id),
+            "neovide.preview.pdf_sync" => {
+                let fields = args.get(1).and_then(Value::as_map).ok_or("Missing PDF sync point")?;
+                let get = |key: &str| {
+                    fields
+                        .iter()
+                        .find(|(name, _)| name.as_str() == Some(key))
+                        .map(|(_, value)| value)
+                };
+                let page = get("page")
+                    .and_then(Value::as_u64)
+                    .filter(|p| *p > 0 && *p <= 1_000_000)
+                    .ok_or("Invalid PDF sync page")?;
+                let coordinate = |key: &str, default: Option<f64>| -> Result<f64, String> {
+                    let number = get(key)
+                        .and_then(Value::as_f64)
+                        .or(default)
+                        .ok_or_else(|| format!("Missing PDF sync {key}"))?;
+                    if !number.is_finite() || !(0.0..=1_000_000.0).contains(&number) {
+                        return Err(format!("Invalid PDF sync {key}"));
+                    }
+                    Ok(number)
+                };
+                Self::PdfSync {
+                    id,
+                    page,
+                    x: coordinate("x", None)?,
+                    y: coordinate("y", None)?,
+                    width: coordinate("width", Some(0.0))?,
+                    height: coordinate("height", Some(0.0))?,
+                }
+            }
             "neovide.preview.action" => {
                 let action = args
                     .get(1)
@@ -107,5 +139,25 @@ mod tests {
             ),
             Ok(NativeCommand::Open { .. })
         ));
+    }
+    #[test]
+    fn pdf_sync_uses_finite_page_points() {
+        let point = |x: f64| {
+            Value::Map(vec![
+                ("page".into(), 2.into()),
+                ("x".into(), x.into()),
+                ("y".into(), 72.5.into()),
+            ])
+        };
+        assert!(matches!(
+            NativeCommand::parse("neovide.preview.pdf_sync", &[1.into(), point(12.0)]),
+            Ok(NativeCommand::PdfSync { page: 2, .. })
+        ));
+        assert!(
+            NativeCommand::parse("neovide.preview.pdf_sync", &[1.into(), point(f64::NAN)]).is_err()
+        );
+        assert!(
+            NativeCommand::parse("neovide.preview.pdf_sync", &[1.into(), point(-1.0)]).is_err()
+        );
     }
 }

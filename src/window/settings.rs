@@ -38,6 +38,8 @@ pub struct WindowSettings {
     #[cfg(target_os = "macos")]
     pub input_macos_alt_is_meta: bool,
     #[cfg(target_os = "macos")]
+    pub liquid_glass: bool,
+    #[cfg(target_os = "macos")]
     pub input_macos_option_key_is_meta: OptionAsMeta,
     #[cfg(target_os = "macos")]
     pub macos_simple_fullscreen: bool,
@@ -87,6 +89,8 @@ impl Default for WindowSettings {
             corner_preference: CornerPreference::Default,
             #[cfg(target_os = "macos")]
             input_macos_alt_is_meta: false,
+            #[cfg(target_os = "macos")]
+            liquid_glass: false,
             #[cfg(target_os = "macos")]
             input_macos_option_key_is_meta: OptionAsMeta::None,
             #[cfg(target_os = "macos")]

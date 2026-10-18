@@ -7,6 +7,7 @@ pub mod cursor_renderer;
 pub mod fonts;
 pub mod grid_renderer;
 pub(crate) mod image_preview;
+pub(crate) mod notebook;
 pub mod opengl;
 pub mod profiler;
 pub mod progress_bar;
@@ -173,6 +174,7 @@ pub enum DrawCommand {
     ReplayStartupMessages,
     UIReady,
     ImagePreview(image_preview::ImageCommand),
+    NotebookFrames(notebook::FrameSnapshot),
     Window { grid_id: u64, command: WindowDrawCommand },
 }
 
@@ -184,6 +186,7 @@ pub enum StartupMessageFlush {
 
 pub struct Renderer {
     images: image_preview::ImageRenderer,
+    notebooks: notebook::NotebookRenderer,
     bloom_renderer: bloom::BloomRenderer,
     cursor_renderer: CursorRenderer,
     pub grid_renderer: GridRenderer,
@@ -236,6 +239,7 @@ impl Renderer {
 
         Renderer {
             images: image_preview::ImageRenderer::default(),
+            notebooks: notebook::NotebookRenderer::default(),
             bloom_renderer: bloom::BloomRenderer::default(),
             rendered_windows,
             cursor_renderer,
@@ -284,6 +288,11 @@ impl Renderer {
         };
         let default_background = self.grid_renderer.get_default_background(opacity);
         let grid_scale = self.grid_renderer.grid_scale;
+        let notebook_windows = self
+            .rendered_windows
+            .values()
+            .filter_map(|window| notebook::NotebookWindow::from_window(window, grid_scale))
+            .collect_vec();
 
         let layer_grouping = self.settings.get::<RendererSettings>().experimental_layer_grouping;
         root_canvas.clear(default_background);
@@ -387,6 +396,7 @@ impl Renderer {
         // Native previews belong to ordinary editor splits. Draw them before floating
         // windows so menus and error messages retain their normal stacking order.
         self.images.draw(root_canvas, grid_scale);
+        self.notebooks.draw(root_canvas, grid_scale, false, &[], &notebook_windows);
 
         let floating_window_regions = floating_layers
             .into_iter()
@@ -404,6 +414,13 @@ impl Renderer {
         // The adapter confines these to their owner output float and suspends
         // them whenever another popup overlaps; ordinary split images stay below floats.
         self.images.draw_overlay(root_canvas, grid_scale);
+        self.notebooks.draw(
+            root_canvas,
+            grid_scale,
+            true,
+            &floating_window_regions,
+            &notebook_windows,
+        );
         let image_bloom_exclusion =
             self.images.bloom_exclusion(grid_scale, &floating_window_regions);
         self.window_regions =
@@ -608,6 +625,7 @@ impl Renderer {
     fn handle_draw_command(&mut self, draw_command: DrawCommand, result: &mut DrawCommandResult) {
         match draw_command {
             DrawCommand::ImagePreview(command) => self.images.handle(command),
+            DrawCommand::NotebookFrames(snapshot) => self.notebooks.replace(snapshot),
             DrawCommand::Window { grid_id, command: WindowDrawCommand::Close } => {
                 self.rendered_windows.remove(&grid_id);
             }
@@ -720,6 +738,7 @@ impl Renderer {
 
     pub fn clear(&mut self) {
         self.images.clear();
+        self.notebooks.clear();
         self.rendered_windows.clear();
         self.window_regions.clear();
         self.cursor_renderer = CursorRenderer::new(self.settings.clone());

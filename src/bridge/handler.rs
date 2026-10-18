@@ -227,6 +227,17 @@ impl Handler for NeovimHandler {
         trace!("Neovim notification: {:?}", event_name);
 
         match event_name.as_ref() {
+            "neovide.notebook.frames" => {
+                match crate::renderer::notebook::FrameSnapshot::parse(&arguments) {
+                    Ok(snapshot) => {
+                        // Bind layout epochs only after the same Neovim flush
+                        // has delivered the matching win_viewport scroll state.
+                        let _ =
+                            self.redraw_event_sender.send(RedrawEvent::NotebookFrames(snapshot));
+                    }
+                    Err(error) => log::warn!("Invalid Notebook frame snapshot: {error}"),
+                }
+            }
             name if name.starts_with("neovide.preview.") => {
                 match crate::native_preview::NativeCommand::parse(name, &arguments) {
                     Ok(command) => self.send_window_command(WindowCommand::NativePreview(command)),

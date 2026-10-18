@@ -55,6 +55,7 @@ pub enum WindowDrawCommand {
     Hide,
     Close,
     Viewport {
+        window_id: u64,
         scroll_delta: f64,
     },
     ViewportMargins {
@@ -99,6 +100,8 @@ pub struct RenderedWindow {
 
     pub scroll_animation: CriticallyDampedSpringAnimation,
     pub scroll_animation_delta: f32,
+    pub window_id: Option<u64>,
+    pub viewport_scroll: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -140,6 +143,8 @@ impl RenderedWindow {
 
             scroll_animation: CriticallyDampedSpringAnimation::new(),
             scroll_animation_delta: 0.0,
+            window_id: None,
+            viewport_scroll: 0.0,
         }
     }
 
@@ -673,8 +678,10 @@ impl RenderedWindow {
                 tracy_zone!("hide_cmd", 0);
                 self.hidden = true;
             }
-            WindowDrawCommand::Viewport { scroll_delta } => {
+            WindowDrawCommand::Viewport { window_id, scroll_delta } => {
                 log::trace!("Handling Viewport {}", self.id);
+                self.window_id = Some(window_id);
+                self.viewport_scroll += scroll_delta.round();
                 self.scroll_delta = scroll_delta.round() as isize;
             }
             WindowDrawCommand::ViewportMargins { top, bottom, .. } => {

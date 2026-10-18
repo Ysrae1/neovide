@@ -87,7 +87,7 @@ git push origin glow-preview
 - **第二阶段：音频播放。** 在图片预览稳定后评估内嵌播放控制，包括播放、暂停、进度和音量，以及关闭面板后的停止行为。
 - **第三阶段：视频播放。** 单独评估解码、画面输出、音画同步和拖动进度的实现方式与维护成本，再确定范围。
 - **独立方向：内嵌 WebView 预览。** 评估使用 [Wry](https://github.com/tauri-apps/wry)，先在 macOS 上复用系统 WebKit，将网页嵌入 Neovide 右侧分屏。初步范围包括本地 HTML／CSS／JavaScript 保存后自动刷新、URL 页面查看，以及分屏尺寸、缩放、Tab 切换、焦点、输入法和快捷键的协调；按需创建预览，关闭时释放资源。参考[上游议题 #2427](https://github.com/neovide/neovide/issues/2427)，当前尚未找到可直接复用的 Neovide 实现。HTML 的源码与页面双向定位另行评估，不默认视为已有能力。
-- **独立方向：Jupyter Notebook 渲染。** 首版支持打开 `.ipynb`，按单元格展示代码、Markdown 和已保存输出，包括表格、公式、图片及 HTML 输出；接入 Matplotlib 等绘图库的 PNG／SVG 已保存图表。后续已补充 Molten＋Jupytext 的原生 Python 编辑、内核执行和输出保存；独立图形化输入卡片及交互图表仍不纳入当前交付。
+- **独立方向：Jupyter Notebook 渲染。** 首版支持打开 `.ipynb`，按单元格展示代码、Markdown 和已保存输出，包括表格、公式、图片及 HTML 输出；接入 Matplotlib 等绘图库的 PNG／SVG 已保存图表。后续已补充 Molten＋Jupytext 的原生 Python 编辑、内核执行和输出保存；后续增加了 Skia 原生输入／输出圆角描边，交互图表仍不纳入当前交付。
 - **独立方向：Jupyter Book 预览。** 支持文档项目的构建入口和站点预览，评估在内嵌 WebView 中显示页面并随构建结果刷新；与 `.ipynb` 单文件的单元格渲染分别实现和验收。
 - **必要验收：** 保留现有柔光及底部渲染修复；图片预览覆盖浅深主题、缩放、裁切和 Tab 切换，加载失败不阻塞编辑器，关闭后释放资源。音视频阶段另补对应播放验收。
 
@@ -130,7 +130,7 @@ git push origin glow-preview
 | macOS PDF | PDFKit 文档面板、翻页、缩放、适应、连续滚动与文本选择 | 原生 PDF 实际 GUI 翻页、缩放，以及 Neovim 浮窗覆盖与点击已检查 |
 | Jupyter Book | 项目构建入口、构建日志、站点预览与刷新 | 独立异步构建；Jupyter Book 1.0.4.post1 的成功、失败与产物刷新已检查；MyST 工具链未实测 |
 
-阶段边界：Notebook 的历史首版只查看已有内容与保存输出；当前新增的原生编辑入口支持 Python 内核执行、结果更新及保存回 `.ipynb`，静态预览入口继续保留。当前单元格使用 Neovim 文本缓冲区；独立图形化输入卡片、交互图表和 HTML 源码/页面双向定位仍需另行设计。Jupyter Book 继续提供独立项目构建流程。
+阶段边界：Notebook 的历史首版只查看已有内容与保存输出；当前新增的原生编辑入口支持 Python 内核执行、结果更新及保存回 `.ipynb`，静态预览入口继续保留。当前单元格使用 Neovim 文本缓冲区，输入／输出圆角框由 Skia 绘制；交互图表和 HTML 源码/页面双向定位仍需另行设计。Jupyter Book 继续提供独立项目构建流程。
 
 
 ### macOS 后续阶段首版：播放、网页与文档预览
@@ -168,28 +168,49 @@ JPEG XL 使用专用预览器补齐当前 ImageMagick 构建缺少的 JXL 解码
 
 PDF 使用系统 PDFKit，提供页码、上一页/下一页、缩放与适应按钮、连续纵向滚动及文本选择。编辑器焦点下 `]p`/`[p` 或 PageDown/PageUp 翻页，`+`/`=`、`-` 缩放，`0` 适应当前面板，`i`/Enter 进入 PDF 焦点，`q`/Esc 关闭；PDF 焦点下可选择文字并用 Cmd+C 复制，Cmd+Esc 返回编辑器。Tab 生命周期与其他原生面板一致，关闭释放文档与视图。
 
+原生 PDF 与 TeX 使用真实 SyncTeX 双向定位。TeX 缓冲区中 `:GlowTexForward` 或已有 VimTeX 查看快捷键 `<localleader>lv` 会打开／复用同一 PDF 面板，定位并短暂标记当前源码位置；在 PDF 正文中 `Cmd+单击` 返回对应源文件与行。支持已有 `.synctex` 和 `.synctex.gz`，不自动编译用户文档；VimTeX 编译配置已带 `-synctex=1`。缺少 PDF、映射或命令时显示明确反馈。新构建默认走原生面板，设置 `vim.g.glow_tex_viewer = "skim"` 可继续使用原 Skim 流程；其他 Neovide 构建保留 Skim。跳转查询和 PDF 状态传递均异步，Tab 离开或预览关闭后忽略过期结果。
+
 Notebook 静态入口 `:GlowNotebookPreview` 异步读取上限 32 MiB、4000 单元格，支持 nbformat 4。随配置携带 markdown-it 14.1.0、KaTeX 0.16.22 及字体，可离线查看公式、Markdown 表格、代码、文本/错误、静态 HTML、PNG/SVG 和 Matplotlib 已保存输出。HTML 输出在脚本停用的子框架内显示；此入口仅查看保存内容。保存 `.ipynb` 重新渲染，关闭删除临时 HTML；异步准备完成时不抢走其他 Tab，回到原 Tab 后才首次打开面板。
+
+### Liquid Glass 与透明度接口
+
+macOS 26 及以后使用系统 `NSGlassEffectView`，作为现有 winit／Metal 编辑视图后方的原生材质；早期系统回退 `NSVisualEffectView`。编辑区域、Neovim 浮窗共用可透出的材质基底，原生 PDF／媒体容器及编辑器切换面板也接入；PDF 页面、网页正文和媒体像素保留自身背景。Neovim 浮窗仍由 Skia 绘制，不承诺每个浮窗具有独立的系统折射效果。玻璃层不接收点击，原有编辑器、浮窗和预览焦点层级保留。
+
+| 调整 | 命令 |
+| --- | --- |
+| 开启／关闭／切换材质 | `:GlowGlass on`／`off`／`toggle` |
+| 背景不透明度（0 透明，1 不透明） | `:GlowGlass opacity 0.85` |
+| 浮窗附加模糊（0～100） | `:GlowGlass blur 24` |
+| 恢复配置默认／查看状态 | `:GlowGlass reset`／`status` |
+
+透明度和模糊省略数字时会弹出输入框。透明度命令只淡化普通背景，文字与选中高亮保持清楚；底层仍可独立设置 `g:neovide_opacity`、`g:neovide_normal_opacity`、`g:neovide_floating_blur_amount_x/y`，材质由 `g:neovide_liquid_glass` 开关。新构建配套配置默认开启，恢复值沿用背景 `.95/.9` 和浮窗模糊 `24/24`。Apple 未公开玻璃模糊半径参数，`blur` 真实调整的是 Neovide 浮窗的附加模糊，系统玻璃由 macOS 管理。[Apple NSGlassEffectView 文档](https://developer.apple.com/documentation/appkit/nsglasseffectview)。
 
 ### 原生 Notebook 编辑与执行
 
-`:GlowNotebook` 在真正的 Neovim Python 缓冲区中编辑 `.ipynb`，沿用现有字体、主题、光标、补全与快捷键。Jupytext 使用 `# %%` 和 `# %% [markdown]` 表示代码及 Markdown 单元格，Molten 负责连接 Jupyter 内核、异步执行和显示输出。单元格分隔和当前范围使用 Neovim 高亮与虚拟文字；当前没有独立的图形化输入卡片。Markdown、公式和复杂 HTML 的排版可通过 `:GlowNotebookPreview` 查看。
+`:GlowNotebook` 在真正的 Neovim Python 缓冲区中编辑 `.ipynb`，沿用现有字体、主题、光标、补全与快捷键。Jupytext 使用 `# %%` 和 `# %% [markdown]` 表示代码及 Markdown 单元格，Molten 负责连接 Jupyter 内核、异步执行和显示输出。输入区由 Skia 绘制暖色圆角框，输出区使用冷色圆角框，当前单元格描边加重。输入留白使用本模块的虚拟行，Molten 输出由其自身独占写入，保留真实源码和输出内容；框线跟随正文的同一滚动动画，并按分屏和浮窗层级裁切。顶部序列化元数据默认隐藏，可用 `:GlowNotebookMetadata` 显示。单元格右上角以独立胶囊显示 Markdown／语言图标和名称，代码格另有 `▷ (⇧↵)` 运行胶囊，真实运行时播放符号切为实心。顶栏仅保留 Kernel、Cells、Menu 三域，每个胶囊内统一强调色，深浅主题使用对应底色；空内核提示 `Select (␣jk)`，功能入口显示 `␣j`，上下格用 `↑ [c` 和 `↓ ]c`。状态栏左侧统一增加两格留白。Markdown、公式和复杂 HTML 的排版可通过 `:GlowNotebookPreview` 查看。
 
 依赖固定为 Molten [`bedea63819c618e007e7c40059fc6e72d598c8df`](https://github.com/benlubas/molten-nvim/commit/bedea63819c618e007e7c40059fc6e72d598c8df) 和 Jupytext.nvim [`c8baf3ad344c59b3abd461ecc17fc16ec44d0f7b`](https://github.com/GCBallesteros/jupytext.nvim/commit/c8baf3ad344c59b3abd461ecc17fc16ec44d0f7b)。配套 `config/media/runtime/install.sh` 安装固定 Python 依赖至 Neovim 数据目录下的 `glow-notebook-venv`，并注册独立的 `glow-python` 内核；本机路径为 `~/.local/share/nvim/glow-notebook-venv`。既有全局/Conda 环境及 `python3` 内核不被覆盖；显式配置的 Python provider 保持优先。配置只新增这两项插件固定版本，保留原插件锁的其他条目。
 
-首次运行才启动内核，并异步等待 `MoltenKernelReady` 后导入保存输出、执行请求；等待期间仍可编辑，若代码已改变会要求重新运行。打开文件本身不执行代码。`:w` 将代码写回原 `.ipynb`，并保存已产生的新输出；转换使用私有缓存，不覆盖或删除同名 `.py` 文件。输出保存需要已有 Python Treesitter 解析器。关闭最后一个显示该 Notebook 的窗口会停止本入口创建的内核；手动连接的用户内核保留其原有归属。
+打开文件或内核选择器不启动内核；确认选择或首次运行时启动，并异步等待 `MoltenKernelReady` 后导入保存输出、执行请求；等待期间仍可编辑，若代码已改变会要求重新运行。打开文件本身不执行代码。`:w` 将代码写回原 `.ipynb`，并保存已产生的新输出；转换使用私有缓存，不覆盖或删除同名 `.py` 文件。输出保存需要已有 Python Treesitter 解析器。关闭最后一个显示该 Notebook 的窗口会停止本入口创建的内核；手动连接的用户内核保留其原有归属。
 
-| 操作 | 命令或按键 |
-| --- | --- |
-| 运行当前代码单元格 | Shift+Enter（普通/插入模式）、`:GlowNotebookRun` |
-| 运行全部代码单元格 | `:GlowNotebookRunAll` |
-| 打开当前单元格输出浮窗 | `:GlowNotebookOutput` |
-| 启动默认或指定内核 | `:GlowNotebookKernel`、`:GlowNotebookKernel kernelspec-name` |
-| 中断、重启内核 | `:GlowNotebookInterrupt`、`:GlowNotebookRestart` |
-| 添加代码、Markdown 单元格 | `:GlowNotebookAddCode`、`:GlowNotebookAddMarkdown` |
-| 上一个、下一个单元格 | `[c`、`]c` |
-| 保存代码与已完成输出 | `:w` |
+`<leader>j` 是 Notebook 快捷键分组，保留普通 Neovim 的 `a/b/m/y/dd` 行为。无参数 `:GlowNotebookKernel` 与 `<leader>jk` 打开真实 Python 内核选择器，显示环境名称和解释器路径；包括已安装 ipykernel 的 Conda 环境。取消不启动内核。切换本入口拥有的内核会暂存并恢复完成输出，不自动保存源文件；手动或共享内核不自动替换。已有 `<localleader>n` 快捷键继续可用。
 
-文本结果和错误在代码下方以原生虚拟文字显示；Molten 标注排队、运行、完成或失败状态。PNG/Matplotlib 静态图表通过 Neovide 图片接口显示在原生输出浮窗中，使用 `:GlowNotebookOutput` 查看；当前不在正文虚拟行内嵌图像。该适配不替换其他插件的 `image.nvim` 实现，也不承诺交互图表、网页控件或任意 Jupyter 富输出均可原生显示。当前编辑执行流程以 Python 验收，其他语言内核未验收。
+| 操作 | 快捷键 | 命令 |
+| --- | --- | --- |
+| 选择内核 | `<leader>jk` | `:GlowNotebookKernel` |
+| 运行当前单元格 | `<leader>jr`、Shift+Enter | `:GlowNotebookRun` |
+| 运行全部代码 | `<leader>jA` | `:GlowNotebookRunAll` |
+| 查看输出浮窗 | `<leader>jo` | `:GlowNotebookOutput` |
+| 中断／重启内核 | `<leader>ji`／`<leader>j00` | `:GlowNotebookInterrupt`／`:GlowNotebookRestart` |
+| 上方／下方新增代码格 | `<leader>ja`／`<leader>jb` | 下方也可 `:GlowNotebookAddCode` |
+| 下方新增 Markdown 格 | `<leader>jM` | `:GlowNotebookAddMarkdown` |
+| 当前格转 Markdown／代码 | `<leader>jm`／`<leader>jy` | `:GlowNotebookMarkdown`／`:GlowNotebookCode` |
+| 删除当前格及其输出 | `<leader>jdd` | `:GlowNotebookDeleteCell` |
+| 上一个／下一个单元格 | `[c`／`]c` | — |
+| 保存代码及完成输出 | `:w` | — |
+
+非空单元格的 `# %%` 标记行仅在界面隐藏，文件中的分格标记仍保留；单元格跳转定位正文首行，空单元格保留可编辑行。删除源码可用普通 `u` 撤销，已删除的运行输出不随源码撤销恢复。
+文本结果和错误在代码下方以原生虚拟文字和冷色圆角框显示；Molten 标注排队、运行、完成或失败状态。PNG/Matplotlib 静态图表通过 Neovide 图片接口显示在原生输出浮窗中，使用 `:GlowNotebookOutput` 查看；当前不在正文虚拟行内嵌图像。该适配不替换其他插件的 `image.nvim` 实现，也不承诺交互图表、网页控件或任意 Jupyter 富输出均可原生显示。保存输出尚未导入 Molten 时只显示输入框；打开文件不会因此启动内核。当前编辑执行流程以 Python 验收，其他语言内核未验收。
 
 ### Jupyter Book 与首版验收记录
 
@@ -219,3 +240,14 @@ Yazi 增量检查：在现有 Yazi 26.5.6 和固定 yazi.nvim 下，真实事件
 Yazi 公共图片接口增量检查：真实 Yazi 后台预览通过 PNG、PDF、SVG、视频、字体、AVIF，以及带参数、自行缓存且提前保存函数别名的自定义插件；检查 PDF 原 seek 切换页面缓存、源文件与缓存分离、实际元信息文字位于图像预留区域下方。独立 Neovide GUI 实际查看了 PDF 页面及翻页、SVG、视频静态缩略图、字体样张、AVIF，切回文本及退出没有残留图片。本轮只修改 Lua/Python 配置，不重复 Rust 全量构建或此前图像测试；视频 seek 保留上游的整秒取整与关键帧选择行为。
 
 JPEG XL 增量检查：使用 JPEG XL 0.11.2 真实生成 JXL，RGBA 无损逐像素往返通过；真实 Yazi 检查通过 MIME、混合大小写和特殊字符路径、受限尺寸 PNG 缓存、缓存复用、损坏文件反馈、切换释放与退出清理。独立 Neovide GUI 中实际显示了 1024×1024 RGB+Alpha JPEG XL 文件。本机与 portable 配置同步，不替换全局 ImageMagick 或安装新依赖。
+
+2026-10-18 Notebook 卡片、内核与 SyncTeX 增量检查：
+
+- 真实 Python 内核选择／取消、Conda base 解释器、切换保留完成输出、单元格增删转换、源码撤销及保存重开通过组合检查。普通 `a/b/m/y/dd` 保留；实际 Snacks 选择器和逐键导航／运行通过，缺少说明的旧 Python 映射补充了可读描述。
+- Notebook 原生框协议边界、透明圆角绘制和浮窗裁切测试通过；真实 Neovim UI 几何检查覆盖虚拟留白、输出及源码不变、元数据隐藏／显示、编辑和 Tab 生命周期。独立 GUI 实际查看暖色输入、冷色文本／错误输出、Conda base 返回 42、浅深背景和长输出滚动。
+- 真实 TeX 编译样例的 SyncTeX／VimTeX 正反向链路通过，覆盖 included 源文件、独立 build 目录和空格／单引号路径。原生 PDFKit 检查覆盖加载前排队定位、短暂标记、裁切／旋转坐标往返、实际 PDFKit 子视图的 Cmd 点击分发及关闭。
+- Liquid Glass 定向检查覆盖实际系统原生类、Metal 下方层级、焦点与点击穿透、尺寸变化、开关恢复、后建预览容器，以及旧材质 fallback 的构造。旧 macOS 未实机验收；系统玻璃模糊半径未提供可调承诺。
+
+合并版实际 GUI 已检查 TeX 正向打开 PDF、Cmd 点击由 PDF 返回 included 源文件第 3 行；Liquid Glass 开／关、背景不透明度 0.3、浮窗模糊 12 及恢复默认的接口已操作，PDF 页保留可读背景，状态栏两格左留白可见。
+
+Notebook 滚动与闪烁增量修复：框线采用实际窗口的同一滚动计数和弹簧像素变换，覆盖正向、反向和动画中途反转。录屏中的周期跳动源于两个定时器交替重写 Molten 虚拟输出，导致行高在原值和额外两行间切换；UI 现只读 Molten marks，等高内容更新及 mark ID 重建不再重置框线布局。真实 Molten NEW／RUNNING 各连续渲染 6 次保持行高、mark 内容和布局 epoch 不变，实际新增输出行才更新布局。合并运行状态检查覆盖排队、运行、完成、错误及打印伪状态文字；独立 GUI 检查了深浅主题胶囊、隐藏标记后的代码首行、返回 42、翻页滚动与 Matplotlib 浮窗边框。本轮未重复其他媒体与 PDF 全量检查。

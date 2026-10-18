@@ -765,7 +765,22 @@ impl WinitWindowWrapper {
                 for window_id in window_ids.iter() {
                     if let Some(route) = self.routes.get(window_id) {
                         let window = route.window.winit_window.clone();
+                        #[cfg(target_os = "macos")]
+                        let blur = blur && !self.settings.get::<WindowSettings>().liquid_glass;
                         window.set_blur(blur && transparent);
+                    }
+                }
+            }
+            #[cfg(target_os = "macos")]
+            WindowSettingsChanged::LiquidGlass(enabled) => {
+                let settings = self.settings.get::<WindowSettings>();
+                for window_id in &window_ids {
+                    if let Some(route) = self.routes.get(window_id) {
+                        route.window.winit_window.set_blur(
+                            !enabled
+                                && settings.window_blurred
+                                && settings.opacity.min(settings.normal_opacity) < 1.0,
+                        );
                     }
                 }
             }
@@ -1505,6 +1520,9 @@ impl WinitWindowWrapper {
                 renderer.grid_renderer.grid_scale,
                 (route.state.window_padding.left, route.state.window_padding.top),
             );
+            if let Some(feature) = &route.window.macos_feature {
+                feature.borrow().refresh_material();
+            }
         }
 
         skia_renderer.flush();
@@ -1818,6 +1836,8 @@ impl WinitWindowWrapper {
             renderer.borrow().grid_renderer.grid_scale
         );
 
+        #[cfg(target_os = "macos")]
+        let window_blurred = window_blurred && !self.settings.get::<WindowSettings>().liquid_glass;
         window.set_blur(window_blurred && opacity.min(normal_opacity) < 1.0);
 
         #[cfg(target_os = "windows")]

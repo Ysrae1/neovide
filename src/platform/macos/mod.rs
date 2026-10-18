@@ -1,3 +1,4 @@
+mod glass;
 pub mod settings;
 mod switcher;
 
@@ -351,6 +352,7 @@ pub struct MacosWindowFeature {
     neovim_handler: NeovimHandler,
     simple_fullscreen: bool,
     has_transparent_titlebar: bool,
+    glass: glass::GlassMaterial,
 }
 
 impl MacosWindowFeature {
@@ -439,6 +441,7 @@ impl MacosWindowFeature {
             neovim_handler,
             simple_fullscreen,
             has_transparent_titlebar,
+            glass: glass::GlassMaterial::new(window, window_settings.liquid_glass),
         };
 
         let mut macos_window_feature = macos_window_feature;
@@ -859,7 +862,12 @@ impl MacosWindowFeature {
         }
     }
 
+    pub fn refresh_material(&self) {
+        self.glass.layout();
+    }
+
     pub fn handle_size_changed(&mut self) {
+        self.glass.layout();
         let is_fullscreen = self.ns_window.styleMask().contains(NSWindowStyleMask::FullScreen);
         if is_fullscreen != self.is_fullscreen {
             self.is_fullscreen = is_fullscreen;
@@ -922,9 +930,9 @@ impl MacosWindowFeature {
 
     /// Update background color, opacity, shadow and blur of a window.
     fn update_background(&self) {
-        let WindowSettings { show_border, opacity, normal_opacity, .. } =
+        let WindowSettings { show_border, opacity, normal_opacity, liquid_glass, .. } =
             self.settings.get::<WindowSettings>();
-        let opaque = opacity.min(normal_opacity) >= 1.0;
+        let opaque = !liquid_glass && opacity.min(normal_opacity) >= 1.0;
         self.update_ns_background(opaque, show_border);
     }
 
@@ -951,6 +959,10 @@ impl MacosWindowFeature {
 
     pub fn handle_settings_changed(&mut self, changed_setting: WindowSettingsChanged) {
         match changed_setting {
+            WindowSettingsChanged::LiquidGlass(enabled) => {
+                self.glass.set_enabled(enabled);
+                self.update_background();
+            }
             WindowSettingsChanged::ShowBorder(show_border) => {
                 log::info!("show_border changed to {show_border}");
                 self.update_background();

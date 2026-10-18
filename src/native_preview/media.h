@@ -16,6 +16,8 @@ void glow_media_command(void *ctx, const char *action, double value);
 // UTF-8 JSON allocated with malloc. The caller must free() it. Never waits for I/O.
 const char *glow_media_status(void *ctx);
 void glow_media_destroy(void *ctx);
+// SyncTeX coordinates: one-based page, big points measured from MediaBox top-left.
+void glow_pdf_sync(void *ctx, unsigned long long page, double x, double y, double width, double height);
 
 #ifdef __OBJC__
 #import <AppKit/AppKit.h>

@@ -180,6 +180,8 @@ pub enum EditorMode {
 /// [UI events]: https://neovim.io/doc/user/ui.html
 #[derive(Clone, Debug, AsRefStr)]
 pub enum RedrawEvent {
+    // Decoration snapshots share the redraw/flush queue with their viewport.
+    NotebookFrames(crate::renderer::notebook::FrameSnapshot),
     /// Set the window title.
     SetTitle {
         title: String,
@@ -383,6 +385,7 @@ pub enum RedrawEvent {
     /// win_viewport is received.
     WindowViewport {
         grid: u64,
+        window: u64,
         #[allow(unused)]
         top_line: f64,
         #[allow(unused)]
@@ -532,6 +535,22 @@ fn parse_string(string_value: Value) -> Result<String> {
 
 fn parse_u64(u64_value: Value) -> Result<u64> {
     u64_value.try_into().map_err(ParseError::U64)
+}
+
+fn parse_window_handle(value: Value) -> Result<u64> {
+    if let Value::Ext(1, bytes) = &value {
+        // Neovim Window handles use extension type 1 whose payload is itself a
+        // MessagePack integer, not an untagged big-endian byte sequence.
+        let mut cursor = std::io::Cursor::new(bytes);
+        let decoded =
+            rmpv::decode::read_value(&mut cursor).map_err(|_| ParseError::U64(value.clone()))?;
+        if cursor.position() != bytes.len() as u64 {
+            return Err(ParseError::U64(value));
+        }
+        parse_u64(decoded)
+    } else {
+        parse_u64(value)
+    }
 }
 
 fn parse_i64(i64_value: Value) -> Result<i64> {
@@ -933,12 +952,13 @@ fn parse_msg_set_pos(msg_set_pos_arguments: Vec<Value>) -> Result<RedrawEvent> {
 
 fn parse_win_viewport(win_viewport_arguments: Vec<Value>) -> Result<RedrawEvent> {
     let (
-        [grid, _window, top_line, bottom_line, current_line, current_column],
+        [grid, window, top_line, bottom_line, current_line, current_column],
         [line_count, scroll_delta],
     ) = extract_values_with_optional(win_viewport_arguments)?;
 
     Ok(RedrawEvent::WindowViewport {
         grid: parse_u64(grid)?,
+        window: parse_window_handle(window)?,
         top_line: parse_f64(top_line)?,
         bottom_line: parse_f64(bottom_line)?,
         current_line: parse_f64(current_line)?,
@@ -1182,6 +1202,29 @@ mod tests {
     use rmpv::Value;
 
     use super::{MessageKind, RedrawEvent, parse_msg_show};
+
+    #[test]
+    fn notebook_viewport_preserves_real_neovim_window_extension_handle() {
+        // Captured from an actual Nvim 0.12.3 ext_multigrid redraw notification.
+        let packet = vec![
+            2.into(),
+            Value::Ext(1, vec![0xcd, 0x03, 0xe8]),
+            0.into(),
+            2.into(),
+            0.into(),
+            0.into(),
+            1.into(),
+            0.into(),
+        ];
+        let event = super::parse_win_viewport(packet).unwrap();
+        assert!(matches!(
+            event,
+            RedrawEvent::WindowViewport { grid: 2, window: 1000, scroll_delta: Some(0.0), .. }
+        ));
+        assert_eq!(super::parse_window_handle(1000.into()).unwrap(), 1000);
+        assert!(super::parse_window_handle(Value::Ext(1, vec![0xcd])).is_err());
+        assert!(super::parse_window_handle(Value::Ext(0, vec![1])).is_err());
+    }
 
     #[test]
     fn message_kind_marks_error_variants() {

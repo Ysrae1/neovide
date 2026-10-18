@@ -36,6 +36,11 @@
 @property(nonatomic) double requestedZoom;
 @property(nonatomic) BOOL fit;
 @property(nonatomic) BOOL destroyed;
+@property(nonatomic, strong) NSDictionary *syncTarget;
+@property(nonatomic, strong) NSDictionary *inverseSync;
+@property(nonatomic) NSUInteger syncSequence;
+@property(nonatomic) NSUInteger highlightGeneration;
+@property(nonatomic, strong) PDFAnnotation *syncAnnotation;
 - (instancetype)initWithParent:(NSView *)parent path:(const char *)path;
 - (void)layout;
 - (void)load;
@@ -43,7 +48,21 @@
 - (void)command:(NSString *)action value:(double)value;
 - (void)blur;
 - (void)destroy;
+- (void)syncPage:(NSUInteger)page x:(double)x y:(double)y width:(double)width height:(double)height;
+- (void)inverseAtPoint:(NSPoint)point;
+- (void)clearSyncHighlight;
 @end
+
+// PDFKit page points are unrotated PDF coordinates. SyncTeX uses big points
+// from the MediaBox's upper-left; PDFView handles CropBox/rotation conversion.
+static NSPoint GlowPDFPointFromSync(PDFPage *page, double x, double y) {
+    NSRect media = [page boundsForBox:kPDFDisplayBoxMediaBox];
+    return NSMakePoint(NSMinX(media) + x, NSMaxY(media) - y);
+}
+static NSPoint GlowPDFPointToSync(PDFPage *page, NSPoint point) {
+    NSRect media = [page boundsForBox:kPDFDisplayBoxMediaBox];
+    return NSMakePoint(point.x - NSMinX(media), NSMaxY(media) - point.y);
+}
 
 @implementation GlowPDFContainer
 - (BOOL)isFlipped { return YES; }
@@ -126,9 +145,20 @@ static NSButton *GlowPDFButton(NSString *title, id target, SEL action, NSString 
         queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) { (void)note; [weakSelf updateControls]; }];
     _scaleObserver = [center addObserverForName:PDFViewScaleChangedNotification object:_pdfView
         queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) { (void)note; [weakSelf updateControls]; }];
-    _keyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown handler:^NSEvent *(NSEvent *event) {
+    _keyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskKeyDown | NSEventMaskLeftMouseDown) handler:^NSEvent *(NSEvent *event) {
         GlowPDFContext *context = weakSelf;
         if (!context || context.destroyed || context.view.hidden || event.window != context.view.window) return event;
+        // PDFKit sends mouseDown to its internal PDFPageView. Intercept the
+        // exact modifier in the event stream, scoped to this visible PDF tree.
+        if (event.type == NSEventTypeLeftMouseDown) {
+            NSEventModifierFlags mods = event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption);
+            if (mods != NSEventModifierFlagCommand) return event;
+            NSView *content = event.window.contentView;
+            NSView *hit = [content hitTest:[content convertPoint:event.locationInWindow fromView:nil]];
+            if (hit != context.pdfView && ![hit isDescendantOf:context.pdfView]) return event;
+            [context inverseAtPoint:[context.pdfView convertPoint:event.locationInWindow fromView:nil]];
+            return nil;
+        }
         NSResponder *responder = context.view.window.firstResponder;
         if (![responder isKindOfClass:NSView.class] || ![(NSView *)responder isDescendantOf:context.view]) return event;
         NSEventModifierFlags modifiers = event.modifierFlags & (NSEventModifierFlagCommand
@@ -159,6 +189,7 @@ static NSButton *GlowPDFButton(NSString *title, id target, SEL action, NSString 
 - (void)load {
     if (self.destroyed) return;
     NSUInteger generation = ++self.loadGeneration;
+    [self clearSyncHighlight];
     self.pdfView.document = nil;
     self.state = @"loading";
     self.error = @"";
@@ -191,6 +222,11 @@ static NSButton *GlowPDFButton(NSString *title, id target, SEL action, NSString 
                     [context.pdfView layoutDocumentView];
                     [context command:context.fit ? @"fit" : @"zoom" value:context.requestedZoom];
                     [context command:@"page" value:context.requestedPage];
+                    if (context.syncTarget) {
+                        NSDictionary *target = context.syncTarget;
+                        [context syncPage:[target[@"page"] unsignedIntegerValue] x:[target[@"x"] doubleValue]
+                            y:[target[@"y"] doubleValue] width:[target[@"width"] doubleValue] height:[target[@"height"] doubleValue]];
+                    }
                 }
                 [context updateControls];
             });
@@ -247,6 +283,46 @@ static NSButton *GlowPDFButton(NSString *title, id target, SEL action, NSString 
     }
     [self updateControls];
 }
+- (void)clearSyncHighlight {
+    self.highlightGeneration++;
+    if (self.syncAnnotation) [self.syncAnnotation.page removeAnnotation:self.syncAnnotation];
+    self.syncAnnotation = nil;
+}
+- (void)syncPage:(NSUInteger)number x:(double)x y:(double)y width:(double)width height:(double)height {
+    if (self.destroyed || !number || !isfinite(x) || !isfinite(y) || !isfinite(width) || !isfinite(height)) return;
+    self.syncTarget = @{@"page": @(number), @"x": @(x), @"y": @(y), @"width": @(width), @"height": @(height)};
+    self.requestedPage = number;
+    if (![self.state isEqualToString:@"ready"] || number > self.pdfView.document.pageCount) return;
+    PDFPage *page = [self.pdfView.document pageAtIndex:number - 1];
+    NSPoint point = GlowPDFPointFromSync(page, x, y);
+    NSRect marker = NSMakeRect(point.x, point.y, fmax(8, width), fmax(10, height));
+    marker = NSIntersectionRect(marker, [page boundsForBox:kPDFDisplayBoxMediaBox]);
+    [self clearSyncHighlight];
+    PDFAnnotation *annotation = [[PDFAnnotation alloc] initWithBounds:marker forType:PDFAnnotationSubtypeSquare withProperties:nil];
+    annotation.color = [NSColor.controlAccentColor colorWithAlphaComponent:0.45];
+    annotation.interiorColor = [NSColor.controlAccentColor colorWithAlphaComponent:0.13];
+    PDFBorder *border = [[PDFBorder alloc] init]; border.lineWidth = 0.75; annotation.border = border;
+    [page addAnnotation:annotation]; self.syncAnnotation = annotation;
+    [self.pdfView goToRect:NSInsetRect(marker, -18, -24) onPage:page];
+    [self updateControls];
+    NSUInteger generation = self.highlightGeneration;
+    __weak GlowPDFContext *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        GlowPDFContext *context = weakSelf;
+        if (context && !context.destroyed && context.highlightGeneration == generation) [context clearSyncHighlight];
+    });
+}
+- (void)inverseAtPoint:(NSPoint)point {
+    if (self.destroyed || ![self.state isEqualToString:@"ready"]) return;
+    PDFPage *page = [self.pdfView pageForPoint:point nearest:NO];
+    if (!page) return;
+    NSPoint pdfPoint = [self.pdfView convertPoint:point toPage:page];
+    NSPoint sync = GlowPDFPointToSync(page, pdfPoint);
+    NSUInteger index = [self.pdfView.document indexForPage:page];
+    if (index == NSNotFound || !isfinite(sync.x) || !isfinite(sync.y) || sync.x < 0 || sync.y < 0) return;
+    self.inverseSync = @{@"seq": @(++self.syncSequence), @"page": @(index + 1), @"x": @(sync.x), @"y": @(sync.y)};
+    [self blur];
+}
 - (void)previous:(id)sender { (void)sender; [self command:@"previous" value:0]; }
 - (void)next:(id)sender { (void)sender; [self command:@"next" value:0]; }
 - (void)pageEntered:(id)sender { (void)sender; [self command:@"page" value:self.pageField.doubleValue]; }
@@ -257,6 +333,8 @@ static NSButton *GlowPDFButton(NSString *title, id target, SEL action, NSString 
 - (void)destroy {
     if (self.destroyed) return;
     self.destroyed = YES;
+    [self clearSyncHighlight];
+    self.syncTarget = nil; self.inverseSync = nil;
     self.loadGeneration++;
     if (self.keyMonitor) [NSEvent removeMonitor:self.keyMonitor];
     if (self.pageObserver) [NSNotificationCenter.defaultCenter removeObserver:self.pageObserver];
@@ -309,14 +387,19 @@ void glow_pdf_command(void *handle, const char *action, double value) {
         [context command:[NSString stringWithUTF8String:action] ?: @"" value:value];
     }
 }
+void glow_pdf_sync(void *handle, unsigned long long page, double x, double y, double width, double height) {
+    if (!handle || !NSThread.isMainThread) return;
+    @autoreleasepool { [(__bridge GlowPDFContext *)handle syncPage:(NSUInteger)page x:x y:y width:width height:height]; }
+}
 const char *glow_pdf_status(void *handle) {
     if (!handle || !NSThread.isMainThread) return strdup("{\"kind\":\"pdf\",\"state\":\"error\",\"error\":\"PDF unavailable\",\"page\":0,\"pages\":0,\"zoom\":1}");
     @autoreleasepool {
         GlowPDFContext *context = (__bridge GlowPDFContext *)handle;
         NSUInteger index = context.pdfView.currentPage ? [context.pdfView.document indexForPage:context.pdfView.currentPage] : NSNotFound;
-        NSDictionary *status = @{@"kind": @"pdf", @"state": context.state ?: @"error", @"error": context.error ?: @"",
+        NSMutableDictionary *status = [@{@"kind": @"pdf", @"state": context.state ?: @"error", @"error": context.error ?: @"",
             @"page": @(index == NSNotFound ? 0 : index + 1), @"pages": @(context.pdfView.document.pageCount),
-            @"zoom": @(context.pdfView.scaleFactor)};
+            @"zoom": @(context.pdfView.scaleFactor)} mutableCopy];
+        if (context.inverseSync) status[@"synctex"] = context.inverseSync;
         NSData *json = [NSJSONSerialization dataWithJSONObject:status options:0 error:NULL];
         NSString *text = json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : nil;
         return strdup(text.UTF8String ?: "{}");

@@ -34,6 +34,12 @@ pub async fn setup_neovide_specific_state(
     nvim.set_var("neovide", Value::from(true))
         .await
         .context("Could not communicate with neovim process")?;
+    nvim.set_var("neovide_native_glass", Value::from(cfg!(target_os = "macos")))
+        .await
+        .context("Could not advertise native macOS glass material")?;
+    nvim.set_var("neovide_native_notebook", Value::from(true))
+        .await
+        .context("Could not advertise native Notebook frames")?;
     nvim.set_var("neovide_native_image", Value::from(true))
         .await
         .context("Could not advertise native image preview")?;

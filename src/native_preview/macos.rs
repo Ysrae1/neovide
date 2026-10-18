@@ -27,6 +27,7 @@ unsafe extern "C" {
     fn glow_pdf_frame(ctx: *mut c_void, x: f64, y: f64, width: f64, height: f64);
     fn glow_pdf_occlusion(ctx: *mut c_void, rects: *const f64, count: usize);
     fn glow_pdf_command(ctx: *mut c_void, action: *const c_char, value: f64);
+    fn glow_pdf_sync(ctx: *mut c_void, page: u64, x: f64, y: f64, width: f64, height: f64);
     fn glow_pdf_status(ctx: *mut c_void) -> *mut c_char;
     fn glow_pdf_destroy(ctx: *mut c_void);
     fn free(ptr: *mut c_void);
@@ -116,6 +117,13 @@ impl NativePreviews {
             NativeCommand::Close(id) => {
                 self.previews.remove(&id);
                 None
+            }
+            NativeCommand::PdfSync { id, page, x, y, width, height } => {
+                let p = self.previews.get(&id)?;
+                if p.kind == "pdf" {
+                    unsafe { glow_pdf_sync(p.context, page, x, y, width, height) };
+                }
+                Some((id, self.status(id)))
             }
             NativeCommand::Action { id, action, value } => {
                 let p = self.previews.get(&id)?;
