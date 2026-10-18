@@ -26,6 +26,14 @@ local runtime = require("config.media.runtime")
 runtime.configure_molten()
 assert(normal_output(), "Out/status/body inherit normal foreground without Comment styling")
 assert(vim.api.nvim_get_hl(0, { name = "MoltenVirtualText", link = true }).link == "Normal")
+local semantic = {}
+for _, name in ipairs({ "Number", "Success", "Failure", "Error", "Running" }) do
+  local hl = vim.api.nvim_get_hl(0, { name = "GlowNotebookOutput" .. name, link = false })
+  assert(hl.fg and not hl.bg and not hl.italic, "semantic groups keep normal brightness and no background")
+  semantic[name] = hl.fg
+end
+assert(semantic.Success ~= semantic.Failure and semantic.Number ~= semantic.Failure)
+assert(semantic.Error == semantic.Failure)
 runtime.configure_molten()
 assert(#vim.api.nvim_get_autocmds({ group = "GlowNotebookOutputHighlights" }) == 2, "setup stays idempotent")
 vim.api.nvim_set_hl(0, "Normal", { fg = 0x222222, bg = 0xfafafa })
@@ -39,4 +47,4 @@ assert(vim.wait(1000, normal_output, 10), "NvThemeReload restores normal output"
 assert(vim.deep_equal(marks, vim.api.nvim_buf_get_extmarks(buf, namespace, 0, -1, { details = true })), "output marks unchanged")
 assert(vim.deep_equal(source, vim.api.nvim_buf_get_lines(buf, 0, -1, false)) and changedtick == vim.api.nvim_buf_get_changedtick(buf), "source unchanged")
 assert(vim.fn.exists(":MoltenInit") == 0 and not vim.g.loaded_python3_provider, "no Python host or kernel loaded")
-print(vim.json.encode({ normal_output = true, theme_hooks = 2, output_marks_unchanged = true, kernels_started = 0 }))
+print(vim.json.encode({ normal_output = true, semantic_groups = true, theme_hooks = 2, output_marks_unchanged = true, kernels_started = 0 }))

@@ -22,9 +22,9 @@ use objc2::{
 };
 
 use objc2_app_kit::{
-    NSApplication, NSAutoresizingMaskOptions, NSColor, NSEvent, NSFont, NSFontAttributeName,
-    NSFontDescriptor, NSFontWeight, NSFontWeightLight, NSImage, NSMenu, NSMenuDelegate, NSMenuItem,
-    NSTextView, NSView, NSWindow, NSWindowDidBecomeKeyNotification,
+    NSApplication, NSAutoresizingMaskOptions, NSColor, NSEvent, NSEventModifierFlags, NSFont,
+    NSFontAttributeName, NSFontDescriptor, NSFontWeight, NSFontWeightLight, NSImage, NSMenu,
+    NSMenuDelegate, NSMenuItem, NSTextView, NSView, NSWindow, NSWindowDidBecomeKeyNotification,
     NSWindowDidBecomeMainNotification, NSWindowStyleMask, NSWindowTabbingMode,
     NSWindowTitleVisibility, NSWorkspace,
 };
@@ -108,6 +108,18 @@ fn request_editor_switcher() {
     let event = UserEvent::MacShortcut(MacShortcutCommand::ShowEditorSwitcher);
     if let Err(error) = proxy.send_event(EventPayload::all(event)) {
         log::error!("Failed to request editor switcher: {:?}", error);
+    }
+}
+
+fn request_copy() {
+    let Some(proxy) = EVENT_LOOP_PROXY.get() else {
+        log::warn!("Copy requested before event loop proxy became available");
+        return;
+    };
+
+    let event = UserEvent::MacShortcut(MacShortcutCommand::Copy);
+    if let Err(error) = proxy.send_event(EventPayload::all(event)) {
+        log::error!("Failed to request copy: {:?}", error);
     }
 }
 
@@ -1393,6 +1405,11 @@ impl Menu {
         }
         main_menu.addItem(&app_menu_item);
 
+        let edit_menu = self.add_edit_menu(mtm);
+        let edit_menu_item = NSMenuItem::new(mtm);
+        edit_menu_item.setSubmenu(Some(&edit_menu));
+        main_menu.addItem(&edit_menu_item);
+
         let win_menu = self.add_window_menu(mtm, settings);
         let win_menu_item = NSMenuItem::new(mtm);
         win_menu_item.setSubmenu(Some(&win_menu));
@@ -1407,6 +1424,24 @@ impl Menu {
 
         Self::remove_system_show_all_tabs(&win_menu);
         app.setMainMenu(Some(&main_menu));
+    }
+
+    fn add_edit_menu(&self, mtm: MainThreadMarker) -> Retained<NSMenu> {
+        let menu = NSMenu::new(mtm);
+        menu.setTitle(ns_string!("Edit"));
+
+        let copy_item = NSMenuItem::new(mtm);
+        copy_item.setTitle(ns_string!("Copy"));
+        copy_item.setKeyEquivalent(ns_string!("c"));
+        copy_item.setKeyEquivalentModifierMask(NSEventModifierFlags::Command);
+        unsafe {
+            copy_item.setAction(Some(sel!(copy:)));
+            // Keep the responder chain ahead of the editor fallback so native
+            // WebKit and PDFKit selections retain their standard Copy action.
+            copy_item.setTarget(None);
+        }
+        menu.addItem(&copy_item);
+        menu
     }
 
     fn add_window_menu(
@@ -1550,6 +1585,14 @@ pub fn register_file_handler() {
         request_new_window();
     }
 
+    unsafe extern "C-unwind" fn handle_copy(
+        _this: &AnyObject,
+        _sel: objc2::runtime::Sel,
+        _sender: Option<&AnyObject>,
+    ) {
+        request_copy();
+    }
+
     // See signature at
     // https://developer.apple.com/documentation/appkit/nsapplicationdelegate/applicationdockmenu(_:)?language=objc
     unsafe extern "C-unwind" fn handle_application_dock_menu(
@@ -1607,6 +1650,8 @@ pub fn register_file_handler() {
             sel!(neovideCreateWindow:),
             handle_create_window as unsafe extern "C-unwind" fn(_, _, _) -> _,
         );
+
+        my_class.add_method(sel!(copy:), handle_copy as unsafe extern "C-unwind" fn(_, _, _) -> _);
 
         let class = my_class.register();
         // this should be safe as:

@@ -16,7 +16,9 @@ use glamour::{Contains, Point2};
 use crate::{
     bridge::{NeovimHandler, SerialCommand, send_ui},
     editor::WindowType,
-    renderer::{MessageSelection, Renderer, WindowDrawDetails},
+    renderer::{
+        MessageSelection, NotebookOutputRegion, NotebookSelectionId, Renderer, WindowDrawDetails,
+    },
     settings::Settings,
     units::{GridPos, GridScale, GridSize, GridVec, PixelPos, PixelRect, PixelSize, PixelVec},
     window::{WindowSettings, keyboard_manager::KeyboardManager},
@@ -56,6 +58,29 @@ struct MessageSelectionState {
     draw_details: WindowDrawDetails,
     start: GridPos<u32>,
     end: GridPos<u32>,
+    notebook: Option<(NotebookSelectionId, NotebookOutputRegion)>,
+}
+
+impl MessageSelectionState {
+    fn valid(&self, state: &EditorState) -> bool {
+        self.notebook.is_none_or(|(id, region)| {
+            id.generation == state.notebook_selection_generation
+                && state.notebook_output_regions.get(id.region) == Some(&region)
+        })
+    }
+    fn position(&self, point: PixelPos<f32>, state: &EditorState) -> GridPos<u32> {
+        self.notebook.map(|(_, region)| region.position(point, *state.grid_scale)).unwrap_or_else(
+            || MouseManager::get_relative_position_at(point, &self.draw_details, state),
+        )
+    }
+    fn selection(&self, end: GridPos<u32>) -> MessageSelection {
+        MessageSelection {
+            grid_id: self.draw_details.id,
+            start: self.start,
+            end,
+            notebook: self.notebook.map(|(id, _)| id),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -64,6 +89,13 @@ pub enum MessageSelectionEvent {
     Update(MessageSelection),
     Finish(MessageSelection),
     Clear,
+    Cancel,
+}
+
+impl MessageSelectionEvent {
+    fn consumes_input(&self) -> bool {
+        matches!(self, Self::Update(_) | Self::Finish(_) | Self::Cancel)
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -84,6 +116,8 @@ pub struct MouseEventResult {
 pub struct EditorState<'a> {
     pub grid_scale: &'a GridScale,
     pub window_regions: &'a Vec<WindowDrawDetails>,
+    pub notebook_output_regions: &'a [NotebookOutputRegion],
+    pub notebook_selection_generation: u64,
     pub full_region: WindowDrawDetails,
     pub window: &'a Window,
     pub keyboard_manager: &'a KeyboardManager,
@@ -119,6 +153,7 @@ pub struct MouseManager {
 
     settings: Arc<Settings>,
     message_selection: Option<MessageSelectionState>,
+    selection_release_pending: bool,
 }
 
 impl MouseManager {
@@ -135,6 +170,7 @@ impl MouseManager {
             enabled: true,
             settings,
             message_selection: None,
+            selection_release_pending: false,
         }
     }
 
@@ -243,6 +279,33 @@ impl MouseManager {
         had_selection
     }
 
+    pub fn clear_notebook_selection(&mut self) -> bool {
+        self.message_selection.as_ref().is_some_and(|selection| selection.notebook.is_some())
+            && self.clear_message_selection()
+    }
+
+    fn update_drag_selection_end(&mut self, end: GridPos<u32>) -> Option<MessageSelection> {
+        if !self.selection_release_pending {
+            return None;
+        }
+        let selection = self.message_selection.as_mut()?;
+        selection.end = end;
+        Some(selection.selection(end))
+    }
+
+    fn finish_message_selection(&mut self, end: GridPos<u32>) -> Option<MessageSelection> {
+        self.selection_release_pending = false;
+        self.drag_details = None;
+        self.has_moved = false;
+        let mut selection = self.message_selection.take()?;
+        selection.end = end;
+        let result = selection.selection(end);
+        if selection.notebook.is_some() {
+            self.message_selection = Some(selection);
+        }
+        Some(result)
+    }
+
     fn message_area_drag_selection_enabled(&self) -> bool {
         self.settings.get::<WindowSettings>().message_area_drag_selection
     }
@@ -260,24 +323,30 @@ impl MouseManager {
         self.window_position = position;
 
         let message_selection_enabled = self.message_area_drag_selection_enabled();
-        if !message_selection_enabled && self.clear_message_selection() {
+        if !message_selection_enabled
+            && self.message_selection.as_ref().is_some_and(|s| s.notebook.is_none())
+            && self.clear_message_selection()
+        {
             return MessageSelectionEvent::Clear;
         }
 
-        if let Some(selection) = &mut self.message_selection {
+        if self.message_selection.as_ref().is_some_and(|s| !s.valid(editor_state)) {
+            self.clear_message_selection();
+            return MessageSelectionEvent::Cancel;
+        }
+        if self.selection_release_pending
+            && let Some(selection) = &self.message_selection
+        {
             let window_position = self.window_position;
-            let end = Self::get_relative_position_at(
-                window_position,
-                &selection.draw_details,
-                editor_state,
-            );
-            selection.end = end;
+            let end = selection.position(window_position, editor_state);
             self.grid_position = end;
-            return MessageSelectionEvent::Update(MessageSelection {
-                grid_id: selection.draw_details.id,
-                start: selection.start,
-                end,
-            });
+            if let Some(selection) = self.update_drag_selection_end(end) {
+                return MessageSelectionEvent::Update(selection);
+            }
+        }
+        if self.message_selection.as_ref().is_some_and(|selection| selection.notebook.is_some()) {
+            // A completed selection is fixed until the next click/scroll/key.
+            return MessageSelectionEvent::Outside;
         }
 
         // If dragging, the relevant window (the one which we send all commands to) is the one
@@ -348,31 +417,50 @@ impl MouseManager {
         down: bool,
         editor_state: &EditorState,
     ) -> Option<MessageSelectionEvent> {
-        if !self.message_area_drag_selection_enabled() {
+        if self.consume_cancelled_selection_release(mouse_button, down) {
+            return Some(MessageSelectionEvent::Cancel);
+        }
+        if !down && mouse_button == MouseButton::Left && self.selection_release_pending {
+            let Some(selection) = self.message_selection.as_ref() else {
+                return Some(MessageSelectionEvent::Cancel);
+            };
+            if !selection.valid(editor_state) {
+                self.clear_message_selection();
+                self.selection_release_pending = false;
+                return Some(MessageSelectionEvent::Cancel);
+            }
+            let end = selection.position(self.window_position, editor_state);
+            return self.finish_message_selection(end).map(MessageSelectionEvent::Finish);
+        }
+        if !self.message_area_drag_selection_enabled()
+            && self.message_selection.as_ref().is_some_and(|s| s.notebook.is_none())
+        {
             return self.clear_message_selection().then_some(MessageSelectionEvent::Clear);
         }
 
-        // MouseInput only reports press/release. we start message selection on left press,
-        // this keeps the selection as a *client* overlay and avoids interfering with neovim
-        // mouse handling outside message windows.
-        if !down
-            && mouse_button == MouseButton::Left
-            && let Some(selection) = self.message_selection.take()
-        {
-            let end = self.get_relative_position(&selection.draw_details, editor_state);
-            self.drag_details = None;
-            self.has_moved = false;
-            return Some(MessageSelectionEvent::Finish(MessageSelection {
-                grid_id: selection.draw_details.id,
-                start: selection.start,
-                end,
-            }));
-        }
-
+        // Native selections consume both halves of the click; ordinary editor
+        // clicks continue through Neovim's normal input path.
         if down && mouse_button == MouseButton::Left {
             let details = self.get_window_details_under_mouse_raw(editor_state);
+            let notebook = details.and_then(|details| {
+                editor_state.notebook_output_regions.iter().enumerate().find_map(
+                    |(index, region)| {
+                        region.hit(self.window_position, details.id).then_some((
+                            NotebookSelectionId {
+                                generation: editor_state.notebook_selection_generation,
+                                region: index,
+                            },
+                            *region,
+                        ))
+                    },
+                )
+            });
             let allow_selection = details
-                .map(|details| matches!(details.window_type, WindowType::Message { .. }))
+                .map(|details| {
+                    notebook.is_some()
+                        || (self.message_area_drag_selection_enabled()
+                            && matches!(details.window_type, WindowType::Message { .. }))
+                })
                 .unwrap_or(false);
 
             if !allow_selection && self.message_selection.is_some() {
@@ -383,23 +471,45 @@ impl MouseManager {
             if let Some(details) = details
                 && allow_selection
             {
-                let position = self.get_relative_position(details, editor_state);
+                let position = notebook
+                    .map(|(_, region)| {
+                        region.position(self.window_position, *editor_state.grid_scale)
+                    })
+                    .unwrap_or_else(|| self.get_relative_position(details, editor_state));
                 self.message_selection = Some(MessageSelectionState {
                     draw_details: details.clone(),
                     start: position,
                     end: position,
+                    notebook,
                 });
+                self.selection_release_pending = true;
                 self.drag_details = None;
                 self.has_moved = false;
                 return Some(MessageSelectionEvent::Update(MessageSelection {
                     grid_id: details.id,
                     start: position,
                     end: position,
+                    notebook: notebook.map(|(id, _)| id),
                 }));
             }
         }
 
         None
+    }
+
+    fn consume_cancelled_selection_release(&mut self, button: MouseButton, down: bool) -> bool {
+        if !down
+            && button == MouseButton::Left
+            && self.selection_release_pending
+            && self.message_selection.is_none()
+        {
+            self.selection_release_pending = false;
+            self.drag_details = None;
+            self.has_moved = false;
+            true
+        } else {
+            false
+        }
     }
 
     fn send_nvim_mouse_button(
@@ -464,10 +574,8 @@ impl MouseManager {
     ) -> PointerTransitionResult {
         let message_selection_event =
             self.update_message_selection_on_button(mouse_button, down, editor_state);
-        let consume_mouse_input = matches!(
-            message_selection_event.as_ref(),
-            Some(MessageSelectionEvent::Update(_) | MessageSelectionEvent::Finish(_))
-        );
+        let consume_mouse_input =
+            message_selection_event.as_ref().is_some_and(MessageSelectionEvent::consumes_input);
 
         if !consume_mouse_input {
             self.send_nvim_mouse_button(mouse_button, down, editor_state, neovim_handler);
@@ -673,12 +781,17 @@ impl MouseManager {
         let editor_state = EditorState {
             grid_scale: &renderer.grid_renderer.grid_scale,
             window_regions: &renderer.window_regions,
+            notebook_output_regions: &renderer.notebook_output_regions,
+            notebook_selection_generation: renderer.notebook_selection_generation,
             full_region,
             window,
             keyboard_manager,
         };
         let hide_mouse_when_typing = self.settings.get::<WindowSettings>().hide_mouse_when_typing;
         let mut overlay_event = OverlayEvent::default();
+        if matches!(event, WindowEvent::MouseWheel { .. }) && self.clear_notebook_selection() {
+            overlay_event = OverlayEvent::MessageSelection(MessageSelectionEvent::Clear);
+        }
         match event {
             WindowEvent::CursorMoved { position, .. } => {
                 let message_selection_event = self.handle_pointer_motion(
@@ -745,5 +858,81 @@ impl MouseManager {
         }
 
         MouseEventResult { overlay_event }
+    }
+}
+
+#[cfg(test)]
+mod selection_tests {
+    use super::*;
+
+    fn selection_state(notebook: bool) -> MessageSelectionState {
+        let region = NotebookOutputRegion {
+            grid_id: 2,
+            bounds: PixelRect::from_origin_and_size(PixelPos::ZERO, PixelSize::new(80.0, 40.0)),
+            cells: crate::units::GridRect::from_min_max((0, 0), (8, 2)),
+            origin: PixelPos::ZERO,
+        };
+        MessageSelectionState {
+            draw_details: WindowDrawDetails {
+                id: 2,
+                region: region.bounds,
+                grid_size: GridSize::new(8, 2),
+                window_type: WindowType::Editor,
+            },
+            start: GridPos::new(6, 1),
+            end: GridPos::new(6, 1),
+            notebook: notebook
+                .then_some((NotebookSelectionId { generation: 1, region: 0 }, region)),
+        }
+    }
+
+    #[test]
+    fn notebook_output_selection_persists_release_ignores_hover_and_clears() {
+        let mut mouse = MouseManager::new(Arc::new(Settings::new()));
+        mouse.message_selection = Some(selection_state(true));
+        mouse.selection_release_pending = true;
+        let end = GridPos::new(2, 0);
+        let completed = mouse.finish_message_selection(end).unwrap();
+        assert_eq!(completed.start, GridPos::new(6, 1));
+        assert_eq!(completed.end, end, "reverse selection keeps its endpoints");
+        assert!(!mouse.selection_release_pending);
+        assert!(mouse.message_selection.is_some(), "release preserves Notebook selection");
+        assert!(mouse.update_drag_selection_end(GridPos::new(7, 1)).is_none());
+        assert_eq!(mouse.message_selection.as_ref().unwrap().end, end, "hover cannot extend it");
+        assert!(mouse.clear_notebook_selection(), "Escape, scroll, and outside click may clear it");
+        assert!(mouse.message_selection.is_none());
+
+        mouse.message_selection = Some(selection_state(false));
+        assert!(!mouse.clear_notebook_selection(), "Notebook cancellation does not alter messages");
+        mouse.selection_release_pending = true;
+        assert!(mouse.finish_message_selection(end).is_some());
+        assert!(
+            mouse.message_selection.is_none(),
+            "ordinary message release keeps its old behavior"
+        );
+    }
+
+    #[test]
+    fn notebook_output_selection_consumes_press_finish_and_cancelled_release() {
+        let selection = MessageSelection {
+            grid_id: 2,
+            start: GridPos::new(4, 3),
+            end: GridPos::new(8, 3),
+            notebook: Some(NotebookSelectionId { generation: 1, region: 0 }),
+        };
+        assert!(MessageSelectionEvent::Update(selection).consumes_input());
+        assert!(MessageSelectionEvent::Finish(selection).consumes_input());
+        assert!(MessageSelectionEvent::Cancel.consumes_input());
+        assert!(
+            !MessageSelectionEvent::Outside.consumes_input(),
+            "source clicks retain Neovim's normal input"
+        );
+        let mut mouse = MouseManager::new(Arc::new(Settings::new()));
+        mouse.selection_release_pending = true;
+        // Frame/scroll cancellation already removed the drag state. Its later
+        // release must still be swallowed rather than sent alone to Neovim.
+        assert!(mouse.consume_cancelled_selection_release(MouseButton::Left, false));
+        assert!(!mouse.consume_cancelled_selection_release(MouseButton::Left, false));
+        assert!(!mouse.consume_cancelled_selection_release(MouseButton::Left, true));
     }
 }

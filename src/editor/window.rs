@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Range, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, ops::Range, sync::Arc};
 
 use log::warn;
 
@@ -69,9 +69,55 @@ impl Line {
         self.cells.as_deref()
     }
 
+    /// Cells in the UI's rendered line, including virtual text and wide-cell
+    /// continuations. This never reads or infers the source buffer contents.
+    pub fn rendered_cells(&self) -> Cow<'_, [String]> {
+        if let Some(cells) = self.cells() {
+            return Cow::Borrowed(cells);
+        }
+        let width = self.fragments.iter().map(|f| f.cells.end).max().unwrap_or(0) as usize;
+        let mut cells = vec![" ".to_string(); width];
+        for fragment in &self.fragments {
+            for word in &fragment.words {
+                let mut offset = fragment.text_range.start as usize + word.text_offset as usize;
+                for (index, size) in word.cluster_sizes.iter().enumerate() {
+                    let end = offset + *size as usize;
+                    let column = fragment.cells.start as usize + word.cell as usize + index;
+                    if let Some(cell) = cells.get_mut(column) {
+                        *cell = self.text[offset..end].to_string();
+                    }
+                    offset = end;
+                }
+            }
+        }
+        Cow::Owned(cells)
+    }
+
     #[cfg(test)]
     pub(crate) fn empty() -> Self {
         Self { text: String::new(), fragments: Vec::new(), cells: None }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_test_cells(cells: &[&str]) -> Self {
+        let mut grid = CharacterGrid::new((cells.len(), 1));
+        for (column, text) in cells.iter().enumerate() {
+            *grid.get_cell_mut(column, 0).unwrap() = (text.to_string(), None);
+        }
+        let window = Window {
+            grid_id: 2,
+            grid,
+            window_type: WindowType::Editor,
+            anchor_info: None,
+            grid_position: (0.0, 0.0),
+        };
+        let (mut text, mut fragments, mut column) = (String::new(), Vec::new(), 0);
+        while column < cells.len() {
+            let (next, fragment) = window.build_line_fragment(0, column, &mut text).unwrap();
+            fragments.push(fragment);
+            column = next;
+        }
+        Self { text, fragments, cells: None }
     }
 }
 
@@ -187,10 +233,10 @@ impl Window {
         &mut self,
         batcher: &mut DrawCommandBatcher,
         anchor_info: Option<AnchorInfo>,
-        grid_size: (u64, u64),
         grid_position: (f64, f64),
     ) {
-        self.grid.resize((grid_size.0 as usize, grid_size.1 as usize));
+        // Only grid_resize owns CharacterGrid's dimensions. win_pos can
+        // describe a wider host than its actual UI text grid.
         self.anchor_info = anchor_info;
         self.grid_position = grid_position;
         self.send_updated_position(batcher);
@@ -246,10 +292,9 @@ impl Window {
         row_index: usize,
         start: usize,
         text: &mut String,
-    ) -> (usize, LineFragmentData) {
-        let row = self.grid.row(row_index).unwrap();
-
-        let (_, style) = &row[start];
+    ) -> Option<(usize, LineFragmentData)> {
+        let row = self.grid.row(row_index)?;
+        let (_, style) = row.get(start)?;
 
         let mut width = 0u32;
         let mut last_box_char = None;
@@ -328,19 +373,33 @@ impl Window {
             words,
         };
 
-        (start + width as usize, line_fragment)
+        Some((start + width as usize, line_fragment))
     }
 
     // Redraw line by calling build_line_fragment starting at 0
     // until current_start is greater than the grid width and sending the resulting
     // fragments as a batch.
     fn redraw_line(&self, batcher: &mut DrawCommandBatcher, row: usize) {
+        if row >= self.grid.height {
+            warn!(
+                "Ignoring redraw outside grid {}: row {row}, height {}",
+                self.grid_id, self.grid.height
+            );
+            return;
+        }
         let mut current_start = 0;
         let mut line_fragments = Vec::new();
         let mut text = String::new();
         while current_start < self.grid.width {
-            let (next_start, line_fragment) =
-                self.build_line_fragment(row, current_start, &mut text);
+            let Some((next_start, line_fragment)) =
+                self.build_line_fragment(row, current_start, &mut text)
+            else {
+                warn!(
+                    "Ignoring invalid line in grid {}: row {row}, col {current_start}",
+                    self.grid_id
+                );
+                return;
+            };
             current_start = next_start;
             line_fragments.push(line_fragment);
         }
@@ -426,9 +485,12 @@ impl Window {
         size: GridSize<i64>,
     ) {
         let top = region.min.y;
-        let bottom = region.max.y;
+        let bottom = region.max.y.min(self.grid.height as u64);
         let left = region.min.x;
-        let right = region.max.x;
+        let right = region.max.x.min(self.grid.width as u64);
+        if top >= bottom || left >= right {
+            return;
+        }
         let rows = size.height;
         let cols = size.width;
         // Scrolls must move the data and send a WindowDrawCommand to move the rendered texture so
@@ -546,7 +608,7 @@ mod tests {
             let mut start = 0;
             let mut line = String::new();
             while start < count {
-                let (next, data) = window.build_line_fragment(0, start, &mut line);
+                let (next, data) = window.build_line_fragment(0, start, &mut line).unwrap();
                 let fragment = LineFragment {
                     style: &data.style,
                     cells: &data.cells,
@@ -555,13 +617,7 @@ mod tests {
                 };
                 renderer.draw_background(background.canvas(), &data.cells, &data.style, 1.0);
                 let canvas = surface.canvas();
-                renderer.draw_foreground(
-                    canvas,
-                    canvas,
-                    &fragment,
-                    PixelPos::default(),
-                    1.0,
-                );
+                renderer.draw_foreground(canvas, canvas, &fragment, PixelPos::default(), 1.0);
                 start = next;
             }
             let pixels = surface.peek_pixels().unwrap();
@@ -582,9 +638,7 @@ mod tests {
             assert!(ink.2 >= ink.0 && ink.3 >= ink.1, "glyph must really rasterize");
             (raster, bg_raster, ink, height)
         };
-        for (group, glyph) in
-            [("GlowNotebookLanguage", ""), ("GlowNotebookMarkdown", "")]
-        {
+        for (group, glyph) in [("GlowNotebookLanguage", ""), ("GlowNotebookMarkdown", "")] {
             let enlarged = base.clone().with_highlight_name(Some(group));
             assert!(enlarged.enlarged_icon);
             let text = format!(" {glyph} ");
@@ -603,8 +657,11 @@ mod tests {
             assert!(
                 (scaled_ink_center - (center + (normal_ink_center - center) * 1.2)).abs() <= 1.0,
                 "{group} enlarges around its existing cell center: normal={:?}, scaled={:?}, cell_height={}, expected_center={}, actual_center={}",
-                normal.2, scaled.2, normal.3,
-                center + (normal_ink_center - center) * 1.2, scaled_ink_center
+                normal.2,
+                scaled.2,
+                normal.3,
+                center + (normal_ink_center - center) * 1.2,
+                scaled_ink_center
             );
             assert_eq!(normal.1, scaled.1, "capsule background must remain pixel-identical");
         }
@@ -664,7 +721,7 @@ mod tests {
         ]]);
 
         let mut text = String::new();
-        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text);
+        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text).unwrap();
 
         assert_eq!(next_start, 3);
         assert_eq!(fragment.cells, 0..3);
@@ -685,7 +742,7 @@ mod tests {
         ]]);
 
         let mut text = String::new();
-        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text);
+        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text).unwrap();
 
         assert_eq!(next_start, 1);
         assert_eq!(fragment.cells, 0..1);
@@ -693,7 +750,7 @@ mod tests {
         assert_eq!(fragment.style, Some(make_style(colors::RED)));
         assert_eq!(fragment.words.len(), 1);
 
-        let (next_start, fragment) = window.build_line_fragment(0, next_start, &mut text);
+        let (next_start, fragment) = window.build_line_fragment(0, next_start, &mut text).unwrap();
         assert_eq!(next_start, 3);
         assert_eq!(fragment.cells, 1..3);
         assert_eq!(fragment.text_range, 1..3);
@@ -714,7 +771,7 @@ mod tests {
         ]]);
 
         let mut text = String::new();
-        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text);
+        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text).unwrap();
 
         // Should group the two ─ chars together, then break for │
         assert_eq!(next_start, 2);
@@ -723,7 +780,7 @@ mod tests {
         assert_eq!(fragment.style, Some(make_style(colors::BLUE)));
         assert_eq!(fragment.words.len(), 1);
 
-        let (next_start, fragment) = window.build_line_fragment(0, next_start, &mut text);
+        let (next_start, fragment) = window.build_line_fragment(0, next_start, &mut text).unwrap();
         assert_eq!(next_start, 3);
         assert_eq!(fragment.cells, 2..3);
         assert_eq!(fragment.text_range, 6..9);
@@ -754,7 +811,7 @@ mod tests {
         ]]);
 
         let mut text = String::new();
-        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text);
+        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text).unwrap();
 
         assert_eq!(next_start, 14);
         assert_eq!(fragment.cells, 0..14);
@@ -794,7 +851,7 @@ mod tests {
         ]]);
 
         let mut text = String::new();
-        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text);
+        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text).unwrap();
 
         // The fragment should include all three cells (0..3), text range 0..4 ("一" is 3 bytes, "c" is 1)
         assert_eq!(next_start, 3);
@@ -818,7 +875,7 @@ mod tests {
         ]]);
 
         let mut text = String::new();
-        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text);
+        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text).unwrap();
 
         // The fragment should include all four cells (0..4), text range 0..5 ("a" 1, "　" 3, "b" 1)
         assert_eq!(next_start, 4);
@@ -852,7 +909,7 @@ mod tests {
         ]]);
 
         let mut text = String::new();
-        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text);
+        let (next_start, fragment) = window.build_line_fragment(0, 0, &mut text).unwrap();
 
         // The fragment should include all four cells (0..4), text range 0..5 ("a" 1, "一" 3, "b" 1)
         assert_eq!(next_start, 4);
@@ -881,5 +938,83 @@ mod tests {
         };
 
         assert_eq!(window.get_cursor_grid_cell(0, 0), (" ".to_string(), None, false));
+    }
+
+    #[test]
+    fn notebook_viewport_interleaved_host_positions_keep_actual_grid_lines_and_scroll() {
+        use crate::{
+            editor::notebook_viewport::NotebookViewports, renderer::notebook::NotebookViewport,
+        };
+
+        let mut batcher = DrawCommandBatcher::new();
+        let mut window =
+            Window::new(2, WindowType::Editor, None, (0.0, 0.0), (106, 24), &mut batcher);
+        let mut tracker = NotebookViewports::default();
+        tracker.resize(2, 106, 24);
+        tracker.position(2, 108, 24);
+        tracker.associate(2, 1000);
+        let old = [NotebookViewport { window: 1000, width: 108 }];
+        tracker.replace(&old);
+        assert!(tracker.requests().is_empty());
+
+        // UI root shrink and its win_pos are independent from the text grid.
+        window.resize(&mut batcher, (79, 31));
+        tracker.resize(2, 79, 31);
+        window.position(&mut batcher, None, (0.0, 1.0));
+        tracker.position(2, 81, 31);
+        tracker.replace(&old); // Lua captured the old 108-column layout.
+        assert!(tracker.requests().is_empty());
+        assert_eq!((window.get_width(), window.get_height()), (79, 31));
+        let styles = HashMap::new();
+        window.draw_grid_line(
+            &mut batcher,
+            30,
+            78,
+            vec![GridLineCell { text: "Z".into(), highlight_id: Some(0), repeat: None }],
+            &styles,
+        );
+        assert_eq!(window.get_cursor_grid_cell(78, 30).0, "Z", "last valid grid cell is retained");
+        window.scroll_region(
+            &mut batcher,
+            GridRect::from_min_max((0, 0), (79, 31)),
+            GridSize::new(0, 1),
+        );
+        assert_eq!(
+            window.get_cursor_grid_cell(78, 29).0,
+            "Z",
+            "normal actual-grid scroll is retained"
+        );
+
+        // An older async request can arrive after the host shrinks. Its redraw
+        // remains valid for its own real grid, while the latest host wins next.
+        window.resize(&mut batcher, (106, 24));
+        tracker.resize(2, 106, 24);
+        window.position(&mut batcher, None, (0.0, 1.0));
+        assert_eq!((window.get_width(), window.get_height()), (106, 24));
+        assert_eq!(tracker.requests(), [(2, 79, 31)]);
+        window.draw_grid_line(
+            &mut batcher,
+            23,
+            105,
+            vec![GridLineCell { text: "X".into(), highlight_id: Some(0), repeat: None }],
+            &styles,
+        );
+        assert_eq!(
+            window.get_cursor_grid_cell(105, 23).0,
+            "X",
+            "old ACK's real draw is not dropped"
+        );
+        tracker.replace(&old);
+        assert!(tracker.requests().is_empty(), "latest correction is already queued");
+        window.resize(&mut batcher, (79, 31));
+        tracker.resize(2, 79, 31);
+        assert!(tracker.requests().is_empty());
+        tracker.replace(&[]); // Switch away from the Notebook tab.
+        assert_eq!(tracker.requests(), [(2, 81, 31)], "restore latest host, never stale snapshot");
+        tracker.resize(2, 81, 31);
+        assert!(tracker.requests().is_empty());
+        // Malformed out-of-range redraws cannot terminate the editor thread.
+        assert!(window.build_line_fragment(31, 0, &mut String::new()).is_none());
+        window.redraw_line(&mut batcher, 31);
     }
 }

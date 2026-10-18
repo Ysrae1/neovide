@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 import pynvim
+import msgpack
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path.home() / '.local/share/nvim/lazy/molten-nvim/rplugin/python3'))
@@ -17,8 +18,9 @@ try:
     nvim.exec_lua("vim.opt.rtp:prepend(...)", str(ROOT / 'portable/payload/nvim'))
     nvim.exec_lua("""
         vim.g.neovide_native_notebook=true; vim.g.neovide_channel_id=77
-        _G.frames={}; vim.rpcnotify=function(_,method,frames)
-          assert(method=='neovide.notebook.frames'); _G.frames=vim.deepcopy(frames); return true
+        _G.frames={}; vim.rpcnotify=function(_,method,frames,...)
+          assert(method=='neovide.notebook.frames'); assert(select('#',...)==0,'legacy binary receives one snapshot argument')
+          _G.frames=vim.deepcopy(frames); return true
         end
         vim.wo.number=true
     """)
@@ -135,6 +137,18 @@ try:
     assert [mark[1] for mark in concealed] == [0, 1, 2, 3], 'same-shape reload must restore metadata marks to its actual prefix'
     assert nvim.current.buffer[:] == source and nvim.api.buf_get_changedtick(0) == reload_tick
     assert nvim.current.buffer.options['modified'] is False, 'conceal repair must not dirty the reloaded source'
+    leading_blank = ['', '  '] + source
+    nvim.current.buffer[:] = leading_blank
+    nvim.current.buffer.options['modified'] = False
+    nvim.exec_lua('ui.refresh()')
+    nvim.command('redraw')
+    prefixed_marks = nvim.exec_lua("""return vim.api.nvim_buf_get_extmarks(0,
+      vim.api.nvim_get_namespaces()['glow.notebook.metadata'],0,-1,{details=true})""")
+    assert [mark[1] for mark in prefixed_marks] == list(range(6)), 'leading blank lines must not expose serialization metadata'
+    assert nvim.current.buffer[:] == leading_blank and not nvim.current.buffer.options['modified']
+    nvim.current.buffer[:] = source
+    nvim.current.buffer.options['modified'] = False
+    nvim.exec_lua('ui.refresh()')
     restored = nvim.exec_lua("""vim.api.nvim_buf_set_extmark(0,ns,6,0,
       {id=out,virt_lines={{{'Out[1]: Done','Normal'}},{{'42','Normal'}}}});return ui.refresh()""")
     assert any(f['kind'] == 'output' and f.get('join') == 'bottom' for f in restored), 'same mark reappears when its source position becomes valid'
@@ -226,3 +240,99 @@ finally:
         nvim.command('qa!')
     except (OSError, EOFError, Exception):
         pass
+
+# Actual multigrid UI-side resize: Neovim retains the split's logical width
+# while wrapping its text grid two columns earlier. The UI client is Python in
+# this fixture; production sends the same RPC through its ordered async worker.
+margin = pynvim.attach('child', argv=['nvim', '--embed', '-u', 'NONE', '-n'])
+try:
+    margin.ui_attach(96, 34, rgb=True, ext_multigrid=True)
+    margin.exec_lua("vim.opt.rtp:prepend(...)", str(ROOT / 'portable/payload/nvim'))
+    margin.exec_lua("""
+      vim.g.neovide_native_notebook=true;vim.g.neovide_native_notebook_viewport=true;vim.g.neovide_channel_id=77
+      _margin_frames={};_margin_viewports={};vim.rpcnotify=function(_,method,frames,viewports)
+        assert(method=='neovide.notebook.frames');_margin_frames=frames;_margin_viewports=viewports or {};return true end
+      vim.wo.number=true;vim.wo.wrap=true;vim.wo.linebreak=false;vim.wo.cursorline=true
+    """)
+    mixed = ['# %% [markdown]', '# ' + 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' * 3,
+             '# ' + '中文混排abc123' * 10, '# ' + 'word\t中文\t12345 ' * 6]
+    margin.current.buffer[:] = mixed
+    margin.current.buffer.options['modified'] = False
+    book_buf, book_win = margin.current.buffer.number, margin.current.window.handle
+    margin.command('botright vnew')
+    neighbor = margin.current.window.handle
+    margin.current.buffer[:] = ['neighbor stays here']
+    margin.api.set_current_win(book_win)
+    margin.api.win_set_option(book_win, 'winbar', ' Notebook')
+    margin.api.win_set_cursor(book_win, [2, 8])
+    margin.exec_lua("ui=require('config.media.notebook_ui');ui.attach(...);ui.refresh()", book_buf)
+    sizes, owners = {}, {}
+    def drain_grids():
+        margin.eval('1')
+        for message in margin._session._pending_messages:
+            if message[0] == 'notification' and message[1] == 'redraw':
+                for event in message[2]:
+                    if event[0] == 'grid_resize':
+                        for grid, width, height in event[1:]: sizes[grid] = (width, height)
+                    if event[0] in ['win_pos', 'win_viewport']:
+                        for value in event[1:]: owners[msgpack.unpackb(value[1].data)] = value[0]
+        margin._session._pending_messages.clear()
+    def apply_margin():
+        drain_grids()
+        viewports = margin.exec_lua('return _margin_viewports')
+        assert len(viewports) == 1 and viewports[0]['window'] == book_win
+        host = viewports[0]['width']
+        grid = owners[book_win]
+        margin.api.ui_try_resize_grid(grid, host - 2, sizes[grid][1])
+        margin.command('redraw')
+        margin.exec_lua('ui.refresh()')
+        margin.command('redraw')
+        drain_grids()
+        return host, grid
+    def neighbor_layout():
+        info = margin.funcs.getwininfo(neighbor)[0]
+        return (margin.api.win_get_width(neighbor), info['width'], margin.api.win_get_position(neighbor))
+    neighbor_before = neighbor_layout()
+    cursor = margin.api.win_get_cursor(book_win)
+    host, grid = apply_margin()
+    info = margin.funcs.getwininfo(book_win)[0]
+    assert margin.api.win_get_width(book_win) == host and info['width'] == host - 2
+    assert neighbor_layout() == neighbor_before, 'text-grid resize must not resize or move the adjacent split'
+    assert margin.exec_lua('return _margin_frames[1].clip.width') == host, 'outer frame retains logical host width'
+    position = margin.api.win_get_position(book_win)
+    visible_rows = set()
+    for line, text in enumerate(mixed[1:], start=2):
+        byte = 1
+        for character in text:
+            pos = margin.funcs.screenpos(book_win, line, byte)
+            assert pos['row'] > 0, 'every long-line source character must remain displayed'
+            # screenpos reports a tab's unwrapped expansion end even when its
+            # cells continue on the next screen row. Verify tab rows with the
+            # actual screen cells below; ordinary/wide glyphs fit directly.
+            edge = pos['col'] if character == '\t' else pos['endcol']
+            assert edge <= position[1] + host - 2, 'ASCII/CJK/tab positions must stay in the narrow text grid'
+            visible_rows.add(pos['row'])
+            byte += len(character.encode())
+    for row in visible_rows:
+        assert margin.funcs.screenstring(row, position[1] + host - 1).strip() == ''
+        assert margin.funcs.screenstring(row, position[1] + host).strip() == '', 'last two host columns contain real blank space'
+    assert margin.api.win_get_cursor(book_win) == cursor and margin.api.win_get_option(book_win, 'cursorline')
+    assert margin.api.buf_get_lines(book_buf, 0, -1, False) == mixed and not margin.api.buf_get_option(book_buf, 'modified')
+    # Explicit split changes still use the newest logical width and leave its
+    # neighbor unchanged by the subsequent text-only request.
+    margin.api.win_set_width(book_win, host - 5)
+    margin.exec_lua('ui.refresh()')
+    resized_neighbor = neighbor_layout()
+    latest_host, grid = apply_margin()
+    assert latest_host == host - 5 and neighbor_layout() == resized_neighbor
+    margin.command('enew')
+    margin.exec_lua('ui.refresh()')
+    assert margin.exec_lua('return _margin_viewports') == [], 'leaving the Notebook requests full-width restoration'
+    margin.api.ui_try_resize_grid(grid, latest_host, sizes[grid][1])
+    margin.command('redraw')
+    assert margin.funcs.getwininfo(book_win)[0]['width'] == latest_host
+    assert neighbor_layout() == resized_neighbor
+    print('PASS: real multigrid ASCII/CJK/tab wrapping; two blank host columns; outer width/neighbor layout/cursorline/source unchanged; resized split and full-width restoration')
+finally:
+    try: margin.command('qa!')
+    except (OSError, EOFError, Exception): pass

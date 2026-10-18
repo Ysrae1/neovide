@@ -13,7 +13,11 @@ pub mod profiler;
 pub mod progress_bar;
 mod rendered_layer;
 pub mod rendered_window;
+mod selection;
 mod vsync;
+
+use selection::selection_spans;
+pub use selection::{NotebookOutputRegion, NotebookSelectionId};
 
 #[cfg(target_os = "windows")]
 pub mod d3d;
@@ -23,7 +27,7 @@ mod metal;
 
 use std::{
     cmp::Ordering,
-    collections::{HashMap, hash_map::Entry},
+    collections::{HashMap, HashSet, hash_map::Entry},
     rc::Rc,
     sync::Arc,
 };
@@ -82,6 +86,7 @@ pub struct MessageSelection {
     pub grid_id: u64,
     pub start: GridPos<u32>,
     pub end: GridPos<u32>,
+    pub notebook: Option<NotebookSelectionId>,
 }
 
 #[cfg(feature = "profiling")]
@@ -175,6 +180,7 @@ pub enum DrawCommand {
     UIReady,
     ImagePreview(image_preview::ImageCommand),
     NotebookFrames(notebook::FrameSnapshot),
+    FloatShadowExclusions(Vec<u64>),
     Window { grid_id: u64, command: WindowDrawCommand },
 }
 
@@ -196,6 +202,8 @@ pub struct Renderer {
 
     pub rendered_windows: HashMap<u64, RenderedWindow>,
     pub window_regions: Vec<WindowDrawDetails>,
+    pub notebook_output_regions: Vec<NotebookOutputRegion>,
+    pub notebook_selection_generation: u64,
 
     profiler: profiler::Profiler,
     pub os_scale_factor: f64,
@@ -203,6 +211,7 @@ pub struct Renderer {
 
     settings: Arc<Settings>,
     message_selection: Option<MessageSelection>,
+    float_shadow_exclusions: HashSet<u64>,
     startup_messages: Vec<StartupMessage>,
     startup_message_ui_restored: bool,
 }
@@ -246,12 +255,15 @@ impl Renderer {
             grid_renderer,
             current_mode,
             window_regions,
+            notebook_output_regions: Vec::new(),
+            notebook_selection_generation: 0,
             profiler,
             progress_bar,
             os_scale_factor,
             user_scale_factor,
             settings,
             message_selection: None,
+            float_shadow_exclusions: HashSet::new(),
             startup_messages: Vec::new(),
             startup_message_ui_restored: false,
         }
@@ -267,6 +279,65 @@ impl Renderer {
 
     pub fn set_message_selection(&mut self, selection: Option<MessageSelection>) {
         self.message_selection = selection;
+    }
+
+    pub fn active_notebook_selection(&self) -> Option<MessageSelection> {
+        let selection = self.message_selection?;
+        selection.notebook?;
+        self.selection_bounds(&selection)?;
+        Some(selection)
+    }
+
+    fn invalidate_notebook_selection(&mut self) {
+        self.notebook_selection_generation = self.notebook_selection_generation.wrapping_add(1);
+        self.notebook_output_regions.clear();
+        if self.message_selection.is_some_and(|selection| selection.notebook.is_some()) {
+            self.message_selection = None;
+        }
+    }
+
+    fn refresh_notebook_output_regions(
+        &mut self,
+        scale: GridScale,
+        windows: &[notebook::NotebookWindow],
+    ) {
+        let regions = self
+            .notebooks
+            .output_bounds(scale, windows)
+            .into_iter()
+            .filter_map(|(grid, bounds)| {
+                self.rendered_windows.get(&grid)?.notebook_output_region(bounds, scale)
+            })
+            .collect::<Vec<_>>();
+        if regions != self.notebook_output_regions {
+            self.notebook_selection_generation = self.notebook_selection_generation.wrapping_add(1);
+            self.notebook_output_regions = regions;
+        }
+    }
+
+    fn selection_bounds(&self, selection: &MessageSelection) -> Option<GridRect<u32>> {
+        let window = self.rendered_windows.get(&selection.grid_id)?;
+        if let Some(id) = selection.notebook {
+            if id.generation != self.notebook_selection_generation {
+                return None;
+            }
+            let region = self.notebook_output_regions.get(id.region)?;
+            (region.grid_id == selection.grid_id).then_some(region.cells)
+        } else {
+            matches!(window.window_type, WindowType::Message { .. }).then_some(
+                GridRect::from_min_max((0, 0), (window.grid_size.width, window.grid_size.height)),
+            )
+        }
+    }
+
+    pub fn selection_text(&self, selection: MessageSelection) -> Option<String> {
+        let bounds = self.selection_bounds(&selection)?;
+        let window = self.rendered_windows.get(&selection.grid_id)?;
+        let lines = selection_spans(selection.start, selection.end, bounds)
+            .into_iter()
+            .map(|(row, start, end)| window.line_text_range(row, start, end))
+            .collect::<Option<Vec<_>>>()?;
+        lines.iter().any(|line| !line.is_empty()).then(|| lines.join("\n"))
     }
 
     pub fn prepare_frame(&mut self) -> ShouldRender {
@@ -381,7 +452,7 @@ impl Renderer {
         let root_window_regions = root_windows
             .into_iter()
             .map(|window| {
-                let region = window.pixel_region(grid_scale);
+                let region = window.background_region(grid_scale);
                 let rightmost_root_window = is_rightmost_window_edge(region.max.x, max_root_x);
                 window.draw(
                     root_canvas,
@@ -395,6 +466,27 @@ impl Renderer {
 
         // Native previews belong to ordinary editor splits. Draw them before floating
         // windows so menus and error messages retain their normal stacking order.
+        let image_floating_regions = floating_layers
+            .iter()
+            .flat_map(|layer| {
+                let max_x = max_window_max_x(&layer.windows, grid_scale);
+                layer.windows.iter().map(move |window| {
+                    let region = window.pixel_region(grid_scale);
+                    window.expanded_pixel_region(
+                        region,
+                        content_region.copied(),
+                        grid_scale,
+                        is_rightmost_window_edge(region.max.x, max_x),
+                    )
+                })
+            })
+            .collect_vec();
+        self.images.prepare_anchored_views(
+            grid_scale,
+            &mut self.notebooks,
+            &notebook_windows,
+            &image_floating_regions,
+        );
         self.images.draw(root_canvas, grid_scale);
         self.notebooks.draw(root_canvas, grid_scale, false, &[], &notebook_windows);
 
@@ -407,6 +499,7 @@ impl Renderer {
                     default_background,
                     grid_scale,
                     content_region.copied(),
+                    &self.float_shadow_exclusions,
                 )
             })
             .collect_vec();
@@ -425,6 +518,7 @@ impl Renderer {
             self.images.bloom_exclusion(grid_scale, &floating_window_regions);
         self.window_regions =
             root_window_regions.into_iter().chain(floating_window_regions).collect();
+        self.refresh_notebook_output_regions(grid_scale, &notebook_windows);
         self.draw_message_selection(root_canvas, grid_scale);
         self.cursor_renderer.draw(&mut self.grid_renderer, root_canvas);
 
@@ -451,10 +545,7 @@ impl Renderer {
     fn message_selection_window(&self) -> Option<(&MessageSelection, &RenderedWindow)> {
         let selection = self.message_selection.as_ref()?;
         let window = self.rendered_windows.get(&selection.grid_id)?;
-        if !matches!(window.window_type, WindowType::Message { .. }) {
-            return None;
-        }
-
+        self.selection_bounds(selection)?;
         Some((selection, window))
     }
 
@@ -463,24 +554,10 @@ impl Renderer {
             return;
         };
 
-        let height = window.grid_size.height;
-        let width = window.grid_size.width;
-        if height == 0 || width == 0 {
+        let Some(bounds) = self.selection_bounds(selection) else {
             return;
-        }
-
-        let max_row = height - 1;
-        let max_col = width - 1;
-        let start_row = selection.start.y.min(max_row);
-        let end_row = selection.end.y.min(max_row);
-        let (row_start, row_end) =
-            if start_row <= end_row { (start_row, end_row) } else { (end_row, start_row) };
-
-        let start_col = selection.start.x.min(max_col);
-        let end_col = selection.end.x.min(max_col);
-        let (col_start, col_end) =
-            if start_col <= end_col { (start_col, end_col) } else { (end_col, start_col) };
-
+        };
+        let spans = selection_spans(selection.start, selection.end, bounds);
         let pixel_region = window.pixel_region(grid_scale);
         root_canvas.save();
         root_canvas.clip_rect(to_skia_rect(&pixel_region), None, Some(false));
@@ -497,10 +574,28 @@ impl Renderer {
         paint.set_anti_alias(false);
         paint.set_alpha_f(MESSAGE_SELECTION_ALPHA);
 
-        for row in row_start..=row_end {
-            let row_start_col = if row == row_start { col_start } else { 0 };
-            let row_end_col = if row == row_end { col_end } else { max_col };
-            if let Some(rect) = window.grid_row_rect(row, row_start_col, row_end_col, grid_scale) {
+        if let Some(id) = selection.notebook {
+            root_canvas.clip_rect(
+                to_skia_rect(&self.notebook_output_regions[id.region].bounds),
+                None,
+                false,
+            );
+            for details in &self.window_regions {
+                if self
+                    .rendered_windows
+                    .get(&details.id)
+                    .is_some_and(|window| window.anchor_info.is_some())
+                {
+                    root_canvas.clip_rect(
+                        to_skia_rect(&details.region),
+                        skia_safe::ClipOp::Difference,
+                        false,
+                    );
+                }
+            }
+        }
+        for (row, start, end) in spans {
+            if let Some(rect) = window.grid_row_rect(row, start, end, grid_scale) {
                 root_canvas.draw_rect(rect, &paint);
             }
         }
@@ -622,10 +717,50 @@ impl Renderer {
             .for_each(|(_, w)| w.prepare_lines(&mut self.grid_renderer, opacity, force));
     }
 
+    fn window_command_changes_notebook_selection(
+        &self,
+        grid_id: u64,
+        command: &WindowDrawCommand,
+    ) -> bool {
+        let Some(window) = self.rendered_windows.get(&grid_id) else {
+            return !self.notebook_output_regions.is_empty()
+                && matches!(command, WindowDrawCommand::Position { anchor_info: Some(_), .. });
+        };
+        if !window.changes_selection(command) {
+            return false;
+        }
+        if let WindowDrawCommand::DrawLine { row, .. } = command {
+            return self.notebook_output_regions.iter().any(|region| {
+                region.grid_id == grid_id
+                    && *row >= region.cells.min.y as usize
+                    && *row < region.cells.max.y as usize
+            });
+        }
+        self.notebook_output_regions.iter().any(|region| region.grid_id == grid_id)
+            || (!self.notebook_output_regions.is_empty() && window.anchor_info.is_some())
+    }
+
     fn handle_draw_command(&mut self, draw_command: DrawCommand, result: &mut DrawCommandResult) {
+        if let DrawCommand::Window { grid_id, command } = &draw_command
+            && self.window_command_changes_notebook_selection(*grid_id, command)
+        {
+            self.invalidate_notebook_selection();
+        }
         match draw_command {
+            DrawCommand::FloatShadowExclusions(windows) => {
+                self.float_shadow_exclusions = windows.into_iter().collect();
+            }
             DrawCommand::ImagePreview(command) => self.images.handle(command),
-            DrawCommand::NotebookFrames(snapshot) => self.notebooks.replace(snapshot),
+            DrawCommand::NotebookFrames(snapshot) => {
+                self.notebooks.replace(snapshot);
+                let scale = self.grid_renderer.grid_scale;
+                let windows = self
+                    .rendered_windows
+                    .values()
+                    .filter_map(|window| notebook::NotebookWindow::from_window(window, scale))
+                    .collect_vec();
+                self.refresh_notebook_output_regions(scale, &windows);
+            }
             DrawCommand::Window { grid_id, command: WindowDrawCommand::Close } => {
                 self.rendered_windows.remove(&grid_id);
             }
@@ -737,6 +872,8 @@ impl Renderer {
     }
 
     pub fn clear(&mut self) {
+        self.float_shadow_exclusions.clear();
+        self.invalidate_notebook_selection();
         self.images.clear();
         self.notebooks.clear();
         self.rendered_windows.clear();
@@ -768,7 +905,7 @@ pub fn is_rightmost_window_edge(region_max_x: f32, max_x: f32) -> bool {
 
 pub fn max_window_max_x(windows: &[&mut RenderedWindow], grid_scale: GridScale) -> f32 {
     windows.iter().fold(f32::NEG_INFINITY, |max_x, window| {
-        let region = window.pixel_region(grid_scale);
+        let region = window.background_region(grid_scale);
         max_x.max(region.max.x)
     })
 }
@@ -885,6 +1022,191 @@ mod tests {
         settings.register::<WindowSettings>();
         settings.register::<RendererSettings>();
         Renderer::new(2.0, Config::default(), settings)
+    }
+
+    #[test]
+    fn picker_shadow_scope_snapshot_replaces_and_clears_owner_ids() {
+        let mut renderer = create_renderer();
+        renderer.handle_draw_commands(vec![DrawCommand::FloatShadowExclusions(vec![
+            1001, 1002, 1003, 1004,
+        ])]);
+        assert_eq!(renderer.float_shadow_exclusions.len(), 4);
+        renderer.handle_draw_commands(vec![DrawCommand::FloatShadowExclusions(vec![])]);
+        assert!(renderer.float_shadow_exclusions.is_empty());
+        renderer.handle_draw_commands(vec![DrawCommand::FloatShadowExclusions(vec![1001])]);
+        renderer.clear();
+        assert!(renderer.float_shadow_exclusions.is_empty());
+    }
+
+    #[test]
+    fn notebook_output_selection_copies_rendered_text_and_cancels_changed_frames_content_and_scroll()
+     {
+        use crate::{editor::Line, units::PixelSize};
+        use rmpv::Value;
+        let mut renderer = create_renderer();
+        let scale = GridScale::new(PixelSize::new(10.0, 20.0));
+        renderer.grid_renderer.grid_scale = scale;
+        let command = |command| DrawCommand::Window { grid_id: 2, command };
+        renderer.handle_draw_commands(vec![
+            command(WindowDrawCommand::Position {
+                grid_position: (0.0, 0.0),
+                grid_size: (14, 8),
+                anchor_info: None,
+                window_type: WindowType::Editor,
+            }),
+            command(WindowDrawCommand::HostSize { width: 16, height: 8 }),
+            command(WindowDrawCommand::Viewport { window_id: 1000, scroll_delta: 0.0 }),
+            command(WindowDrawCommand::DrawLine {
+                row: 3,
+                line: Line::from_test_cells(&[
+                    "1", "2", "3", "4", "A", "中", "", "e\u{301}", "B", " ", " ", " ", " ", " ",
+                ]),
+            }),
+            command(WindowDrawCommand::DrawLine {
+                row: 4,
+                line: Line::from_test_cells(&[
+                    "1", "2", "3", "4", "C", "D", " ", " ", " ", " ", " ", " ", " ", " ",
+                ]),
+            }),
+            command(WindowDrawCommand::DrawLine {
+                row: 5,
+                line: Line::from_test_cells(&[
+                    "1", "2", "3", "4", "Z", " ", " ", " ", " ", " ", " ", " ", " ", " ",
+                ]),
+            }),
+        ]);
+        let rect = |row: f64, col: f64, width: f64, height: f64| {
+            Value::Map(vec![
+                ("row".into(), row.into()),
+                ("col".into(), col.into()),
+                ("width".into(), width.into()),
+                ("height".into(), height.into()),
+            ])
+        };
+        let packet = notebook::FrameSnapshot::parse(&[Value::Array(vec![Value::Map(vec![
+            ("kind".into(), "output".into()),
+            ("rect".into(), rect(2.5, 3.2, 11.6, 3.7)),
+            ("clip".into(), rect(0.0, 0.0, 16.0, 8.0)),
+            (
+                "anchor".into(),
+                Value::Map(vec![
+                    ("window".into(), 1000.into()),
+                    ("epoch".into(), 1.into()),
+                    ("scroll".into(), true.into()),
+                ]),
+            ),
+        ])])])
+        .unwrap();
+        renderer.handle_draw_commands(vec![DrawCommand::NotebookFrames(packet.clone())]);
+        let refresh = |renderer: &mut Renderer| {
+            let windows = renderer
+                .rendered_windows
+                .values()
+                .filter_map(|window| notebook::NotebookWindow::from_window(window, scale))
+                .collect_vec();
+            renderer.refresh_notebook_output_regions(scale, &windows);
+        };
+        refresh(&mut renderer);
+        let region = renderer.notebook_output_regions[0];
+        assert_eq!(
+            region.cells,
+            GridRect::from_min_max((4, 3), (14, 6)),
+            "no line numbers, seam row, or outside margin"
+        );
+        let select = |renderer: &Renderer, start, end| MessageSelection {
+            grid_id: 2,
+            start,
+            end,
+            notebook: Some(NotebookSelectionId {
+                generation: renderer.notebook_selection_generation,
+                region: 0,
+            }),
+        };
+        assert_eq!(
+            renderer.selection_text(select(&renderer, (4, 3).into(), (8, 3).into())).as_deref(),
+            Some("A中e\u{301}B")
+        );
+        assert_eq!(
+            renderer.selection_text(select(&renderer, (8, 3).into(), (4, 3).into())).as_deref(),
+            Some("A中e\u{301}B")
+        );
+        assert_eq!(
+            renderer.selection_text(select(&renderer, (6, 3).into(), (6, 3).into())).as_deref(),
+            Some("中"),
+            "wide continuation keeps the full glyph"
+        );
+        assert_eq!(
+            renderer.selection_text(select(&renderer, (7, 5).into(), (8, 3).into())).as_deref(),
+            Some("B\nCD\nZ"),
+            "reverse row/column association survives"
+        );
+        let held = select(&renderer, (5, 3).into(), (7, 3).into());
+        renderer.set_message_selection(Some(held));
+        let held_generation = renderer.notebook_selection_generation;
+        for _ in 0..3 {
+            // Hold across the Notebook UI's 150 ms heartbeat. Repeated layout
+            // and text notifications must not cancel a partial-field drag.
+            std::thread::sleep(std::time::Duration::from_millis(160));
+            renderer.handle_draw_commands(vec![
+                command(WindowDrawCommand::Viewport { window_id: 1000, scroll_delta: 0.0 }),
+                command(WindowDrawCommand::HostSize { width: 16, height: 8 }),
+                command(WindowDrawCommand::Position {
+                    grid_position: (0.0, 0.0),
+                    grid_size: (14, 8),
+                    anchor_info: None,
+                    window_type: WindowType::Editor,
+                }),
+                command(WindowDrawCommand::DrawLine {
+                    row: 3,
+                    line: Line::from_test_cells(&[
+                        "1", "2", "3", "4", "A", "中", "", "e\u{301}", "B", " ", " ", " ", " ", " ",
+                    ]),
+                }),
+                DrawCommand::NotebookFrames(packet.clone()),
+            ]);
+            refresh(&mut renderer);
+            assert_eq!(renderer.notebook_selection_generation, held_generation, "idle heartbeat");
+            assert_eq!(renderer.active_notebook_selection(), Some(held));
+            assert_eq!(renderer.selection_text(held).as_deref(), Some("中e\u{301}"));
+        }
+        let old = select(&renderer, (4, 3).into(), (8, 3).into());
+        renderer.set_message_selection(Some(old));
+        assert_eq!(renderer.active_notebook_selection(), Some(old));
+        assert_eq!(
+            renderer.selection_text(renderer.active_notebook_selection().unwrap()).as_deref(),
+            Some("A中e\u{301}B"),
+            "retained selection supplies the same text to Copy"
+        );
+        renderer.handle_draw_commands(vec![DrawCommand::NotebookFrames(notebook::FrameSnapshot {
+            frames: Vec::new(),
+            viewports: Vec::new(),
+        })]);
+        assert!(renderer.selection_text(old).is_none(), "frame update cancels before a repaint");
+        assert!(renderer.active_notebook_selection().is_none());
+        renderer.handle_draw_commands(vec![DrawCommand::NotebookFrames(packet)]);
+        refresh(&mut renderer);
+        let old = select(&renderer, (4, 3).into(), (8, 3).into());
+        renderer.set_message_selection(Some(old));
+        renderer.handle_draw_commands(vec![command(WindowDrawCommand::DrawLine {
+            row: 4,
+            line: Line::from_test_cells(&["changed"]),
+        })]);
+        assert!(renderer.selection_text(old).is_none(), "content update cannot copy stale text");
+        assert!(renderer.active_notebook_selection().is_none());
+        refresh(&mut renderer);
+        let old = select(&renderer, (4, 3).into(), (8, 3).into());
+        renderer.set_message_selection(Some(old));
+        renderer.handle_draw_commands(vec![command(WindowDrawCommand::Viewport {
+            window_id: 1000,
+            scroll_delta: 1.0,
+        })]);
+        assert!(renderer.selection_text(old).is_none(), "scroll update cancels");
+        assert!(renderer.active_notebook_selection().is_none());
+        refresh(&mut renderer);
+        let old = select(&renderer, (4, 2).into(), (8, 2).into());
+        renderer.rendered_windows.get_mut(&2).unwrap().scroll_animation.position = 0.25;
+        refresh(&mut renderer);
+        assert!(renderer.selection_text(old).is_none(), "animation geometry changes cancel");
     }
 
     fn startup_message(content: &str) -> StartupMessage {

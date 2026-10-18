@@ -37,7 +37,7 @@ def main():
             assert Path(editor.current.buffer.name) == escaped.resolve(), editor.command_output("messages")
             assert any(line == "42" for line in editor.current.buffer[:])
             title = editor.current.window.options["winbar"]
-            assert "SELECT ␣jk" in title and "↑ [c" in title and "↓ ]c" in title and "GlowNotebookMenuValue# ␣j" in title
+            assert " ␣jk" in title and "↑ [c" in title and "↓ ]c" in title and "GlowNotebookMenuValue# ␣j" in title
             assert escaped.name not in title and "Shift+Enter" not in title
             editor.command("bwipeout!")
             editor.command("GlowNotebook " + str(escaped))

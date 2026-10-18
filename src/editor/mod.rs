@@ -2,6 +2,7 @@ mod cursor;
 mod draw_command_batcher;
 mod grid;
 mod intro;
+mod notebook_viewport;
 mod style;
 mod window;
 
@@ -21,8 +22,8 @@ use winit::window::Theme;
 
 use crate::{
     bridge::{
-        EditorMode, GridLineCell, GuiOption, MessageKind, NeovimHandler, RedrawEvent,
-        StartupMessage, StyledContent, WindowAnchor,
+        EditorMode, GridLineCell, GuiOption, MessageKind, NeovimHandler, ParallelCommand,
+        RedrawEvent, StartupMessage, StyledContent, WindowAnchor,
     },
     clipboard::ClipboardHandle,
     profiling::{tracy_named_frame, tracy_zone},
@@ -35,7 +36,7 @@ use crate::{
 
 pub use cursor::{Cursor, CursorMode, CursorShape};
 pub use draw_command_batcher::DrawCommandBatcher;
-pub use style::{Colors, Style, UnderlineStyle};
+pub use style::{Colors, NotebookTitleGroup, Style, UnderlineStyle};
 pub use window::*;
 
 use intro::{IntroMessageExtender, IntroProcessing};
@@ -151,6 +152,8 @@ pub struct Editor {
     settings: Arc<Settings>,
     composition_order: u64,
     intro_message_extender: IntroMessageExtender,
+    notebook_viewports: notebook_viewport::NotebookViewports,
+    notebook_resize_sender: Option<Box<dyn Fn(ParallelCommand) + Send>>,
     #[cfg(target_os = "macos")]
     match_paren_highlight_ids: HashSet<u64>,
     #[cfg(target_os = "macos")]
@@ -194,6 +197,8 @@ impl Editor {
             route_id,
             composition_order: 0,
             intro_message_extender: IntroMessageExtender::new(),
+            notebook_viewports: notebook_viewport::NotebookViewports::default(),
+            notebook_resize_sender: None,
         }
     }
 
@@ -202,9 +207,22 @@ impl Editor {
         let _ = self.event_loop_proxy.send_event(payload);
     }
 
+    fn resize_notebook_viewports(&mut self) {
+        if let Some(sender) = &self.notebook_resize_sender {
+            for (grid, width, height) in self.notebook_viewports.requests() {
+                sender(ParallelCommand::ResizeGrid { grid, width, height });
+            }
+        }
+    }
+
     pub fn handle_redraw_event(&mut self, event: RedrawEvent) {
         match event {
+            RedrawEvent::FloatShadowExclusions(windows) => {
+                self.draw_command_batcher.queue(DrawCommand::FloatShadowExclusions(windows));
+            }
             RedrawEvent::NotebookFrames(snapshot) => {
+                self.notebook_viewports.replace(&snapshot.viewports);
+                self.resize_notebook_viewports();
                 self.draw_command_batcher.queue(DrawCommand::NotebookFrames(snapshot));
             }
             RedrawEvent::SetTitle { mut title } => {
@@ -374,7 +392,13 @@ impl Editor {
             }
             RedrawEvent::WindowPosition { grid, start_row, start_column, width, height } => {
                 tracy_zone!("EditorWindowPosition");
-                self.set_window_position(grid, start_column, start_row, width, height)
+                self.set_window_position(grid, start_column, start_row, width, height);
+                self.draw_command_batcher.queue(DrawCommand::Window {
+                    grid_id: grid,
+                    command: WindowDrawCommand::HostSize { width, height },
+                });
+                self.notebook_viewports.position(grid, width, height);
+                self.resize_notebook_viewports();
             }
             RedrawEvent::WindowFloatPosition {
                 grid,
@@ -452,6 +476,8 @@ impl Editor {
             RedrawEvent::WindowViewport { grid, window, scroll_delta, .. } => {
                 tracy_zone!("EditorWindowViewport");
                 self.set_ui_ready();
+                self.notebook_viewports.associate(grid, window);
+                self.resize_notebook_viewports();
                 self.draw_command_batcher.queue(DrawCommand::Window {
                     grid_id: grid,
                     command: WindowDrawCommand::Viewport {
@@ -462,6 +488,8 @@ impl Editor {
             }
             RedrawEvent::WindowViewportMargins { grid, top, bottom, left, right } => {
                 tracy_zone!("EditorWindowViewportMargins");
+                self.notebook_viewports.top_margin(grid, top);
+                self.resize_notebook_viewports();
                 self.draw_command_batcher.queue(DrawCommand::Window {
                     grid_id: grid,
                     command: WindowDrawCommand::ViewportMargins { top, bottom, left, right },
@@ -486,12 +514,15 @@ impl Editor {
     }
 
     fn close_window(&mut self, grid: u64) {
+        self.notebook_viewports.close(grid);
         if let Some(window) = self.windows.remove(&grid) {
             window.close(&mut self.draw_command_batcher);
         }
     }
 
     fn resize_window(&mut self, grid: u64, width: u64, height: u64) {
+        self.notebook_viewports.resize(grid, width, height);
+        self.resize_notebook_viewports();
         if let Some(window) = self.windows.get_mut(&grid) {
             window.resize(&mut self.draw_command_batcher, (width, height));
             if let Some(anchor_info) = &window.anchor_info {
@@ -530,7 +561,6 @@ impl Editor {
             window.position(
                 &mut self.draw_command_batcher,
                 None,
-                (width, height),
                 (start_left as f64, start_top as f64),
             );
             window.show(&mut self.draw_command_batcher);
@@ -599,12 +629,7 @@ impl Editor {
             let mut anchor = anchor;
             anchor.sort_order = sort_order;
 
-            window.position(
-                &mut self.draw_command_batcher,
-                Some(anchor),
-                (width, height),
-                (left, top),
-            );
+            window.position(&mut self.draw_command_batcher, Some(anchor), (left, top));
             window.show(&mut self.draw_command_batcher);
         } else {
             error!("Attempted to float window that does not exist.");
@@ -644,7 +669,6 @@ impl Editor {
             window.position(
                 &mut self.draw_command_batcher,
                 Some(anchor_info),
-                (parent_width, window.get_height()),
                 (0.0, grid_top as f64),
             );
             window.show(&mut self.draw_command_batcher);
@@ -1340,6 +1364,7 @@ pub fn start_editor_handler(
 ) -> NeovimHandler {
     let (redraw_event_sender, mut redraw_event_receiver) = unbounded_channel();
     let (ui_command_sender, ui_command_receiver) = unbounded_channel();
+    let editor_ui_sender = ui_command_sender.clone();
     let handler = NeovimHandler::new(
         redraw_event_sender,
         ui_command_sender,
@@ -1352,6 +1377,9 @@ pub fn start_editor_handler(
     );
     thread::spawn(move || {
         let mut editor = Editor::new(route_id, event_loop_proxy.clone(), settings.clone());
+        editor.notebook_resize_sender = Some(Box::new(move |command| {
+            let _ = editor_ui_sender.send(command.into());
+        }));
 
         while let Some(editor_command) = redraw_event_receiver.blocking_recv() {
             editor.handle_redraw_event(editor_command);

@@ -227,6 +227,16 @@ impl Handler for NeovimHandler {
         trace!("Neovim notification: {:?}", event_name);
 
         match event_name.as_ref() {
+            "neovide.window.shadow_exclusions" => {
+                match super::events::parse_shadow_exclusions(&arguments) {
+                    Ok(windows) => {
+                        let _ = self
+                            .redraw_event_sender
+                            .send(RedrawEvent::FloatShadowExclusions(windows));
+                    }
+                    Err(error) => log::warn!("Invalid floating-shadow snapshot: {error}"),
+                }
+            }
             "neovide.notebook.frames" => {
                 match crate::renderer::notebook::FrameSnapshot::parse(&arguments) {
                     Ok(snapshot) => {

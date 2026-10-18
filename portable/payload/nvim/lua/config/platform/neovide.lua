@@ -6,6 +6,8 @@ end
 
 vim.o.guifont = "FiraCode Nerd Font Mono:h16"
 vim.opt.linespace = 0
+-- Show the command line on demand instead of reserving an empty footer row.
+vim.o.cmdheight = 0
 vim.g.neovide_text_gamma = 0.0
 vim.g.neovide_text_contrast = 0.5
 
@@ -28,6 +30,7 @@ vim.g.neovide_normal_opacity = 0.78
 vim.g.neovide_refresh_rate = 120
 vim.g.neovide_window_blurred = true
 require("config.platform.glass").setup()
+require("config.appearance.transparency").setup()
 vim.g.neovide_theme = "auto"
 vim.g.neovide_remember_window_size = true
 vim.g.neovide_profiler = false

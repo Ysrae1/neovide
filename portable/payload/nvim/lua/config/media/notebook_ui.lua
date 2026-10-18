@@ -16,10 +16,16 @@ local function available()
   return vim.g.neovide_native_notebook == true and type(vim.g.neovide_channel_id) == 'number'
 end
 local function copy(value) return vim.deepcopy(value) end
-local function emit(frames)
-  if available() and not vim.deep_equal(previous, frames) then
-    previous = copy(frames)
-    pcall(vim.rpcnotify, vim.g.neovide_channel_id, 'neovide.notebook.frames', frames)
+local function emit(frames, viewports)
+  viewports = viewports or {}
+  local snapshot = { frames, viewports }
+  if available() and not vim.deep_equal(previous, snapshot) then
+    previous = copy(snapshot)
+    if vim.g.neovide_native_notebook_viewport == true then
+      pcall(vim.rpcnotify, vim.g.neovide_channel_id, 'neovide.notebook.frames', frames, viewports)
+    else
+      pcall(vim.rpcnotify, vim.g.neovide_channel_id, 'neovide.notebook.frames', frames)
+    end
     -- Local redraw supplies the matching UI flush after this notification. It
     -- never requests or waits for anything from Neovide, including during scroll.
     pcall(vim.cmd.redraw)
@@ -46,9 +52,11 @@ local function outputs(buf)
       -- Molten is the sole writer of its output. While running it replaces this
       -- mark every tick; adding padding here used to make its height oscillate.
       result[#result + 1] = { id = mark[1], row = mark[2], lines = #lines,
-        above = mark[4].virt_lines_above == true }
+        namespace = molten_ns, above = mark[4].virt_lines_above == true }
     end
   end
+  local images = package.loaded['config.media.molten_images']
+  if images and images.inline_output_marks then vim.list_extend(result, images.inline_output_marks(buf)) end
   return result
 end
 local function cell_start(cell, count, show_source)
@@ -60,9 +68,12 @@ local function cell_start(cell, count, show_source)
 end
 local function metadata(buf, state)
   local lines = api.nvim_buf_get_lines(buf, 0, math.min(200, api.nvim_buf_line_count(buf)), false)
-  local last
-  if lines[1] and lines[1]:match('^# %-%-%-%s*$') then
-    for index = 2, #lines do
+  local first, last = 1, nil
+  -- Recovery and ordinary edits can leave blank lines before the Jupytext
+  -- preamble. They do not turn its serialization metadata into cell content.
+  while lines[first] and lines[first]:match('^%s*$') do first = first + 1 end
+  if lines[first] and lines[first]:match('^# %-%-%-%s*$') then
+    for index = first + 1, #lines do
       if lines[index]:match('^# %-%-%-%s*$') then last = index; break end
     end
   end
@@ -237,7 +248,7 @@ local function window_geometry(win, outer)
       width = config.width + border_left + border_right,
       height = config.height + border_top + border_bottom }, info
   end
-  return { row = top, col = left, width = info.width, height = info.height }, info
+  return { row = top, col = left, width = api.nvim_win_get_width(win), height = info.height }, info
 end
 local function line_geometry(win, info, clip)
   local saved = api.nvim_win_call(win, vim.fn.winsaveview)
@@ -302,7 +313,11 @@ local function normal_frames(win, buf, list, out, frames)
         col = (info.textoff or 0) + gap.col - frame.rect.col - 0.1, width = gap.width + 0.2 }
     end
   end
-  local key = { state.revision, state.metadata, clip.width, clip.height, info.textoff,
+  local markdown = package.loaded['config.media.notebook_markdown']
+  local markdown_revision = markdown and markdown.presentation_revision(buf) or 0
+  local images = package.loaded['config.media.molten_images']
+  local image_revision = images and images.inline_revision(buf) or 0
+  local key = { state.revision, state.metadata, markdown_revision, image_revision, clip.width, info.width, clip.height, info.textoff,
     info.winbar, vim.wo[win].wrap, vim.wo[win].foldlevel, vim.wo[win].foldenable }
   if vim.deep_equal(key, cached.model_key) then
     for _, frame in ipairs(cached.frames) do
@@ -322,7 +337,7 @@ local function normal_frames(win, buf, list, out, frames)
   -- Leave line numbers untouched: the stroke lives in the gap at their right.
   local left = math.max(clip.col + 0.12, text_left - 0.8)
   local width = clip.col + clip.width - right_inset - 0.12 - left
-  local outer, dividers = {}, {}
+  local outer, dividers, image_areas = {}, {}, {}
   for index, cell in ipairs(list) do
     local first = cell_start(cell, api.nvim_buf_line_count(buf), state.show_metadata)
     local last = math.max(first, cell.last)
@@ -338,13 +353,13 @@ local function normal_frames(win, buf, list, out, frames)
   -- This avoids guessing the location from output text length or mark IDs.
   local offset_above, offset_below = {}, {}
   local wanted = {}
-  for _, item in ipairs(out) do wanted[item.id] = item end
+  for _, item in ipairs(out) do wanted[(item.namespace or molten_ns) .. ':' .. item.id] = item end
   for _, mark in ipairs(api.nvim_buf_get_extmarks(buf, -1, 0, -1, { details = true })) do
     local d, row = mark[4], mark[2]
     if d.virt_lines and not d.invalid then
       local offsets = d.virt_lines_above and offset_above or offset_below
       local offset = offsets[row] or 0
-      local output = d.ns_id == molten_ns and wanted[mark[1]]
+      local output = wanted[d.ns_id .. ':' .. mark[1]]
       local separator = d.ns_id == separator_ns and state.separator_cells[mark[1]]
       if output or separator then
         local top = row_at(row + 1)
@@ -358,6 +373,10 @@ local function normal_frames(win, buf, list, out, frames)
         top = top + offset
         if separator then dividers[separator] = top + 0.5
         else
+          image_areas[d.ns_id .. ':' .. mark[1]] = {
+            row = top, col = text_left + 0.3,
+            width = math.max(1, left + width - text_left - 0.6),
+          }
           -- A cell owns outputs by their source anchor, never by mark identity or
           -- screen overlap. Several marks extend the same outer envelope in their
           -- real display order; they do not create neighboring rounded boxes.
@@ -389,7 +408,13 @@ local function normal_frames(win, buf, list, out, frames)
   -- the renderer's viewport counter/spring, not this Lua geometry snapshot.
   -- Keep offscreen cells too so they can enter the viewport without another RPC.
   local origin = api.nvim_win_get_position(win)
-  cached.model_key, cached.frames = copy(key), {}
+  cached.model_key, cached.frames, cached.image_areas = copy(key), {}, image_areas
+  for _, area in pairs(image_areas) do
+    area.row, area.col = area.row - origin[1], area.col - origin[2]
+    area.clip = copy(clip)
+    area.clip.row, area.clip.col = area.clip.row - origin[1], area.clip.col - origin[2]
+    area.anchor = { window = win, epoch = epoch, scroll = true }
+  end
   for index = first_frame, #frames do
     local frame = frames[index]
     frame.rect.row, frame.rect.col = frame.rect.row - origin[1], frame.rect.col - origin[2]
@@ -399,6 +424,15 @@ local function normal_frames(win, buf, list, out, frames)
     style(frame)
     cached.frames[#cached.frames + 1] = copy(frame)
   end
+end
+-- The same measurement/order and output epoch used by the green frame. Image
+-- positions remain document-local while the native viewport animates scrolling.
+function M.virtual_output_geometry(win, buf, namespace, identifier)
+  if not states[buf] or not api.nvim_win_is_valid(win) or api.nvim_win_get_buf(win) ~= buf then return end
+  M.refresh()
+  local cached = windows[win]
+  local area = cached and cached.image_areas and cached.image_areas[namespace .. ':' .. identifier]
+  return area and copy(area) or nil
 end
 function M.refresh()
   pending = false
@@ -411,11 +445,12 @@ function M.refresh()
       windows[win] = nil
     end
   end
-  local frames, prepared, notebook_visible = {}, {}, false
+  local frames, viewports, prepared, notebook_visible = {}, {}, {}, false
   for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
     local buf = api.nvim_win_get_buf(win)
     if states[buf] and api.nvim_win_get_config(win).relative == '' then
       notebook_visible = true
+      viewports[#viewports + 1] = { window = win, width = api.nvim_win_get_width(win) }
       if not prepared[buf] then prepared[buf] = { prepare(buf, states[buf]) } end
       normal_frames(win, buf, prepared[buf][1], prepared[buf][2], frames)
     end
@@ -448,7 +483,7 @@ function M.refresh()
   for win in pairs(popup_models) do
     if not api.nvim_win_is_valid(win) then popup_models[win] = nil end
   end
-  emit(frames)
+  emit(frames, viewports)
   return frames
 end
 local function schedule()

@@ -5,6 +5,7 @@ use skia_safe::{
     image_filters::blur,
     utils::shadow_utils::{ShadowFlags, draw_shadow},
 };
+use std::collections::HashSet;
 
 use glamour::Intersection;
 
@@ -49,6 +50,7 @@ impl FloatingLayer<'_> {
         default_background: Color,
         grid_scale: GridScale,
         content_region: Option<PixelRect<f32>>,
+        shadow_exclusions: &HashSet<u64>,
     ) -> Vec<WindowDrawDetails> {
         let pixel_regions =
             self.windows.iter().map(|window| window.pixel_region(grid_scale)).collect::<Vec<_>>();
@@ -59,7 +61,24 @@ impl FloatingLayer<'_> {
             self.build_draw_clip_and_bounds(silhouette.clone(), bound_rect, &regions, grid_scale);
         let has_transparency = self.windows.iter().any(|window| window.has_transparency());
 
-        self._draw_shadow(root_canvas, &silhouette, settings);
+        if shadow_exclusions.is_empty() {
+            self._draw_shadow(root_canvas, &silhouette, settings);
+        } else {
+            let shadow_regions = self
+                .windows
+                .iter()
+                .zip(pixel_regions.iter())
+                .filter(|(window, _)| {
+                    !window.window_id.is_some_and(|id| shadow_exclusions.contains(&id))
+                })
+                .map(|(_, region)| *region)
+                .collect_vec();
+            if !shadow_regions.is_empty() {
+                let (shadow_silhouette, _) =
+                    build_silhouette(&shadow_regions, settings, grid_scale);
+                self._draw_shadow(root_canvas, &shadow_silhouette, settings);
+            }
+        }
 
         root_canvas.save();
         root_canvas.clip_path(&draw_clip, None, Some(false));
@@ -315,5 +334,70 @@ mod tests {
         assert_eq!(expanded_regions[1].max.y, bottom_region.max.y);
         assert_eq!(expanded_regions[0].max.x, content_region.max.x);
         assert_eq!(expanded_regions[1].max.x, content_region.max.x);
+    }
+
+    #[test]
+    fn picker_shadow_scope_excludes_children_but_preserves_outer_box_and_ordinary_pixels() {
+        use skia_safe::surfaces;
+        let excluded = HashSet::from([1001, 1002, 1003, 1004]); // Input/list/preview/nested box.
+        let render = |owner: u64, shadow: bool| {
+            let mut window = positioned_window(2, 4.0, 6.0);
+            window.handle_window_draw_command(WindowDrawCommand::Position {
+                grid_position: (6.0, 4.0),
+                grid_size: (8, 4),
+                anchor_info: None,
+                window_type: WindowType::Editor,
+            });
+            window.handle_window_draw_command(WindowDrawCommand::Viewport {
+                window_id: owner,
+                scroll_delta: 0.0,
+            });
+            let mut surface = surfaces::raster_n32_premul((180, 180)).unwrap();
+            surface.canvas().clear(Color::WHITE);
+            FloatingLayer { windows: vec![&mut window] }.draw(
+                surface.canvas(),
+                &RendererSettings {
+                    floating_shadow: shadow,
+                    floating_blur: false,
+                    floating_corner_radius: 0.3,
+                    ..RendererSettings::default()
+                },
+                Color::BLUE,
+                grid_scale(),
+                None,
+                &excluded,
+            );
+            let pix = surface.peek_pixels().unwrap();
+            assert_eq!(
+                pix.get_color((70, 80)),
+                Color::BLUE,
+                "normal component background is unchanged"
+            );
+            pix.bytes().unwrap().to_vec()
+        };
+        for owner in [1001, 1002, 1003, 1004] {
+            assert_eq!(
+                render(owner, true),
+                render(owner, false),
+                "child {owner} adds no inner shadow"
+            );
+        }
+        for owner in [1000, 2000] {
+            // Outermost Box and an unrelated floating window.
+            assert_ne!(
+                render(owner, true),
+                render(owner, false),
+                "outer/default {owner} keeps its shadow"
+            );
+        }
+        let valid = crate::bridge::parse_shadow_exclusions(&[rmpv::Value::Array(vec![
+            1001.into(),
+            1002.into(),
+        ])])
+        .unwrap();
+        assert_eq!(valid, [1001, 1002]);
+        assert!(
+            crate::bridge::parse_shadow_exclusions(&[rmpv::Value::Array(vec![0.into()])]).is_err()
+        );
     }
 }

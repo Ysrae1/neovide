@@ -18,7 +18,7 @@ end
 
 | 参数 | 默认值 | 范围 | 作用 |
 | --- | --- | --- | --- |
-| `neovide_bloom` | `true` | 布尔值 | 柔光开关 |
+| `neovide_bloom` | `true` | 布尔值 | 柔光开关，配套配置快捷键 `<leader>uG` |
 | `neovide_bloom_strength` | `0.20` | 0–1 | 线性光能的强度 |
 | `neovide_bloom_radius` | `8.0` | 0–32 | 柔光范围，按帧缓冲像素计算；对应高斯模糊的约 3σ |
 | `neovide_bloom_brightness` | `1.10` | 0–8 | 柔光层的亮度，独立于范围 |
@@ -152,9 +152,11 @@ git push origin glow-preview
 
 Neo-tree 的 Enter、双击、分屏和新 Tab 入口继续保留图片预览，并支持上述音视频扩展名、HTML、PDF 与 `.ipynb`；Notebook 默认进入原生编辑。音频入口包含 MP3/M4A/AAC/WAV/AIFF/CAF/FLAC；视频入口包含 MP4/M4V/MOV/MPG/MPEG。实际编码是否可播放由系统解码器决定，文件后缀不构成兼容性保证。
 
+图片预览顶栏使用 VIEW、ZOOM、PAN、CLOSE 胶囊，仅显示状态和快捷键；文件名沿用底部状态栏。胶囊使用主题配色并适配窄窗口。
+
 Dashboard 最近文件、文件搜索、普通 `:edit` 和缓冲区选择入口也会自动打开图片、PDF、音视频预览，沿用调用方选择的窗口、分屏或标签页。二进制文件通过专门读取事件建立受保护的预览描述，不作为文本加载；已切换到别的文件时，排队中的旧预览不会抢回窗口。HTML 保留源码编辑，Notebook 保留 Jupytext 转换，插件浮窗与特殊缓冲区不参与自动路由。
 
-Neovide 内的 `:Yazi` 也支持右侧原生图像预览。配套配置在每个预览器的运行环境统一接管 `ya.image_show()`，通过 DDS 将源文件、生成的图片缓存和预留绘制区域发送给 Neovim，复用异步图片解码与浮窗图像绘制。因此图片、PDF 页面、SVG、视频缩略图、字体样张、AVIF/HEIC 等原本经过该接口和 chafa 的路径共用同一显示方式；自定义插件调用该接口生成的缩略图也会进入此路径。现有预览器的转换、预加载、缓存、原命令参数和 seek 保留，实际可转换格式取决于相应工具和编解码器。
+Neovide 内的 `:Yazi` 也支持右侧原生图像预览。同步目录预览沿用 Yazi 原入口，避免重复同步等待；图片等预览器的运行环境统一接管 `ya.image_show()`，通过 DDS 将源文件、生成的图片缓存和预留绘制区域发送给 Neovim，复用异步图片解码与浮窗图像绘制。因此图片、PDF 页面、SVG、视频缩略图、字体样张、AVIF/HEIC 等原本经过该接口和 chafa 的路径共用同一显示方式；自定义插件调用该接口生成的缩略图也会进入此路径。现有预览器的转换、预加载、缓存、原命令参数和 seek 保留，实际可转换格式取决于相应工具和编解码器。
 
 JPEG XL 使用专用预览器补齐当前 ImageMagick 构建缺少的 JXL 解码能力：`jxlinfo` 检查源文件，`djxl` 后台解码为 PNG，ImageMagick 仅缩放 PNG，再通过同一原生显示接口预览。匹配 `image/jxl` 及大小写混合的 `.jxl` 后缀；缓存按源文件与预览尺寸建立，源文件不被改写。需要 JPEG XL 工具包中的 `djxl`、`jxlinfo` 和已有的 `magick`；本机已有 JPEG XL 0.11.2，无需新增安装。此入口提供 8-bit 静态预览，设置输入、像素、进程内存与转换时间上限，失败时在预览栏反馈。
 
@@ -174,7 +176,7 @@ Notebook 静态入口 `:GlowNotebookPreview` 异步读取上限 32 MiB、4000 �
 
 ### Liquid Glass 与透明度接口
 
-macOS 26 及以后使用系统 `NSGlassEffectView`，作为整个 winit／Metal 编辑视图后方的原生材质；早期系统回退 `NSVisualEffectView`。编辑区域和 Neovim 浮窗共用这一窗口基底，内部字体、主题、胶囊和边框继续使用现有 Neovide 风格。PDF／媒体容器不另叠一层玻璃，PDF 页面、网页正文和媒体像素保留自身背景；编辑器切换面板沿用其原生材质。Neovim 浮窗仍由 Skia 绘制，不承诺每个浮窗具有独立的系统折射效果。玻璃层不接收点击，原有编辑器、浮窗和预览焦点层级保留。
+macOS 26 及以后使用系统 `NSGlassEffectView`，作为整个 winit／Metal 编辑视图后方的原生材质；早期系统回退 `NSVisualEffectView`。编辑区域和 Neovim 浮窗共用这一窗口基底，内部字体、主题、胶囊和边框继续使用现有 Neovide 风格。PDF／媒体容器不另叠一层玻璃，PDF 页面、网页正文和媒体像素保留自身背景；编辑器切换面板沿用其原生材质。Neovim 浮窗仍由 Skia 绘制，不承诺每个浮窗具有独立的系统折射效果。玻璃层不接收点击，原有编辑器、浮窗和预览焦点层级保留。普通窗口右侧不足一字符的像素余量沿用相邻背景的颜色和 alpha 直接替换绘制，避免半透明背景重复叠加成实心竖带。Notebook 边框外的保留列始终使用普通透明背景，当前行和选区不会延伸到框外。
 
 | 调整 | 命令 |
 | --- | --- |
@@ -183,15 +185,15 @@ macOS 26 及以后使用系统 `NSGlassEffectView`，作为整个 winit／Metal 
 | 浮窗附加模糊（0～100） | `:GlowGlass blur 24` |
 | 恢复配置默认／查看状态 | `:GlowGlass reset`／`status` |
 
-透明度和模糊省略数字时会弹出输入框。透明度命令只淡化普通背景，文字与选中高亮保持清楚；底层仍可独立设置 `g:neovide_opacity`、`g:neovide_normal_opacity`、`g:neovide_floating_blur_amount_x/y`，材质由 `g:neovide_liquid_glass` 开关。新构建配套配置默认开启，普通背景不透明度为 `.78`、文字和高亮不透明度为 `1`，浮窗模糊为 `24/24`。Apple 未公开玻璃模糊半径参数，`blur` 真实调整的是 Neovide 浮窗的附加模糊，系统玻璃由 macOS 管理。[Apple NSGlassEffectView 文档](https://developer.apple.com/documentation/appkit/nsglasseffectview)。
+透明度和模糊省略数字时会弹出输入框。透明度命令只淡化普通背景，文字与选中高亮保持清楚；底层仍可独立设置 `g:neovide_opacity`、`g:neovide_normal_opacity`、`g:neovide_floating_blur_amount_x/y`，材质由 `g:neovide_liquid_glass` 开关。新构建配套配置默认开启，普通编辑背景不透明度为 `.78`，Neo-tree 背景以及编辑区／Neo-tree 当前行背景为 `.60`；浮窗、菜单、补全、选择器、Avante 面板及分割线／边框统一为 `.60`；Dashboard 终端动画面板在 Liquid Glass 开启时也使用该透明度，原有主题颜色不变。文字、Visual 选区、实心选中项和胶囊保留原有不透明度，浮窗模糊为 `24/24`；普通浮窗保留阴影，搜索器内部组合面板避免重复叠加子窗口阴影。空闲命令行不预留底部整行，输入命令时按需显示。所有这些 Glass 配套调整仅在 `vim.g.neovide` 前端启用，终端 Neovim 不修改高亮、透明度或字体。Neovide 普通分屏不绘制可见分隔线，分隔格仍保留原位置和鼠标调整大小区域；其底色与 Neo-tree 材质一致。侧栏顶栏按显示列截断和补齐，窄于标题时分隔边界仍与侧栏右缘对齐。显式高亮 `blend` 优先于 Normal 同色背景的默认透明度，避免当前行因颜色相同而退回实心。Apple 未公开玻璃模糊半径参数，`blur` 真实调整的是 Neovide 浮窗的附加模糊，系统玻璃由 macOS 管理。[Apple NSGlassEffectView 文档](https://developer.apple.com/documentation/appkit/nsglasseffectview)。
 
 ### 原生 Notebook 编辑与执行
 
-`:GlowNotebook` 在真正的 Neovim Python 缓冲区中编辑 `.ipynb`，沿用现有字体、主题、光标、补全与快捷键。Jupytext 使用 `# %%` 和 `# %% [markdown]` 表示代码及 Markdown 单元格，Molten 负责连接 Jupyter 内核、异步执行和显示输出。没有输出时，单元格由 Skia 使用主题 `base0D` 绘制完整圆角框；有输出时，上方输入段保持冰蓝色，下方输出段使用主题 `vibrant_green`，两段在直角接榫处共用一条绿色横线；横线位于独立虚拟空行中央，与末行代码和首行输出留出间距，外侧顶部和底部保留圆角，当前单元格描边加重。输入留白使用本模块的虚拟行，Molten 输出由其自身独占写入，保留真实源码和输出内容；框线跟随正文的同一滚动动画，并按分屏和浮窗层级裁切。顶部序列化元数据默认隐藏，可用 `:GlowNotebookMetadata` 显示。单元格顶边最右侧固定放置仅含 Markdown／语言图标的实心胶囊，图标单独放大至 1.2 倍；代码格的分段运行胶囊放在它左侧，左段显示空心播放图标，右段显示无括号的 Shift／Return 图标，真实运行时播放图标切为实心。四个运行／按键图标选自本机 FiraCode Nerd Font 中与胶囊端帽中线一致的同一套字形，避免字体回退造成垂直偏位。胶囊之间由同色顶边线连接，输入框线与实心胶囊共用同一个强调色，右侧保留一格空隙；普通描边至少与 UI 字符线同为 2 像素，当前单元格略加重。顶栏仅保留 KERNEL、CELLS、MENU 三域，每个胶囊内统一强调色，深浅主题使用对应底色；实心区域文字与底部模式图标使用同一前景色规则。空内核提示 `SELECT ␣jk`，功能入口显示 `␣j`，CELLS 域使用主题 `base0B`，上下格用 `↑ [c` 和 `↓ ]c`。状态栏左侧保留一格留白，与顶栏对齐。Markdown、公式和复杂 HTML 的排版可通过 `:GlowNotebookPreview` 查看。
+`:GlowNotebook` 在真正的 Neovim Python 缓冲区中编辑 `.ipynb`，沿用现有字体、主题、光标、补全与快捷键。Jupytext 使用 `# %%` 和 `# %% [markdown]` 表示代码及 Markdown 单元格，Molten 负责连接 Jupyter 内核、异步执行和显示输出。没有输出时，单元格由 Skia 使用主题 `base0D` 绘制完整圆角框；有输出时，上方输入段保持冰蓝色，下方输出段使用主题 `vibrant_green`，两段在直角接榫处共用一条绿色横线；横线位于独立虚拟空行中央，与末行代码和首行输出留出间距，外侧顶部和底部保留圆角，当前单元格描边加重。输入留白使用本模块的虚拟行，Molten 输出由其自身独占写入，保留真实源码和输出内容；框线跟随正文的同一滚动动画，并按分屏和浮窗层级裁切。顶部序列化元数据默认隐藏，可用 `:GlowNotebookMetadata` 显示。单元格顶边最右侧固定放置仅含 Markdown／语言图标的实心胶囊，图标单独放大至 1.2 倍；代码格的分段运行胶囊放在它左侧，左段显示空心播放图标，右段显示无括号的 Shift／Return 图标，真实运行时播放图标切为实心。四个运行／按键图标选自本机 FiraCode Nerd Font 中与胶囊端帽中线一致的同一套字形，避免字体回退造成垂直偏位。胶囊的外侧半圆直接衔接内容，不另加左右空格；胶囊之间由同色顶边线连接，输入框线与实心胶囊共用同一个强调色，右侧保留一格空隙；正文网格独立收窄两列，让长中文、代码和输出在框内实际换行，分栏宿主宽度与相邻窗口不变，离开 Notebook 后恢复完整正文宽度；普通描边至少与 UI 字符线同为 2 像素，当前单元格略加重。顶栏仅保留 KERNEL、CELLS、MENU 三域，每个胶囊内统一强调色，深浅主题使用对应底色；实心区域文字与底部模式图标使用同一前景色规则。未选择内核时以放大镜提示 ` ␣jk`，停止和启动中状态分别用 `■`、`◌` 表示并保留内核名称；功能入口显示 `␣j`，CELLS 域使用主题 `base0B`，上下格用 `↑ [c` 和 `↓ ]c`。状态栏左侧保留一格留白。Markdown 单元格使用原生 Neovim 高亮与 conceal 显示标题、粗斜体、列表、链接、行内和围栏代码；Insert／Visual 模式仅显露当前单元格的 Markdown 标记，外层 Jupytext 注释前缀始终隐藏；行首退格和行尾删除按可见文本合并行，保持存储前缀正确。退出后恢复渲染，Shift+Enter 可提交 Markdown 渲染而不启动内核。渲染变化会重新测量边框，普通 Python 文件不受影响。字体缺少真正斜体时，仅对字形合成倾斜；真实斜体和普通文本保持原样，字符网格与背景不倾斜。Neovim conceal 仍按隐藏源码计算部分换行，长链接末尾可能提前折行；当前保留原地编辑，不启用独立显示层。公式、复杂 HTML 和完整表格排版仍通过 `:GlowNotebookPreview` 查看。
 
 依赖固定为 Molten [`bedea63819c618e007e7c40059fc6e72d598c8df`](https://github.com/benlubas/molten-nvim/commit/bedea63819c618e007e7c40059fc6e72d598c8df) 和 Jupytext.nvim [`c8baf3ad344c59b3abd461ecc17fc16ec44d0f7b`](https://github.com/GCBallesteros/jupytext.nvim/commit/c8baf3ad344c59b3abd461ecc17fc16ec44d0f7b)。配套 `config/media/runtime/install.sh` 安装固定 Python 依赖至 Neovim 数据目录下的 `glow-notebook-venv`，并注册独立的 `glow-python` 内核；本机路径为 `~/.local/share/nvim/glow-notebook-venv`。既有全局/Conda 环境及 `python3` 内核不被覆盖；显式配置的 Python provider 保持优先。配置只新增这两项插件固定版本，保留原插件锁的其他条目。
 
-打开文件或内核选择器不启动内核；确认选择或首次运行时启动，并异步等待 `MoltenKernelReady` 后导入保存输出、执行请求；等待期间仍可编辑，若代码已改变会要求重新运行。打开文件本身不执行代码。`:w` 将代码写回原 `.ipynb`，并保存已产生的新输出；转换使用私有缓存，不覆盖或删除同名 `.py` 文件。输出保存需要已有 Python Treesitter 解析器。关闭最后一个显示该 Notebook 的窗口会停止本入口创建的内核；手动连接的用户内核保留其原有归属。
+打开文件或内核选择器不启动内核；确认选择或首次运行时启动，并异步等待 `MoltenKernelReady` 后导入保存输出、执行请求；等待期间仍可编辑，若代码已改变会要求重新运行。打开文件本身不执行代码。`:w` 将代码写回原 `.ipynb`，并保存已产生的新输出；转换使用私有缓存，不覆盖或删除同名 `.py` 文件。输出保存需要已有 Python Treesitter 解析器。内联文本输出可直接用鼠标拖选，松开即复制到系统剪贴板并保留选区，也可用 `⌘C`／原生 Copy／`Ctrl+Shift+C` 再次复制；选择范围限制在同一个输出框内，不包含行号和框外空白。拖选期间真实输出内容、滚动或布局变化会取消该次选择，避免复制错位内容；相同内容的后台刷新保留选择。行内图片根据真实字体单元格像素占位，默认保持原始分辨率，只有空间不足时缩小；图片与边框共享同次布局和滚动锚点。关闭最后一个显示该 Notebook 的窗口会停止本入口创建的内核；手动连接的用户内核保留其原有归属。
 
 `<leader>j` 是 Notebook 快捷键分组，保留普通 Neovim 的 `a/b/m/y/dd` 行为。无参数 `:GlowNotebookKernel` 与 `<leader>jk` 打开真实 Python 内核选择器，显示环境名称和解释器路径；包括已安装 ipykernel 的 Conda 环境。取消不启动内核。切换本入口拥有的内核会暂存并恢复完成输出，不自动保存源文件；手动或共享内核不自动替换。已有 `<localleader>n` 快捷键继续可用。
 
@@ -210,7 +212,7 @@ macOS 26 及以后使用系统 `NSGlassEffectView`，作为整个 winit／Metal 
 | 保存代码及完成输出 | `:w` | — |
 
 非空单元格的 `# %%` 标记行仅在界面隐藏，文件中的分格标记仍保留；单元格跳转定位正文首行，空单元格保留可编辑行。删除源码可用普通 `u` 撤销，已删除的运行输出不随源码撤销恢复。
-文本结果和错误在代码下方以原生虚拟文字显示；Molten 标注排队、运行、完成或失败状态。`Out[n]`、勾叉、状态文字和输出正文使用 `Normal` 高亮，切换主题后保持，避免默认注释色使状态难辨。固定版 Molten 将它们写入同一高亮组，本配置不改写输出标记来单独染色。PNG/Matplotlib 静态图表通过 Neovide 图片接口显示在原生输出浮窗中，使用 `:GlowNotebookOutput` 查看；当前不在正文虚拟行内嵌图像。该适配不替换其他插件的 `image.nvim` 实现，也不承诺交互图表、网页控件或任意 Jupyter 富输出均可原生显示。保存输出尚未导入 Molten 时只显示输入框；打开文件不会因此启动内核。当前编辑执行流程以 Python 验收，其他语言内核未验收。
+文本结果和错误在代码下方以原生虚拟文字显示；Molten 标注排队、运行、完成或失败状态。`Out[n]` 编号使用主题强调色，完成状态为绿色，失败状态和错误正文为红色，运行中使用警示色，普通结果保持正文色，切换主题后同步。适配固定版 Molten 的单次输出写入，在其原请求中生成不同高亮片段，不轮询或二次改写现有输出标记；原始文字、输出高度和内核生命周期不变。Python 适配需要新编辑器会话；上游输出方法版本不匹配时明确报错并保留原输出。PNG/Matplotlib 静态图表直接显示在绿色行内输出区，保留 `:GlowNotebookOutput` 浮窗查看；有界解码和独立虚拟留白不改写 Molten 文本输出，图片与边框使用同一个原生滚动锚点，并裁切到所属窗口、避开上层浮窗。旧构建不具备图像锚点能力时继续使用输出浮窗。该适配不替换其他插件的 `image.nvim` 实现，也不承诺交互图表、网页控件或任意 Jupyter 富输出均可原生显示。保存输出尚未导入 Molten 时只显示输入框；打开文件不会因此启动内核。当前编辑执行流程以 Python 验收，其他语言内核未验收。
 
 ### Jupyter Book 与首版验收记录
 

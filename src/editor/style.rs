@@ -29,6 +29,12 @@ pub enum UnderlineStyle {
     UnderCurl,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotebookTitleGroup {
+    Kernel,
+    Actions,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Style {
     pub colors: Colors,
@@ -45,6 +51,7 @@ pub struct Style {
     pub underline: Option<UnderlineStyle>,
     /// Scale only the foreground of Notebook type-icon capsules.
     pub enlarged_icon: bool,
+    pub notebook_title: Option<NotebookTitleGroup>,
 }
 
 impl Style {
@@ -58,14 +65,33 @@ impl Style {
             blend: 0,
             underline: None,
             enlarged_icon: false,
+            notebook_title: None,
         }
     }
 
     pub fn with_highlight_name(mut self, name: Option<&str>) -> Self {
-        self.enlarged_icon = matches!(
-            name,
-            Some("GlowNotebookLanguage" | "GlowNotebookMarkdown")
-        );
+        self.enlarged_icon = matches!(name, Some("GlowNotebookLanguage" | "GlowNotebookMarkdown"));
+        self.notebook_title = match name {
+            Some(
+                "GlowNotebookKernel"
+                | "GlowNotebookKernelCap"
+                | "GlowNotebookKernelValue"
+                | "GlowNotebookKernelValueCap",
+            ) => Some(NotebookTitleGroup::Kernel),
+            Some(
+                "GlowNotebookCells"
+                | "GlowNotebookCellsCap"
+                | "GlowNotebookCellsValue"
+                | "GlowNotebookCellsValueCap"
+                | "GlowNotebookPrev"
+                | "GlowNotebookNext"
+                | "GlowNotebookMenu"
+                | "GlowNotebookMenuCap"
+                | "GlowNotebookMenuValue"
+                | "GlowNotebookMenuValueCap",
+            ) => Some(NotebookTitleGroup::Actions),
+            _ => None,
+        };
         self
     }
 
@@ -105,6 +131,37 @@ mod tests {
         background: Some(Color4f::new(0.2, 0.2, 0.1, 0.1)),
         special: Some(Color4f::new(0.3, 0.2, 0.1, 0.1)),
     };
+
+    #[test]
+    fn notebook_title_alignment_marks_only_topbar_groups() {
+        for name in [
+            "GlowNotebookKernel",
+            "GlowNotebookKernelCap",
+            "GlowNotebookKernelValue",
+            "GlowNotebookKernelValueCap",
+        ] {
+            assert_eq!(
+                Style::new(COLORS).with_highlight_name(Some(name)).notebook_title,
+                Some(NotebookTitleGroup::Kernel)
+            );
+        }
+        for name in [
+            "GlowNotebookCells",
+            "GlowNotebookPrev",
+            "GlowNotebookNext",
+            "GlowNotebookMenuValueCap",
+        ] {
+            assert_eq!(
+                Style::new(COLORS).with_highlight_name(Some(name)).notebook_title,
+                Some(NotebookTitleGroup::Actions)
+            );
+        }
+        for name in
+            ["Normal", "WinBar", "GlowNotebookBar", "GlowNotebookLanguage", "GlowNotebookRun"]
+        {
+            assert_eq!(Style::new(COLORS).with_highlight_name(Some(name)).notebook_title, None);
+        }
+    }
 
     #[test]
     fn test_foreground() {

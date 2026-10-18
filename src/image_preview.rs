@@ -24,6 +24,21 @@ pub struct DecodedImage {
 }
 
 /// Image viewport in editor grid coordinates, with pan measured in pixels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ImageAnchor {
+    pub window: u64,
+    pub epoch: u64,
+    pub scroll: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ImageClip {
+    pub row: f32,
+    pub col: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ImageView {
     pub row: f32,
@@ -35,6 +50,8 @@ pub struct ImageView {
     pub pan_y: f32,
     /// Molten images inside an editor output float use the overlay pass.
     pub overlay: bool,
+    pub anchor: Option<ImageAnchor>,
+    pub clip: Option<ImageClip>,
 }
 
 impl ImageView {
@@ -66,8 +83,63 @@ impl ImageView {
                 Some((_, value)) => value.as_bool().ok_or("Image overlay must be a boolean")?,
                 None => false,
             },
+            anchor: fields
+                .iter()
+                .find(|(name, _)| name.as_str() == Some("anchor"))
+                .map(|(_, value)| {
+                    let fields = value.as_map().ok_or("Image anchor must be a map")?;
+                    let positive = |key| {
+                        fields
+                            .iter()
+                            .find(|(name, _)| name.as_str() == Some(key))
+                            .and_then(|(_, value)| value.as_u64())
+                            .filter(|value| *value > 0)
+                            .ok_or_else(|| format!("Image anchor {key} must be positive"))
+                    };
+                    let scroll =
+                        match fields.iter().find(|(name, _)| name.as_str() == Some("scroll")) {
+                            Some((_, value)) => {
+                                value.as_bool().ok_or("Image anchor scroll must be a boolean")?
+                            }
+                            None => false,
+                        };
+                    Ok::<_, String>(ImageAnchor {
+                        window: positive("window")?,
+                        epoch: positive("epoch")?,
+                        scroll,
+                    })
+                })
+                .transpose()?,
+            clip: fields
+                .iter()
+                .find(|(name, _)| name.as_str() == Some("clip"))
+                .map(|(_, value)| {
+                    let fields = value.as_map().ok_or("Image clip must be a map")?;
+                    let number = |key| {
+                        fields
+                            .iter()
+                            .find(|(name, _)| name.as_str() == Some(key))
+                            .and_then(|(_, value)| value.as_f64())
+                            .map(|value| value as f32)
+                            .filter(|value| value.is_finite() && value.abs() <= 1_000_000.0)
+                            .ok_or_else(|| {
+                                format!("Image clip {key} must be a bounded finite number")
+                            })
+                    };
+                    let clip = ImageClip {
+                        row: number("row")?,
+                        col: number("col")?,
+                        width: number("width")?,
+                        height: number("height")?,
+                    };
+                    if clip.width <= 0.0 || clip.height <= 0.0 {
+                        return Err("Image clip size must be positive".to_string());
+                    }
+                    Ok(clip)
+                })
+                .transpose()?,
         };
-        if view.row < 0.0 || view.col < 0.0 {
+        if view.anchor.is_none() && (view.row < 0.0 || view.col < 0.0) {
             return Err("Image viewport row and col must be nonnegative".to_owned());
         }
         if view.width <= 0.0 || view.height <= 0.0 || view.zoom <= 0.0 {
@@ -75,7 +147,7 @@ impl ImageView {
         }
         if [view.row, view.col, view.width, view.height]
             .into_iter()
-            .any(|value| value > 1_000_000.0)
+            .any(|value| value.abs() > 1_000_000.0)
             || view.pan_x.abs() > 1_000_000.0
             || view.pan_y.abs() > 1_000_000.0
         {
@@ -203,6 +275,51 @@ mod tests {
                 .map(|(key, value)| (Value::from(key), Value::from(value)))
                 .collect(),
         )
+    }
+
+    #[test]
+    fn native_image_anchor_protocol_preserves_legacy_and_validates_owner_local_views() {
+        let legacy = ImageView::parse(&viewport()).unwrap();
+        assert!(legacy.anchor.is_none() && legacy.clip.is_none() && !legacy.overlay);
+        let Value::Map(mut fields) = viewport() else { unreachable!() };
+        fields[0].1 = (-2.5).into();
+        assert!(
+            ImageView::parse(&Value::Map(fields.clone())).is_err(),
+            "legacy coordinates remain nonnegative"
+        );
+        fields.push((
+            "anchor".into(),
+            Value::Map(vec![
+                ("window".into(), 1000.into()),
+                ("epoch".into(), 9.into()),
+                ("scroll".into(), true.into()),
+            ]),
+        ));
+        fields.push((
+            "clip".into(),
+            Value::Map(vec![
+                ("row".into(), 1.into()),
+                ("col".into(), 0.into()),
+                ("width".into(), 80.into()),
+                ("height".into(), 23.into()),
+            ]),
+        ));
+        let anchored = ImageView::parse(&Value::Map(fields.clone())).unwrap();
+        assert_eq!(anchored.anchor, Some(ImageAnchor { window: 1000, epoch: 9, scroll: true }));
+        assert_eq!(anchored.row, -2.5);
+        assert_eq!(anchored.clip.unwrap().row, 1.0);
+        for bad in [
+            Value::Nil,
+            Value::Map(vec![("window".into(), 0.into()), ("epoch".into(), 9.into())]),
+            Value::Map(vec![("window".into(), 1000.into()), ("epoch".into(), 0.into())]),
+        ] {
+            let mut invalid = fields.clone();
+            invalid[4].1 = bad;
+            assert!(ImageView::parse(&Value::Map(invalid)).is_err());
+        }
+        let Value::Map(clip) = &mut fields[5].1 else { unreachable!() };
+        clip[2].1 = 0.into();
+        assert!(ImageView::parse(&Value::Map(fields)).is_err());
     }
 
     #[test]

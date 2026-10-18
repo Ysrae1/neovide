@@ -19,6 +19,7 @@ use winit::{
 
 use approx::AbsDiffEq;
 
+use super::keyboard_manager::{NotebookSelectionKeyAction, notebook_selection_key_action};
 #[cfg(target_os = "windows")]
 use super::settings::CornerPreference;
 use super::{
@@ -959,6 +960,35 @@ impl WinitWindowWrapper {
         window_id: WindowId,
         event: &WindowEvent,
     ) -> Option<OverlayEvent> {
+        let mut notebook_selection_cleared = false;
+        if let WindowEvent::KeyboardInput { event: key_event, is_synthetic: false, .. } = event {
+            let has_notebook_selection = self.routes.get(&window_id).is_some_and(|route| {
+                route.window.renderer.borrow().active_notebook_selection().is_some()
+            });
+            match notebook_selection_key_action(
+                &key_event.logical_key,
+                self.keyboard_manager.current_modifiers().state(),
+                has_notebook_selection,
+            ) {
+                Some(NotebookSelectionKeyAction::Copy) => {
+                    if key_event.state == winit::event::ElementState::Pressed {
+                        self.copy_active_notebook_selection(window_id);
+                    }
+                    // Copy belongs to the native selection, including its release.
+                    return Some(OverlayEvent::Unchanged);
+                }
+                Some(NotebookSelectionKeyAction::Clear)
+                    if key_event.state == winit::event::ElementState::Pressed =>
+                {
+                    let route = self.routes.get(&window_id)?;
+                    route.window.mouse_manager.borrow_mut().clear_notebook_selection();
+                    route.window.renderer.borrow_mut().set_message_selection(None);
+                    notebook_selection_cleared = true;
+                }
+                _ => {}
+            }
+        }
+
         #[cfg(target_os = "macos")]
         if let WindowEvent::KeyboardInput { event: key_event, is_synthetic: false, .. } = event {
             let modifiers = self.keyboard_manager.current_modifiers();
@@ -1021,7 +1051,11 @@ impl WinitWindowWrapper {
             renderer.handle_event(event);
         }
 
-        Some(mouse_result.overlay_event)
+        Some(if notebook_selection_cleared {
+            OverlayEvent::MessageSelection(MessageSelectionEvent::Clear)
+        } else {
+            mouse_result.overlay_event
+        })
     }
 
     pub fn handle_window_event(&mut self, window_id: WindowId, event: WindowEvent) -> bool {
@@ -1195,7 +1229,7 @@ impl WinitWindowWrapper {
 
         match action {
             MessageSelectionEvent::Outside => false,
-            MessageSelectionEvent::Clear => {
+            MessageSelectionEvent::Clear | MessageSelectionEvent::Cancel => {
                 route.window.renderer.borrow_mut().set_message_selection(None);
                 true
             }
@@ -1205,10 +1239,26 @@ impl WinitWindowWrapper {
             }
             MessageSelectionEvent::Finish(selection) => {
                 self.copy_message_selection(window_id, selection);
-                route.window.renderer.borrow_mut().set_message_selection(None);
+                route
+                    .window
+                    .renderer
+                    .borrow_mut()
+                    .set_message_selection(selection.notebook.map(|_| selection));
                 true
             }
         }
+    }
+
+    fn copy_active_notebook_selection(&self, window_id: WindowId) -> bool {
+        let Some(selection) = self
+            .routes
+            .get(&window_id)
+            .and_then(|route| route.window.renderer.borrow().active_notebook_selection())
+        else {
+            return false;
+        };
+        self.copy_message_selection(window_id, selection);
+        true
     }
 
     fn copy_message_selection(&self, window_id: WindowId, selection: MessageSelection) {
@@ -1216,42 +1266,9 @@ impl WinitWindowWrapper {
             return;
         };
         let renderer = route.window.renderer.borrow();
-        let Some(window) = renderer.rendered_windows.get(&selection.grid_id) else {
+        let Some(text) = renderer.selection_text(selection) else {
             return;
         };
-
-        let height = window.grid_size.height;
-        let width = window.grid_size.width;
-        if height == 0 || width == 0 {
-            return;
-        }
-
-        let max_row = height - 1;
-        let max_col = width - 1;
-        let start_row = selection.start.y.min(max_row);
-        let end_row = selection.end.y.min(max_row);
-        let (row_start, row_end) =
-            if start_row <= end_row { (start_row, end_row) } else { (end_row, start_row) };
-
-        let start_col = selection.start.x.min(max_col);
-        let end_col = selection.end.x.min(max_col);
-        let (col_start, col_end) =
-            if start_col <= end_col { (start_col, end_col) } else { (end_col, start_col) };
-
-        let mut lines = Vec::new();
-        for row in row_start..=row_end {
-            let row_start_col = if row == row_start { col_start } else { 0 };
-            let row_end_col = if row == row_end { col_end } else { max_col };
-            if let Some(line) = window.line_text_range(row, row_start_col, row_end_col) {
-                lines.push(line);
-            }
-        }
-
-        if lines.is_empty() || lines.iter().all(|line| line.is_empty()) {
-            return;
-        }
-
-        let text = lines.join("\n");
 
         if let Some(clipboard) = self.clipboard.upgrade()
             && let Ok(mut clipboard) = clipboard.lock()
@@ -1311,6 +1328,14 @@ impl WinitWindowWrapper {
         match command {
             MacShortcutCommand::TogglePinnedWindow => self.toggle_pinned_window(),
             MacShortcutCommand::ShowEditorSwitcher => self.show_editor_switcher(),
+            MacShortcutCommand::Copy => {
+                if let Some(window_id) = self.get_focused_route()
+                    && !self.copy_active_notebook_selection(window_id)
+                    && let Some(route) = self.routes.get(&window_id)
+                {
+                    send_ui(SerialCommand::Keyboard("<D-c>".into()), &route.window.neovim_handler);
+                }
+            }
         }
     }
 
@@ -2841,6 +2866,22 @@ impl WinitWindowWrapper {
             };
 
         let grid_size = self.get_grid_size_from_window(window_id, grid_scale, MIN_GRID_SIZE);
+        // Physical cell dimensions let inline images reserve their intrinsic
+        // pixel size. Publish before the grid-size early return: a font/scale
+        // change can alter cell metrics without crossing a row/column boundary.
+        if grid_scale.width().is_finite()
+            && grid_scale.height().is_finite()
+            && grid_scale.width() > 0.0
+            && grid_scale.height() > 0.0
+        {
+            send_ui(
+                ParallelCommand::CellMetrics {
+                    width: grid_scale.width(),
+                    height: grid_scale.height(),
+                },
+                &neovim_handler,
+            );
+        }
         if last_synced.as_ref() == Some(&grid_size) {
             trace!("Grid matched route size, skip update.");
             return;

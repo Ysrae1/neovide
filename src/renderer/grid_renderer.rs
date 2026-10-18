@@ -173,6 +173,53 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn explicit_tree_and_cursorline_blend_preserves_normal_selection_and_capsule_alpha() {
+        let settings = Arc::new(Settings::new());
+        settings.set(&WindowSettings { normal_opacity: 0.78, ..WindowSettings::default() });
+        settings.set(&RendererSettings::default());
+        let mut renderer = GridRenderer::new(1.0, settings);
+        renderer.grid_scale = GridScale::new(crate::units::PixelSize::new(16.0, 24.0));
+        let normal = Color::from_rgb(250, 250, 250);
+        let foreground = Color::from_rgb(92, 97, 102);
+        renderer.default_style =
+            Arc::new(Style::new(Colors::new(Some(foreground.into()), Some(normal.into()), None)));
+        let mut surface = surfaces::raster_n32_premul((80, 24)).unwrap();
+        let base = renderer.get_default_background(0.78);
+        surface.canvas().clear(base);
+        for (index, (name, color, blend, expected_alpha)) in [
+            ("NeoTreeNormal", Color::from_rgb(243, 243, 243), 40, 153),
+            // The actual light-theme NeoTreeCursorLine is exactly Normal RGB.
+            ("NeoTreeCursorLine", normal, 40, 153),
+            ("CursorLine", Color::from_rgb(239, 239, 239), 40, 153),
+            ("Visual", Color::from_rgb(238, 238, 238), 0, 255),
+            ("GlowNotebookLanguage", Color::from_rgb(255, 214, 138), 0, 255),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let style = Style {
+                blend,
+                ..Style::new(Colors::new(Some(foreground.into()), Some(color.into()), None))
+            }
+            .with_highlight_name(Some(name));
+            assert_eq!(style.foreground(&renderer.default_style.colors).to_color(), foreground);
+            renderer.draw_background(
+                surface.canvas(),
+                &(index as u32..index as u32 + 1),
+                &Some(Arc::new(style)),
+                1.0,
+            );
+            assert_eq!(
+                surface.peek_pixels().unwrap().get_color((index as i32 * 16 + 8, 12)).a(),
+                expected_alpha,
+                "{name} must replace the base background alpha rather than stacking over it"
+            );
+        }
+        assert_eq!(base.a(), 198, "ordinary editor background remains 78% opaque");
+        assert!((renderer.background_opacity(normal, 0, 1.0) - 0.78).abs() < 0.001);
+    }
 }
 
 /// Struct with named fields to be returned from draw_background
@@ -281,10 +328,12 @@ impl GridRenderer {
 
     fn background_opacity(&self, color: Color, blend: u8, opacity: f32) -> f32 {
         let normal_opacity = self.settings.get::<WindowSettings>().normal_opacity;
-        if normal_opacity < 1.0 && color == self.get_default_background_color() {
-            normal_opacity
-        } else if blend > 0 {
+        if blend > 0 {
+            // An explicit highlight blend also applies when CursorLine or a
+            // remapped window background happens to share Normal's RGB color.
             ((100 - blend) as f32 / 100.0) * opacity
+        } else if normal_opacity < 1.0 && color == self.get_default_background_color() {
+            normal_opacity
         } else {
             opacity
         }

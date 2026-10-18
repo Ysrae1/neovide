@@ -4,6 +4,8 @@ import json
 import os
 import tempfile
 import time
+import sys
+import tomllib
 from pathlib import Path
 
 import pynvim
@@ -23,6 +25,11 @@ def main():
         Image.new("RGB", (64, 96), (200, 90, 30)).save(second)
         text = files / "c plain.txt"
         text.write_text("normal text preview\n")
+        navigation = "--navigation-only" in sys.argv
+        if navigation:
+            for name in ["a-directory", "b-directory"]:
+                (files / name).mkdir()
+            (files / "a-directory" / "inner.txt").write_text("directory navigation\n")
         config_home = work / "user yazi's config"
         config_home.mkdir()
         original_config = "[mgr]\nratio=[1,4,3]\n[preview]\nimage_delay=0\n"
@@ -34,8 +41,10 @@ def main():
             *["vim.opt.rtp:append(" + json.dumps(str(data / "lazy" / plugin)) + ")"
               for plugin in ["plenary.nvim", "yazi.nvim"]],
             "vim.g.neovide_native_image=true;vim.g.neovide_channel_id=9999;_calls={};_events={}",
+            "vim.env.NO_COLOR=nil;vim.env.TERM='xterm-256color';vim.env.COLORTERM='truecolor'" if navigation else "",
             "vim.rpcnotify=function(_,m,...)table.insert(_calls,{m,...});return true end",
             "vim.api.nvim_create_autocmd('User',{pattern='YaziDDSCustom',callback=function(e)table.insert(_events,e.data)end})",
+            "vim.api.nvim_create_autocmd('User',{pattern='YaziDDSHover',callback=function(e)_hover=e.data.url end})" if navigation else "",
             "_opts=require('config.media.yazi').configure({config_home=" + json.dumps(str(config_home)) + ",hooks={on_yazi_ready=function(_,_,api)_api=api end}})",
             "require('yazi').setup(_opts)",
         ]))
@@ -53,6 +62,33 @@ def main():
             def statuses():
                 result = editor.exec_lua("return require('config.media.yazi').status()")
                 return [value for value in (result.values() if isinstance(result, dict) else result) if value is not None]
+
+            if navigation:
+                editor.exec_lua("require('yazi').yazi(nil,...)", str(files))
+                wait_until(lambda: bool(editor.exec_lua("return table.concat(vim.api.nvim_buf_get_lines(0,0,-1,false),'\\n'):find('c plain.txt',1,true)~=nil")), "directory list ready")
+                terminal = editor.current.buffer.number
+                owner_win = editor.current.window.handle
+                assert editor.funcs.mode() == "t", "Yazi must receive terminal input"
+                editor.input("j")
+                wait_until(lambda: editor.exec_lua("return _hover") == str(files / "b-directory"), "j next directory")
+                editor.input("k")
+                wait_until(lambda: editor.exec_lua("return _hover") == str(files / "a-directory"), "k previous directory")
+                editor.input("l")
+                wait_until(lambda: str(files / "a-directory") in editor.current.buffer[0], "l enter directory")
+                editor.input("h")
+                wait_until(lambda: editor.exec_lua("return _hover") == str(files / "a-directory"), "h parent directory")
+                overlay = Path(editor.exec_lua("return _opts.config_home"))
+                rules = tomllib.loads((overlay / "yazi.toml").read_text())["plugin"]["previewers"]
+                assert next(rule for rule in rules if rule.get("url") == "*/")["run"] == "folder"
+                assert any(rule["run"].startswith("neovide-glow-native-preview.") for rule in rules if rule.get("mime") == "image/*")
+                editor.input("G")
+                wait_until(lambda: editor.exec_lua("return _hover") == str(text), "G final text file")
+                editor.input("\r")
+                wait_until(lambda: not editor.api.win_is_valid(owner_win) and Path(editor.current.buffer.name).resolve() == text.resolve(), "Enter opens chosen file")
+                assert editor.current.buffer[:] == ["normal text preview"]
+                assert (config_home / "yazi.toml").read_text() == original_config
+                print(json.dumps({"real_yazi_terminal_mode": "t", "hjkl_and_enter": "passed", "file_open": "passed", "folder_sync_preview": "original", "image_previewer_wrappers": "preserved", "user_config": "preserved"}))
+                return
 
             editor.exec_lua("require('yazi').yazi(nil,...)", str(picture))
             wait_until(lambda: any(call[0] == "neovide.image.show" for call in editor.exec_lua("return _calls")), "initial image show")

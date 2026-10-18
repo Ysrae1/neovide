@@ -9,7 +9,7 @@ use crate::{
 use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use winit::{
     event::{ElementState, Ime, KeyEvent, Modifiers, WindowEvent},
-    keyboard::{Key, KeyCode, KeyLocation, NamedKey, PhysicalKey},
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey, PhysicalKey},
 };
 #[cfg(target_os = "macos")]
 use {
@@ -21,6 +21,78 @@ use crate::profiling::tracy_named_frame;
 
 fn is_ascii_alphabetic_char(text: &str) -> bool {
     text.len() == 1 && text.chars().next().unwrap().is_ascii_alphabetic()
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum NotebookSelectionKeyAction {
+    Copy,
+    Clear,
+}
+
+pub(super) fn notebook_selection_key_action(
+    key: &Key,
+    modifiers: ModifiersState,
+    has_selection: bool,
+) -> Option<NotebookSelectionKeyAction> {
+    if !has_selection {
+        return None;
+    }
+    match key {
+        Key::Named(NamedKey::Escape) => Some(NotebookSelectionKeyAction::Clear),
+        Key::Named(NamedKey::Copy) => Some(NotebookSelectionKeyAction::Copy),
+        Key::Character(text) if text.eq_ignore_ascii_case("c") => {
+            let control_copy = modifiers.control_key()
+                && modifiers.shift_key()
+                && !modifiers.alt_key()
+                && !modifiers.super_key();
+            let command_copy = cfg!(target_os = "macos")
+                && modifiers.super_key()
+                && !modifiers.shift_key()
+                && !modifiers.alt_key()
+                && !modifiers.control_key();
+            (control_copy || command_copy).then_some(NotebookSelectionKeyAction::Copy)
+        }
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod notebook_selection_tests {
+    use super::*;
+
+    #[test]
+    fn notebook_output_selection_copy_keys_are_consumed_only_for_native_selection() {
+        let copy = Key::Character("c".into());
+        let control_shift = ModifiersState::CONTROL | ModifiersState::SHIFT;
+        assert_eq!(
+            notebook_selection_key_action(&copy, control_shift, true),
+            Some(NotebookSelectionKeyAction::Copy)
+        );
+        assert_eq!(notebook_selection_key_action(&copy, control_shift, false), None);
+        assert_eq!(notebook_selection_key_action(&copy, ModifiersState::CONTROL, true), None);
+        assert_eq!(notebook_selection_key_action(&copy, ModifiersState::empty(), true), None);
+        assert_eq!(
+            notebook_selection_key_action(
+                &Key::Named(NamedKey::Copy),
+                ModifiersState::empty(),
+                true
+            ),
+            Some(NotebookSelectionKeyAction::Copy)
+        );
+        assert_eq!(
+            notebook_selection_key_action(
+                &Key::Named(NamedKey::Escape),
+                ModifiersState::empty(),
+                true
+            ),
+            Some(NotebookSelectionKeyAction::Clear)
+        );
+        #[cfg(target_os = "macos")]
+        assert_eq!(
+            notebook_selection_key_action(&copy, ModifiersState::SUPER, true),
+            Some(NotebookSelectionKeyAction::Copy)
+        );
+    }
 }
 
 pub struct KeyboardManager {
@@ -41,7 +113,6 @@ impl KeyboardManager {
         }
     }
 
-    #[cfg(target_os = "macos")]
     pub fn current_modifiers(&self) -> Modifiers {
         self.modifiers
     }

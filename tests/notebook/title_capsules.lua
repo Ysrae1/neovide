@@ -18,26 +18,48 @@ for name, color in pairs({ St_NormalMode = 0x5599cc, St_VisualMode = 0x55bb99, S
 end
 local notebook = require("config.media.notebook_edit")
 notebook.setup()
-local function rendered(session, width)
-  return vim.api.nvim_eval_statusline(notebook.render_title(session, width), {
+local function rendered(session, width, layout)
+  return vim.api.nvim_eval_statusline(notebook.render_title(session, width, layout), {
     winid = vim.api.nvim_get_current_win(), use_winbar = true, maxwidth = width, highlights = true,
   })
 end
 local idle = rendered({}, 80)
-assert(idle.str:find("KERNEL  SELECT ␣jk", 1, true) and idle.str:find("CELLS  ↑ [c   ↓ ]c", 1, true) and idle.str:find("MENU  ␣j", 1, true))
+assert(idle.str:find("KERNEL   ␣jk", 1, true) and idle.str:find("CELLS  ↑ [c   ↓ ]c", 1, true) and idle.str:find("MENU  ␣j", 1, true))
 local _, left_ends = idle.str:gsub("", "")
 local _, right_ends = idle.str:gsub("", "")
 assert(left_ends == 3 and right_ends == 3)
+for _, label in ipairs({ 'KERNEL', 'CELLS', 'MENU' }) do
+  assert(idle.str:find('' .. label, 1, true), 'left cap touches label ' .. label)
+  assert(not idle.str:find(' ' .. label, 1, true), 'no extra leading label space ' .. label)
+end
+assert(not idle.str:find(' ', 1, true), 'right cap touches value')
 assert(not idle.str:find("空格", 1, true))
 assert(not idle.str:find("/", 1, true) and not idle.str:find("Kernel:", 1, true))
 local long = rendered({ ready = true, selected = { display_name = string.rep("Long Kernel ", 30) } }, 64)
 assert(long.width == 64 and long.str:find("…", 1, true))
 assert(long.str:find("↑ [c   ↓ ]c", 1, true) and long.str:find("MENU  ␣j", 1, true))
+assert(not long.str:find('<', 1, true), 'width budget must not invoke statusline truncation')
+local exact = rendered({ ready = true, kernel = '123456789012345678901' }, 64)
+assert(exact.width == 64 and exact.str:find('123456789012345678901', 1, true), 'actual capsule width budget')
+assert(not long.str:find(' ', 1, true), 'long title right cap touches value')
+vim.g.neovide_native_notebook=true;vim.g.neovide_native_notebook_viewport=true
+local native = rendered({ready=true,kernel='glow-python'},98,{textoff=8,host_width=100})
+assert(native.width==98 and native.str:match('^ *')==string.rep(' ',7),'Kernel starts at nearest input-border cell')
+assert(native.str:sub(-#'')=='','Menu ends at actual text-grid boundary, beyond language capsule inset')
+assert(math.abs(7-(8-.8))<=.5,'left alignment rounds to nearest whole winbar cell')
+assert(math.abs(98-(100-1.12))<1,'reserved native viewport limits right alignment to under one cell')
+local native_full = rendered({ready=true,kernel='glow-python'},100,{textoff=4,host_width=100})
+assert(native_full.str:match('^ *')==string.rep(' ',3) and native_full.str:sub(-1)==' ', 'unresized viewport frame insets')
+local native_long = rendered({ready=true,kernel=string.rep('Long ',40)},62,{textoff=8,host_width=64})
+assert(native_long.width==62 and native_long.str:find('…',1,true) and not native_long.str:find('<',1,true), 'aligned title retains right groups without statusline truncation')
+vim.g.neovide_native_notebook=nil;vim.g.neovide_native_notebook_viewport=nil
 local narrow = rendered({ ready = true, kernel = string.rep("name", 30) }, 40)
 assert(narrow.width == 40 and narrow.str:find("[c  ]c", 1, true) and narrow.str:find("M  ␣j", 1, true))
-assert(rendered({ starting = true, requested = "glow-python" }, 100).str:find("KERNEL  STARTING… glow-python", 1, true))
+assert(not narrow.str:find(' ', 1, true), 'narrow right cap touches value')
+assert(rendered({ready=true,kernel='glow-python   '},100).str:find('glow-python',1,true), 'trim external value whitespace')
+assert(rendered({ starting = true, requested = "glow-python" }, 100).str:find("KERNEL  ◌ glow-python", 1, true))
 assert(rendered({ ready = true, kernel = "glow-python" }, 100).str:find("KERNEL  glow-python", 1, true))
-assert(rendered({ selected = { display_name = "Base" } }, 100).str:find("KERNEL  STOPPED · Base", 1, true))
+assert(rendered({ selected = { display_name = "Base" } }, 100).str:find("KERNEL  ■ Base", 1, true))
 local function contrast(color, background)
   local function linear(channel)
     channel = channel / 255
@@ -68,7 +90,7 @@ local cells_value = vim.api.nvim_get_hl(0, { name = "GlowNotebookCellsValue", li
 assert(previous.fg == following.fg and previous.fg == cells_value.fg and previous.bg == 0x252934 and following.bg == 0x252934)
 assert(previous.fg == 0xc5f760 and vim.api.nvim_get_hl(0,{name='GlowNotebookCells',link=false}).bg == 0xc5f760)
 vim.g.mapleader = ","
-assert(rendered({}, 80).str:find("SELECT ,jk", 1, true))
+assert(rendered({}, 80).str:find(" ,jk", 1, true))
 vim.g.mapleader = "<Space>"
 assert(notebook.leader_label() == "␣")
 local old_color = vim.api.nvim_get_hl(0, { name = "GlowNotebookKernel", link = false }).bg
@@ -94,6 +116,11 @@ assert(joined(labels[2].chunks):find('',1,true) and not joined(labels[2].chun
 local code_text=joined(labels[2].chunks)
 assert(code_text:find('󰼛',1,true) < code_text:find('',1,true), 'run precedes right-aligned type')
 assert(code_text:find('󰘶󰌑',1,true) and not code_text:find('[()]'), 'shortcut has no parentheses')
+for _, kind in ipairs({'markdown','raw','code'}) do
+  local text=joined(notebook.label_chunks(kind,'python',false))
+  assert(not text:find(' ',1,true),'no space after left semicircle '..kind)
+  assert(not text:find(' ',1,true),'no space before right semicircle '..kind)
+end
 assert(labels[2].chunks[#labels[2].chunks-1][2]=='GlowNotebookLanguage', 'type remains the last capsule')
 assert(labels[2].width==vim.fn.strdisplaywidth(joined(labels[2].chunks)) and labels[2].accent==notebook.cell_accent())
 local cell_accent=vim.api.nvim_get_hl(0,{name='GlowNotebookCell',link=false}).bg

@@ -40,9 +40,15 @@ pub async fn setup_neovide_specific_state(
     nvim.set_var("neovide_native_notebook", Value::from(true))
         .await
         .context("Could not advertise native Notebook frames")?;
+    nvim.set_var("neovide_native_notebook_viewport", Value::from(true))
+        .await
+        .context("Could not advertise Notebook text viewport support")?;
     nvim.set_var("neovide_native_image", Value::from(true))
         .await
         .context("Could not advertise native image preview")?;
+    nvim.set_var("neovide_native_image_anchor", Value::from(true))
+        .await
+        .context("Could not advertise owner-anchored native images")?;
 
     nvim.set_var("neovide_native_preview", Value::from(cfg!(target_os = "macos")))
         .await
@@ -101,6 +107,10 @@ pub async fn setup_neovide_specific_state(
     )
     .await
     .context("Error when running Neovide init.lua")?;
+
+    nvim.exec_lua(include_str!("../../lua/float_shadow.lua"), call_args![])
+        .await
+        .context("Error when configuring composed floating-window shadows")?;
 
     Ok(())
 }

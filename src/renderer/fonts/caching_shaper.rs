@@ -4,7 +4,8 @@ use itertools::Itertools;
 use log::{debug, error, info, trace, warn};
 use lru::LruCache;
 use skia_safe::{
-    TextBlob, TextBlobBuilder,
+    Font, FontStyle, TextBlob, TextBlobBuilder,
+    font_style::Slant,
     graphics::{font_cache_limit, font_cache_used, set_font_cache_limit},
 };
 use swash::{
@@ -37,6 +38,22 @@ impl ShapeKey {
 }
 
 const FONT_CACHE_SIZE: usize = 8 * 1024 * 1024;
+
+fn font_for_style(font: &Font, style: CoarseStyle) -> Font {
+    let mut font = font.clone();
+    let requested: FontStyle = style.into();
+    if requested.slant() != Slant::Upright
+        && font.typeface().font_style().slant() == Slant::Upright
+        && font.skew_x() == 0.0
+    {
+        // Some families (including Fira Code) have no italic face. Shear only
+        // the ink, about the baseline; Swash's advances and grid positions stay
+        // untouched. Apply at the final run so cached Unicode fallbacks obey
+        // the request too, without slanting real Italic/Oblique faces twice.
+        font.set_skew_x(-0.20);
+    }
+    font
+}
 
 pub struct CachingShaper {
     options: FontOptions,
@@ -452,8 +469,8 @@ impl CachingShaper {
             }
 
             let mut blob_builder = TextBlobBuilder::new();
-            let (glyphs, positions) =
-                blob_builder.alloc_run_pos(&font_pair.skia_font, glyph_data.len(), None);
+            let font = font_for_style(&font_pair.skia_font, style);
+            let (glyphs, positions) = blob_builder.alloc_run_pos(&font, glyph_data.len(), None);
             for (i, (glyph_id, glyph_position)) in glyph_data.iter().enumerate() {
                 glyphs[i] = *glyph_id;
                 positions[i] = (*glyph_position).into();
@@ -503,6 +520,95 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
+
+    fn italic_style() -> CoarseStyle {
+        let mut style = crate::editor::Style::new(crate::editor::Colors::new(None, None, None));
+        style.italic = true;
+        (&style).into()
+    }
+
+    fn raster_blobs(blobs: &[TextBlob]) -> Vec<u8> {
+        use skia_safe::{Color, Paint, surfaces};
+        let mut surface = surfaces::raster_n32_premul((256, 96)).unwrap();
+        let canvas = surface.canvas();
+        canvas.clear(Color::TRANSPARENT);
+        let mut paint = Paint::default();
+        paint.set_color(Color::WHITE).set_anti_alias(true);
+        for blob in blobs {
+            canvas.draw_text_blob(blob, (24.0, 70.0), &paint);
+        }
+        let pixels = surface.peek_pixels().unwrap();
+        (0..pixels.height())
+            .flat_map(|y| (0..pixels.width()).map(move |x| (x, y)))
+            .map(|point| pixels.get_color(point).a())
+            .collect()
+    }
+
+    fn embedded_shaper() -> CachingShaper {
+        let mut shaper = CachingShaper::new(1.0);
+        shaper.options.normal.clear();
+        shaper.options.size = 48.0;
+        shaper.reset_font_loader();
+        shaper
+    }
+
+    #[test]
+    fn synthetic_italic_changes_ink_without_changing_grid_or_regular() {
+        let mut shaper = embedded_shaper();
+        let regular = shaper.current_font_pair();
+        assert_eq!(regular.skia_font.typeface().font_style().slant(), Slant::Upright);
+        let italic = font_for_style(&regular.skia_font, italic_style());
+        assert_eq!(italic.skew_x(), -0.20);
+        assert_eq!(font_for_style(&regular.skia_font, CoarseStyle::default()), regular.skia_font);
+        assert_eq!(italic.measure_str("Hλ", None).0, regular.skia_font.measure_str("Hλ", None).0);
+
+        let dimensions = shaper.font_base_dimensions();
+        let plain = shaper.shape(Word::new("Hλ", &[1, 2]), CoarseStyle::default());
+        let slanted = shaper.shape(Word::new("Hλ", &[1, 2]), italic_style());
+        let restored = shaper.shape(Word::new("Hλ", &[1, 2]), CoarseStyle::default());
+        let plain = raster_blobs(&plain);
+        assert!(plain.iter().any(|alpha| *alpha > 0));
+        assert_ne!(plain, raster_blobs(&slanted), "italic request must visibly change ink");
+        assert_eq!(plain, raster_blobs(&restored), "regular rendering must stay unchanged");
+        assert_eq!(dimensions, shaper.font_base_dimensions());
+        assert_eq!(regular.skia_font.skew_x(), 0.0, "never mutate the cached font");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn real_italic_faces_are_not_slanted_twice() {
+        let manager = skia_safe::FontMgr::new();
+        let face = ["Menlo", "Times", "Helvetica"]
+            .iter()
+            .filter_map(|name| manager.match_family_style(name, FontStyle::italic()))
+            .find(|face| face.font_style().slant() != Slant::Upright)
+            .expect("a built-in macOS italic/oblique face");
+        let original = Font::from_typeface(face, 48.0);
+        let requested = font_for_style(&original, italic_style());
+        assert_eq!(requested, original);
+        let original = TextBlob::from_str("Italic λ", &original).unwrap();
+        let requested = TextBlob::from_str("Italic λ", &requested).unwrap();
+        assert_eq!(raster_blobs(&[original]), raster_blobs(&[requested]));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cached_unicode_fallback_obeys_current_italic_request() {
+        let mut shaper = embedded_shaper();
+        let clusters = shaper.build_clusters(Word::new("中", &[3]), CoarseStyle::default());
+        assert_eq!(clusters.len(), 1);
+        let fallback = &clusters[0].1;
+        assert!(fallback.key.font_desc.is_some(), "exercise a system Unicode fallback");
+        assert_eq!(fallback.skia_font.typeface().font_style().slant(), Slant::Upright);
+        let plain = shaper.shape(Word::new("中", &[3]), CoarseStyle::default());
+        let slanted = shaper.shape(Word::new("中", &[3]), italic_style());
+        let restored = shaper.shape(Word::new("中", &[3]), CoarseStyle::default());
+        let plain = raster_blobs(&plain);
+        assert!(plain.iter().any(|alpha| *alpha > 0));
+        assert_ne!(plain, raster_blobs(&slanted), "loaded upright Unicode fallback must slant");
+        assert_eq!(plain, raster_blobs(&restored));
+        assert_eq!(fallback.skia_font.skew_x(), 0.0);
+    }
 
     struct PlatformDefault {
         guifont: String,

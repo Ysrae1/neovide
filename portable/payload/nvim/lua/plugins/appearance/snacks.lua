@@ -155,6 +155,11 @@ return {
       },
     },
 
+    config = function(_, opts)
+      require("snacks").setup(opts)
+      require("config.appearance.snacks.statuscolumn").setup()
+    end,
+
     init = function()
       vim.api.nvim_create_user_command("Dashboard", function()
         Snacks.dashboard.open()
@@ -185,6 +190,13 @@ return {
           Snacks.toggle.inlay_hints():map("<leader>uh")
           Snacks.toggle.indent():map("<leader>ug")
           Snacks.toggle.dim():map("<leader>uD")
+          if vim.g.neovide then
+            Snacks.toggle.new({
+              name = "Glow",
+              get = function() return vim.g.neovide_bloom ~= false end,
+              set = function(enabled) vim.g.neovide_bloom = enabled end,
+            }):map("<leader>uG")
+          end
         end,
       })
     end,

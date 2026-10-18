@@ -182,6 +182,7 @@ pub enum EditorMode {
 pub enum RedrawEvent {
     // Decoration snapshots share the redraw/flush queue with their viewport.
     NotebookFrames(crate::renderer::notebook::FrameSnapshot),
+    FloatShadowExclusions(Vec<u64>),
     /// Set the window title.
     SetTitle {
         title: String,
@@ -728,6 +729,27 @@ fn parse_style(style_map: Value, _info_array: Value) -> Result<Style> {
     Ok(style)
 }
 
+pub(crate) fn parse_shadow_exclusions(
+    arguments: &[Value],
+) -> std::result::Result<Vec<u64>, String> {
+    let [windows] = arguments else {
+        return Err("Shadow exclusions need one window snapshot".into());
+    };
+    let windows = windows
+        .as_array()
+        .filter(|windows| windows.len() <= 512)
+        .ok_or("Shadow exclusions must be an array of at most 512 windows")?;
+    windows
+        .iter()
+        .map(|window| {
+            window
+                .as_u64()
+                .filter(|window| *window > 0)
+                .ok_or_else(|| "Shadow exclusion owner must be a positive window id".into())
+        })
+        .collect()
+}
+
 fn parse_hl_name(infos: Value) -> Option<String> {
     fn take_names(values: Vec<(Value, Value)>, names: &mut Vec<String>) {
         let possible_keys = ["hi_name", "ui_name", "name", "link"];
@@ -756,6 +778,12 @@ fn parse_hl_name(infos: Value) -> Option<String> {
     }
 
     if let Some(name) = names.iter().find(|name| name.starts_with("MatchParen")) {
+        return Some(name.clone());
+    }
+
+    // Winbar combines its UI base with the explicit syntax highlight. Keep
+    // Notebook's semantic name, rather than losing it to the leading WinBar.
+    if let Some(name) = names.iter().find(|name| name.starts_with("GlowNotebook")) {
         return Some(name.clone());
     }
 
@@ -1202,6 +1230,79 @@ mod tests {
     use rmpv::Value;
 
     use super::{MessageKind, RedrawEvent, parse_msg_show};
+
+    #[test]
+    fn notebook_title_alignment_keeps_syntax_name_from_real_winbar_composition() {
+        use crate::editor::NotebookTitleGroup;
+        let packets = if let Ok(path) = std::env::var("GLOW_NOTEBOOK_TITLE_HL_FIXTURE") {
+            // The scoped UI probe writes complete hl_attr_define arguments,
+            // preserving the actual WinBar + syntax metadata order.
+            let mut input = std::fs::File::open(path).unwrap();
+            rmpv::decode::read_value(&mut input).unwrap().as_array().unwrap().clone()
+        } else {
+            [
+                "GlowNotebookKernelCap",
+                "GlowNotebookKernelValue",
+                "GlowNotebookCellsCap",
+                "GlowNotebookMenuValueCap",
+            ]
+            .into_iter()
+            .map(|name| {
+                Value::Array(vec![
+                    300.into(),
+                    Value::Map(vec![]),
+                    Value::Map(vec![]),
+                    Value::Array(vec![
+                        Value::Map(vec![
+                            ("kind".into(), "ui".into()),
+                            ("ui_name".into(), "WinBar".into()),
+                            ("hi_name".into(), "WinBar".into()),
+                        ]),
+                        Value::Map(vec![
+                            ("kind".into(), "syntax".into()),
+                            ("hi_name".into(), name.into()),
+                        ]),
+                    ]),
+                ])
+            })
+            .collect()
+        };
+        assert!(!packets.is_empty());
+        for packet in &packets {
+            let arguments = packet.as_array().unwrap().clone();
+            let expected = arguments[3]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find_map(|info| {
+                    info.as_map()?.iter().find_map(|(key, value)| {
+                        (key.as_str() == Some("hi_name"))
+                            .then(|| value.as_str())
+                            .flatten()
+                            .filter(|name| name.starts_with("GlowNotebook"))
+                    })
+                })
+                .unwrap()
+                .to_string();
+            let RedrawEvent::HighlightAttributesDefine { style, name, .. } =
+                super::parse_hl_attr_define(arguments).unwrap()
+            else {
+                panic!("highlight event")
+            };
+            assert_eq!(
+                name.as_deref(),
+                Some(expected.as_str()),
+                "explicit syntax name lost behind WinBar"
+            );
+            let marker = if expected.starts_with("GlowNotebookKernel") {
+                NotebookTitleGroup::Kernel
+            } else {
+                NotebookTitleGroup::Actions
+            };
+            assert_eq!(style.with_highlight_name(name.as_deref()).notebook_title, Some(marker));
+        }
+        eprintln!("validated {} actual/captured composite winbar highlights", packets.len());
+    }
 
     #[test]
     fn notebook_viewport_preserves_real_neovim_window_extension_handle() {

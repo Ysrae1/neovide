@@ -156,6 +156,7 @@ pub enum WindowCommand {
 pub enum MacShortcutCommand {
     TogglePinnedWindow,
     ShowEditorSwitcher,
+    Copy,
 }
 
 #[derive(Clone, Debug, PartialEq)]

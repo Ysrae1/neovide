@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use skia_safe::{
-    BlendMode, Canvas, Color, Color4f, Matrix, Paint, Path, PathBuilder, Picture, PictureRecorder,
-    Rect,
+    BlendMode, Canvas, ClipOp, Color, Color4f, Matrix, Paint, Path, PathBuilder, Picture,
+    PictureRecorder, Rect,
 };
 
 use crate::{
@@ -19,10 +19,55 @@ use crate::{
 pub const BASE_GRID_ID: u64 = 1;
 pub const NO_MULTIGRID_GRID_ID: u64 = 0;
 
-// Fill only the horizontal remainder after the last complete cell. The strip
+// Extend the rightmost host through its horizontal pixel remainder. The strip
 // below the last complete row retains the window's default background. Cap the
-// horizontal fill to one cell so a grid briefly lagging a resize is not stretched.
+// fractional extension to one cell so a grid lagging a resize is not stretched.
 const MAX_EDGE_FILL_CELLS: f32 = 1.0;
+
+#[derive(Clone, Copy, Debug)]
+struct NotebookTitleLayout {
+    kernel: (f32, f32),
+    actions: (f32, f32),
+    host_width: f32,
+}
+
+impl NotebookTitleLayout {
+    fn draw(
+        &self,
+        canvas: &Canvas,
+        picture: &Picture,
+        matrix: &Matrix,
+        scale: GridScale,
+        origin_x: f32,
+    ) {
+        let rect = |span: (f32, f32)| {
+            Rect::from_xywh(
+                origin_x + span.0 * scale.width(),
+                0.0,
+                (span.1 - span.0) * scale.width(),
+                scale.height(),
+            )
+        };
+        canvas.save();
+        canvas.concat(matrix);
+        canvas.clip_rect(rect(self.kernel), ClipOp::Difference, false);
+        canvas.clip_rect(rect(self.actions), ClipOp::Difference, false);
+        canvas.draw_picture(picture, None, None);
+        canvas.restore();
+        // Lua places Kernel at round(textoff-.8). Its remaining .2-cell
+        // fraction and the right frame edge are resolved in pixel coordinates.
+        for (span, offset) in
+            [(self.kernel, 0.2), (self.actions, self.host_width - 1.12 - self.actions.1)]
+        {
+            canvas.save();
+            canvas.concat(matrix);
+            canvas.translate((offset * scale.width(), 0.0));
+            canvas.clip_rect(rect(span), None, false);
+            canvas.draw_picture(picture, None, None);
+            canvas.restore();
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ViewportMargins {
@@ -32,6 +77,10 @@ pub struct ViewportMargins {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowDrawCommand {
+    HostSize {
+        width: u64,
+        height: u64,
+    },
     Position {
         grid_position: (f64, f64),
         grid_size: (u64, u64),
@@ -102,6 +151,7 @@ pub struct RenderedWindow {
     pub scroll_animation_delta: f32,
     pub window_id: Option<u64>,
     pub viewport_scroll: f64,
+    pub host_grid_size: Option<GridSize<u32>>,
 }
 
 #[derive(Clone, Debug)]
@@ -145,6 +195,7 @@ impl RenderedWindow {
             scroll_animation_delta: 0.0,
             window_id: None,
             viewport_scroll: 0.0,
+            host_grid_size: None,
         }
     }
 
@@ -154,6 +205,20 @@ impl RenderedWindow {
         let fract = (self.grid_destination * grid_scale).fract();
         let pos = (self.grid_current_position * grid_scale - fract).round() + fract.to_vector();
         PixelRect::<f32>::from_origin_and_size(pos.into(), self.grid_size() * grid_scale)
+    }
+
+    /// A normal split can reserve columns outside its narrower text grid.
+    /// Those columns still belong to the split's background, unlike floats.
+    pub fn background_region(&self, grid_scale: GridScale) -> PixelRect<f32> {
+        let mut region = self.pixel_region(grid_scale);
+        if self.anchor_info.is_none()
+            && matches!(self.window_type, WindowType::Editor)
+            && let Some(host_size) = self.host_grid_size
+        {
+            region.max.x = region.min.x + host_size.width as f32 * grid_scale.width();
+            region.max.y = region.min.y + host_size.height as f32 * grid_scale.height();
+        }
+        region
     }
 
     fn grid_size(&self) -> GridSize<u32> {
@@ -246,6 +311,48 @@ impl RenderedWindow {
         animating
     }
 
+    fn notebook_title_layout(&self, line: &RenderedLine) -> Option<NotebookTitleLayout> {
+        use crate::editor::NotebookTitleGroup;
+        let host_width = self.host_grid_size?.width;
+        if self.anchor_info.is_some()
+            || self.viewport_margins.top == 0
+            || host_width <= self.grid_size.width
+        {
+            return None;
+        }
+        let (mut kernel, mut actions) = (None::<(f32, f32)>, None::<(f32, f32)>);
+        for fragment in line.line.fragments() {
+            let target = match fragment.style.as_ref().and_then(|style| style.notebook_title) {
+                Some(NotebookTitleGroup::Kernel) => &mut kernel,
+                Some(NotebookTitleGroup::Actions) => &mut actions,
+                None => continue,
+            };
+            let span = (fragment.cells.start as f32, fragment.cells.end as f32);
+            *target = Some(target.map_or(span, |old| (old.0.min(span.0), old.1.max(span.1))));
+        }
+        Some(NotebookTitleLayout {
+            kernel: kernel?,
+            actions: actions?,
+            host_width: host_width as f32,
+        })
+    }
+
+    fn draw_border_picture(
+        &self,
+        canvas: &Canvas,
+        picture: &Picture,
+        matrix: &Matrix,
+        line: &RenderedLine,
+        grid_scale: GridScale,
+        origin_x: f32,
+    ) {
+        if let Some(layout) = self.notebook_title_layout(line) {
+            layout.draw(canvas, picture, matrix, grid_scale, origin_x);
+        } else {
+            canvas.draw_picture(picture, Some(matrix), None);
+        }
+    }
+
     pub fn draw_background_surface(
         &mut self,
         canvas: &Canvas,
@@ -259,7 +366,14 @@ impl RenderedWindow {
         for (matrix, line) in self.iter_border_lines_with_transform(pixel_region, grid_scale) {
             let line = line.borrow();
             if let Some(background_picture) = &line.background_picture {
-                canvas.draw_picture(background_picture, Some(&matrix), None);
+                self.draw_border_picture(
+                    canvas,
+                    background_picture,
+                    &matrix,
+                    &line,
+                    grid_scale,
+                    0.0,
+                );
             }
         }
         canvas.restore();
@@ -288,7 +402,14 @@ impl RenderedWindow {
         for (matrix, line) in self.iter_border_lines_with_transform(pixel_region, grid_scale) {
             let line = line.borrow();
             if let Some(foreground_picture) = &line.foreground_picture {
-                canvas.draw_picture(foreground_picture, Some(&matrix), None);
+                self.draw_border_picture(
+                    canvas,
+                    foreground_picture,
+                    &matrix,
+                    &line,
+                    grid_scale,
+                    0.0,
+                );
             }
         }
         canvas.save();
@@ -306,7 +427,14 @@ impl RenderedWindow {
             if let Some((boxchar_picture, position)) = &line.boxchar_picture {
                 let deltax = pixel_region.min.x - position.x;
                 matrix.set_translate_x(deltax);
-                canvas.draw_picture(boxchar_picture, Some(&matrix), None);
+                self.draw_border_picture(
+                    canvas,
+                    boxchar_picture,
+                    &matrix,
+                    &line,
+                    grid_scale,
+                    position.x,
+                );
             }
         }
         canvas.save();
@@ -389,12 +517,10 @@ impl RenderedWindow {
         grid_scale: GridScale,
         rightmost_window: bool,
     ) -> PixelRect<f32> {
-        let Some(content_region) = content_region else {
-            return pixel_region;
-        };
-
         let mut region = pixel_region;
-        if rightmost_window
+        region.max = self.background_region(grid_scale).max;
+        if let Some(content_region) = content_region
+            && rightmost_window
             && sub_cell_edge_gap(content_region.max.x, region.max.x, grid_scale.width()).is_some()
         {
             region.max.x = content_region.max.x;
@@ -427,11 +553,17 @@ impl RenderedWindow {
     ) -> BackgroundFills {
         let base_region = self.pixel_region(grid_scale);
         let inner_region = self.inner_region(expanded_region, grid_scale);
-        let Some(extra_width) =
-            sub_cell_edge_gap(expanded_region.max.x, base_region.max.x, grid_scale.width())
-        else {
+        let host_region = self.background_region(grid_scale);
+        let extra_width = expanded_region.max.x - base_region.max.x;
+        // Reserved Notebook columns are outside the text grid, so they keep
+        // the window clear. CursorLine/Visual must end with the actual text.
+        // Only an ordinary fractional remainder extends the last cell style.
+        if host_region.max.x > base_region.max.x
+            || extra_width <= 0.0
+            || expanded_region.max.x > host_region.max.x + grid_scale.width() + f32::EPSILON
+        {
             return BackgroundFills::default();
-        };
+        }
 
         let mut fills = BackgroundFills::default();
         // The trailing fill follows the same clipping model as the normal
@@ -518,7 +650,7 @@ impl RenderedWindow {
     pub fn line_text_range(&self, row: u32, start_col: u32, end_col: u32) -> Option<String> {
         let line = self.line_for_row(row)?;
         let line = line.borrow();
-        let cells = line.line.cells()?;
+        let cells = line.line.rendered_cells();
         if cells.is_empty() {
             return Some(String::new());
         }
@@ -526,7 +658,10 @@ impl RenderedWindow {
         let max_col = cells.len().saturating_sub(1) as u32;
         let start = start_col.min(max_col);
         let end = end_col.min(max_col);
-        let (start, end) = if start <= end { (start, end) } else { (end, start) };
+        let (mut start, end) = if start <= end { (start, end) } else { (end, start) };
+        while start > 0 && cells[start as usize].is_empty() {
+            start -= 1; // A click on a wide glyph's continuation selects its glyph.
+        }
 
         let mut text = String::new();
         for col in start..=end {
@@ -537,6 +672,50 @@ impl RenderedWindow {
         text.truncate(trimmed_len);
 
         Some(text)
+    }
+
+    pub fn notebook_output_region(
+        &self,
+        mut bounds: Rect,
+        scale: GridScale,
+    ) -> Option<super::selection::NotebookOutputRegion> {
+        let pixel_region = self.pixel_region(scale);
+        if !bounds.intersect(self.inner_region(pixel_region, scale)) {
+            return None;
+        }
+        let first_col = (((bounds.left - pixel_region.min.x) / scale.width()).ceil().max(0.0)
+            as u32)
+            .min(self.grid_size.width);
+        let end_col = (((bounds.right - pixel_region.min.x) / scale.width()).floor().max(0.0)
+            as u32)
+            .min(self.grid_size.width);
+        if first_col >= end_col {
+            return None;
+        }
+        let rows = (self.viewport_margins.top as u32
+            ..self.grid_size.height.saturating_sub(self.viewport_margins.bottom as u32))
+            .filter_map(|row| {
+                let rect = self.grid_row_rect(row, first_col, end_col - 1, scale)?;
+                // The output's top seam is centered in an independent blank
+                // row. Its center lies on the border, so do not select that row.
+                (rect.center_y() > bounds.top + 0.01 && rect.center_y() < bounds.bottom)
+                    .then_some((row, rect))
+            })
+            .collect::<Vec<_>>();
+        let (first_row, first_rect) = rows.first()?;
+        let (last_row, last_rect) = rows.last()?;
+        Some(super::selection::NotebookOutputRegion {
+            grid_id: self.id,
+            cells: GridRect::from_min_max((first_col, *first_row), (end_col, last_row + 1)),
+            bounds: PixelRect::from_min_max(
+                (first_rect.left.max(bounds.left), first_rect.top.max(bounds.top)),
+                (last_rect.right.min(bounds.right), last_rect.bottom.min(bounds.bottom)),
+            ),
+            origin: PixelPos::new(
+                pixel_region.min.x,
+                first_rect.top - *first_row as f32 * scale.height(),
+            ),
+        })
     }
 
     pub fn grid_row_rect(
@@ -566,8 +745,10 @@ impl RenderedWindow {
         let base_x = pixel_region.min.x;
         let base_y = pixel_region.min.y;
 
-        let scroll_offset_pixels =
-            (self.scroll_animation.position.floor() - self.scroll_animation.position) * line_height;
+        let scroll_offset_pixels = ((self.scroll_animation.position.floor()
+            - self.scroll_animation.position)
+            * line_height)
+            .round();
         let top_margin = self.viewport_margins.top as u32;
         let bottom_margin = self.viewport_margins.bottom as u32;
         let bottom_start = height.saturating_sub(bottom_margin);
@@ -583,8 +764,50 @@ impl RenderedWindow {
         Some(Rect::from_xywh(x, y, w, line_height))
     }
 
+    pub fn changes_selection(&self, command: &WindowDrawCommand) -> bool {
+        match command {
+            WindowDrawCommand::HostSize { width, height } => {
+                self.host_grid_size != Some(GridSize::new(*width as u32, *height as u32))
+            }
+            WindowDrawCommand::Position { grid_position, grid_size, anchor_info, window_type } => {
+                !self.valid
+                    || self.grid_destination
+                        != GridPos::new(grid_position.0 as f32, grid_position.1 as f32)
+                    || self.grid_size != GridSize::new(grid_size.0 as u32, grid_size.1 as u32)
+                    || self.anchor_info != *anchor_info
+                    || self.window_type != *window_type
+            }
+            WindowDrawCommand::DrawLine { row, line } => {
+                *row < self.actual_lines.len()
+                    && self.actual_lines[*row].as_ref().is_none_or(|old| old.borrow().line != *line)
+            }
+            WindowDrawCommand::Scroll { top, bottom, left, right, rows, cols } => {
+                top < bottom && left < right && (*rows != 0 || *cols != 0)
+            }
+            WindowDrawCommand::Clear => {
+                self.actual_lines.iter().any(Option::is_some)
+                    || self.scrollback_lines.iter().any(Option::is_some)
+            }
+            WindowDrawCommand::Show => self.hidden,
+            WindowDrawCommand::Hide => !self.hidden,
+            WindowDrawCommand::Close => true,
+            WindowDrawCommand::Viewport { window_id, scroll_delta } => {
+                self.window_id != Some(*window_id) || scroll_delta.round() != 0.0
+            }
+            WindowDrawCommand::ViewportMargins { top, bottom, .. } => {
+                self.viewport_margins.top != *top || self.viewport_margins.bottom != *bottom
+            }
+            WindowDrawCommand::SortOrder(sort_order) => {
+                self.anchor_info.as_ref().is_some_and(|anchor| anchor.sort_order != *sort_order)
+            }
+        }
+    }
+
     pub fn handle_window_draw_command(&mut self, draw_command: WindowDrawCommand) {
         match draw_command {
+            WindowDrawCommand::HostSize { width, height } => {
+                self.host_grid_size = Some(GridSize::new(width as u32, height as u32));
+            }
             WindowDrawCommand::Position { grid_position, grid_size, anchor_info, window_type } => {
                 tracy_zone!("position_cmd", 0);
 
@@ -660,6 +883,8 @@ impl RenderedWindow {
             WindowDrawCommand::Clear => {
                 tracy_zone!("clear_cmd", 0);
                 self.scroll_delta = 0;
+                // A later flush copies actual_lines back into the visible cache.
+                self.actual_lines.iter_mut().for_each(|line| *line = None);
                 self.scrollback_lines.iter_mut().for_each(|line| *line = None);
                 self.scroll_animation.reset();
             }
@@ -871,19 +1096,14 @@ impl RenderedWindow {
             let mut boxchar_recorder = PictureRecorder::new();
             let boxchar_canvas =
                 boxchar_recorder.begin_recording(grid_rect.with_offset((position.x, 0.0)), false);
-            let mut text_drawn = false;
-            let mut boxchar_drawn = false;
-            for line_fragment in line.line.fragments() {
-                let (frag_text_drawn, frag_box_drawn) = grid_renderer.draw_foreground(
-                    text_canvas,
-                    boxchar_canvas,
-                    &line_fragment,
-                    position,
-                    opacity,
-                );
-                text_drawn |= frag_text_drawn;
-                boxchar_drawn |= frag_box_drawn;
-            }
+            let (text_drawn, boxchar_drawn) = draw_line_foreground(
+                grid_renderer,
+                text_canvas,
+                boxchar_canvas,
+                line.line.fragments(),
+                position,
+                opacity,
+            );
             let foreground_picture =
                 text_drawn.then_some(recorder.finish_recording_as_picture(None).unwrap());
             let boxchar_picture = boxchar_drawn
@@ -894,7 +1114,14 @@ impl RenderedWindow {
                 .fragments()
                 .filter(|fragment| fragment.cells.end == self.grid_size.width)
                 .last()
-                .map(|fragment| grid_renderer.background_paint_color(fragment.style, opacity));
+                .and_then(|fragment| {
+                    // Unstyled cells use the window clear, including its exact
+                    // alpha quantization. Leave that same clear in the margin.
+                    fragment
+                        .style
+                        .as_ref()
+                        .map(|_| grid_renderer.background_paint_color(fragment.style, opacity))
+                });
 
             line.background_picture = background_picture;
             line.foreground_picture = foreground_picture;
@@ -932,6 +1159,41 @@ impl RenderedWindow {
     }
 }
 
+fn draw_line_foreground<'a>(
+    renderer: &mut GridRenderer,
+    text_canvas: &Canvas,
+    boxchar_canvas: &Canvas,
+    fragments: impl Iterator<Item = LineFragment<'a>>,
+    position: PixelPos<f32>,
+    opacity: f32,
+) -> (bool, bool) {
+    let (mut text_drawn, mut boxchar_drawn) = (false, false);
+    let mut icons = Vec::new();
+    for fragment in fragments {
+        let style = fragment.style.as_ref().unwrap_or(&renderer.default_style);
+        if style.enlarged_icon && !crate::renderer::box_drawing::is_box_char(fragment.text) {
+            icons.push(fragment);
+            continue;
+        }
+        let (text, boxes) =
+            renderer.draw_foreground(text_canvas, boxchar_canvas, &fragment, position, opacity);
+        text_drawn |= text;
+        boxchar_drawn |= boxes;
+    }
+    // Box pictures record world X for native pixel alignment. Glyphs are local
+    // to the line, so translate once before recording their final overlay. The
+    // existing box-picture replay removes this X again when the window moves.
+    boxchar_canvas.save();
+    boxchar_canvas.translate((position.x, 0.0));
+    for icon in icons {
+        let (text, boxes) =
+            renderer.draw_foreground(boxchar_canvas, boxchar_canvas, &icon, position, opacity);
+        boxchar_drawn |= text || boxes;
+    }
+    boxchar_canvas.restore();
+    (text_drawn, boxchar_drawn)
+}
+
 struct BackgroundFillRect {
     rect: Rect,
     color: Color4f,
@@ -959,7 +1221,9 @@ impl BackgroundFills {
 
         let mut paint = Paint::default();
         paint.set_anti_alias(false);
-        paint.set_blend_mode(BlendMode::SrcOver);
+        // This extends an existing cell background. Replacing, as the cell
+        // renderer does, avoids accumulating alpha over the window clear.
+        paint.set_blend_mode(BlendMode::Src);
 
         canvas.save();
         canvas.clip_rect(to_skia_rect(&clip_region), None, false);
@@ -1012,6 +1276,10 @@ fn push_fill_rect_path(builder: &mut PathBuilder, bounds: &mut Option<Rect>, rec
 }
 
 #[cfg(test)]
+#[path = "rendered_window_enlarged_icon_tests.rs"]
+mod enlarged_icon_tests;
+
+#[cfg(test)]
 mod tests {
     use crate::units::PixelSize;
 
@@ -1022,11 +1290,160 @@ mod tests {
     }
 
     #[test]
+    fn notebook_title_alignment_replays_whole_groups_at_exact_frame_edges() {
+        use skia_safe::surfaces;
+        let scale = GridScale::new(PixelSize::new(10.0, 20.0));
+        let layout =
+            NotebookTitleLayout { kernel: (7.0, 12.0), actions: (80.0, 98.0), host_width: 100.0 };
+        for origin_x in [0.0, 83.5] {
+            let mut recorder = PictureRecorder::new();
+            let canvas =
+                recorder.begin_recording(Rect::from_xywh(origin_x, 0.0, 980.0, 20.0), false);
+            canvas.translate((origin_x, 0.0));
+            let blocks = [
+                (70.0, 50.0, Color::RED),
+                (90.0, 10.0, Color::YELLOW),
+                (400.0, 20.0, Color::GREEN),
+                (800.0, 180.0, Color::BLUE),
+                (970.0, 10.0, Color::WHITE),
+            ];
+            for (x, width, color) in blocks {
+                canvas.draw_rect(
+                    Rect::from_xywh(x, 0.0, width, 20.0),
+                    &Paint::new(Color4f::from(color), None),
+                );
+            }
+            let picture = recorder.finish_recording_as_picture(None).unwrap();
+            let mut actual = surfaces::raster_n32_premul((1100, 40)).unwrap();
+            actual.canvas().clear(Color::TRANSPARENT);
+            let mut matrix = Matrix::new_identity();
+            matrix.set_translate((50.0 - origin_x, 10.0));
+            layout.draw(actual.canvas(), &picture, &matrix, scale, origin_x);
+            let mut expected = surfaces::raster_n32_premul((1100, 40)).unwrap();
+            expected.canvas().clear(Color::TRANSPARENT);
+            for (x, width, color) in blocks {
+                let shift = if x < 120.0 {
+                    2.0
+                } else if x >= 800.0 {
+                    8.8
+                } else {
+                    0.0
+                };
+                expected.canvas().draw_rect(
+                    Rect::from_xywh(50.0 + x + shift, 10.0, width, 20.0),
+                    &Paint::new(Color4f::from(color), None),
+                );
+            }
+            let actual = actual.peek_pixels().unwrap();
+            let expected = expected.peek_pixels().unwrap();
+            for y in 0..40 {
+                for x in 0..1100 {
+                    assert_eq!(
+                        actual.get_color((x, y)),
+                        expected.get_color((x, y)),
+                        "header layer/ordinary content mismatch at {x},{y}; origin {origin_x}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn clear_does_not_resurrect_old_statusline_after_partial_redraw() {
+        let mut window = RenderedWindow::new(BASE_GRID_ID);
+        window.handle_window_draw_command(WindowDrawCommand::Position {
+            grid_position: (0.0, 0.0),
+            grid_size: (20, 5),
+            anchor_info: None,
+            window_type: WindowType::Editor,
+        });
+        window.handle_window_draw_command(WindowDrawCommand::DrawLine {
+            row: 3,
+            line: Line::empty(),
+        });
+        window.flush(&RendererSettings::default());
+        assert!(window.actual_lines[3].is_some());
+        assert!(window.scrollback_lines[3].is_some());
+
+        window.handle_window_draw_command(WindowDrawCommand::Clear);
+        window.handle_window_draw_command(WindowDrawCommand::DrawLine {
+            row: 4,
+            line: Line::empty(),
+        });
+        window.flush(&RendererSettings::default());
+
+        assert!(window.actual_lines[3].is_none());
+        assert!(window.scrollback_lines[3].is_none());
+        assert!(window.actual_lines[4].is_some());
+        assert!(window.scrollback_lines[4].is_some());
+    }
+
+    #[test]
     fn sub_cell_edge_gap_accepts_only_positive_sub_cell_gaps() {
         assert_eq!(sub_cell_edge_gap(17.0, 10.0, 16.0), Some(7.0));
         assert_eq!(sub_cell_edge_gap(26.0, 10.0, 16.0), Some(16.0));
         assert_eq!(sub_cell_edge_gap(10.0, 10.0, 16.0), None);
         assert_eq!(sub_cell_edge_gap(27.0, 10.0, 16.0), None);
+    }
+
+    #[test]
+    fn notebook_viewport_stale_wide_grid_is_clipped_to_latest_host_without_resizing_it() {
+        use skia_safe::surfaces;
+
+        let scale = grid_scale();
+        let mut window = RenderedWindow::new(2);
+        window.handle_window_draw_command(WindowDrawCommand::Position {
+            grid_position: (0.0, 0.0),
+            grid_size: (106, 24),
+            anchor_info: None,
+            window_type: WindowType::Editor,
+        });
+        window.handle_window_draw_command(WindowDrawCommand::HostSize { width: 81, height: 31 });
+        let mut surface = surfaces::raster_n32_premul((900, 500)).unwrap();
+        surface.canvas().clear(Color::RED);
+        let host = window.draw(surface.canvas(), Color::BLUE, scale, None, false).region;
+        assert_eq!(
+            window.grid_size,
+            GridSize::new(106, 24),
+            "actual grid remains independently allocated"
+        );
+        assert_eq!(host.max.x, 81.0 * scale.width());
+        let pixels = surface.peek_pixels().unwrap();
+        assert_eq!(pixels.get_color((647, 8)), Color::BLUE);
+        assert_eq!(
+            pixels.get_color((648, 8)),
+            Color::RED,
+            "stale grid cannot paint the neighboring split"
+        );
+    }
+
+    #[test]
+    fn notebook_viewport_late_oversize_grid_cannot_cover_global_statusline() {
+        use skia_safe::surfaces;
+        let scale = grid_scale();
+        let mut window = RenderedWindow::new(2);
+        // The ordinary .py window from the observed late Notebook request:
+        // root 134x35, host starts at (28,1), host 106x33, stale grid 120x37.
+        window.handle_window_draw_command(WindowDrawCommand::Position {
+            grid_position: (28.0, 1.0),
+            grid_size: (120, 37),
+            anchor_info: None,
+            window_type: WindowType::Editor,
+        });
+        window.handle_window_draw_command(WindowDrawCommand::HostSize { width: 106, height: 33 });
+        window.grid_current_position = GridPos::new(28.0, 1.0);
+        let mut surface = surfaces::raster_n32_premul((134 * 8, 35 * 16)).unwrap();
+        surface.canvas().clear(Color::RED); // Global statusline already drawn by grid 1.
+        let region = window.draw(surface.canvas(), Color::BLUE, scale, None, true).region;
+        assert_eq!(window.grid_size, GridSize::new(120, 37), "actual allocation remains separate");
+        assert_eq!(region.max.y, 34.0 * 16.0);
+        let pixels = surface.peek_pixels().unwrap();
+        assert_eq!(pixels.get_color((600, 543)), Color::BLUE);
+        for x in [8, 600, 1060] {
+            for y in 544..560 {
+                assert_eq!(pixels.get_color((x, y)), Color::RED, "global statusline at ({x},{y})");
+            }
+        }
     }
 
     #[test]
@@ -1076,7 +1493,14 @@ mod tests {
                     ..RendererSettings::default()
                 };
                 FloatingLayer { windows: vec![&mut window] }
-                    .draw(surface.canvas(), &settings, background, grid_scale, Some(content_region))
+                    .draw(
+                        surface.canvas(),
+                        &settings,
+                        background,
+                        grid_scale,
+                        Some(content_region),
+                        &Default::default(),
+                    )
                     .remove(0)
                     .region
             } else {
@@ -1097,6 +1521,104 @@ mod tests {
                         pixels.get_color((x, y)),
                         background,
                         "bottom remainder at ({x}, {y}), floating={floating}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fractional_right_remainder_inherits_cell_while_notebook_margin_keeps_normal() {
+        use std::sync::Arc;
+
+        use crate::{
+            editor::{Colors, Style},
+            window::WindowSettings,
+        };
+        use skia_safe::surfaces;
+
+        let settings = Arc::new(Settings::new());
+        settings.set(&RendererSettings::default());
+        let mut renderer = GridRenderer::new(1.0, settings.clone());
+        let normal = Color::from_rgb(250, 250, 250);
+        renderer.default_style = Arc::new(Style::new(Colors::new(None, Some(normal.into()), None)));
+
+        for cell_width in [7.5, 8.0, 11.25] {
+            let scale = GridScale::new(PixelSize::new(cell_width, 16.0));
+            renderer.grid_scale = scale;
+            for reserved_columns in [0, 2] {
+                for (name, normal_opacity, background, blend, expected_alpha) in [
+                    ("Normal", 0.78, None, 0, 198),
+                    ("NeoTreeNormal", 0.78, Some(Color::from_rgb(243, 243, 243)), 40, 153),
+                    ("NeoTreeCursorLine", 0.78, Some(normal), 40, 153),
+                    ("CursorLine", 0.78, Some(Color::from_rgb(239, 239, 239)), 40, 153),
+                    ("Visual", 0.78, Some(Color::from_rgb(220, 230, 240)), 0, 255),
+                    ("Opaque", 1.0, None, 0, 255),
+                ] {
+                    settings.set(&WindowSettings { normal_opacity, ..WindowSettings::default() });
+                    let base = renderer.get_default_background(normal_opacity);
+                    let style = background.map(|color| {
+                        Arc::new(Style {
+                            blend,
+                            ..Style::new(Colors::new(None, Some(color.into()), None))
+                        })
+                    });
+                    let mut window = RenderedWindow::new(2);
+                    window.handle_window_draw_command(WindowDrawCommand::Position {
+                        grid_position: (0.0, 0.0),
+                        grid_size: (4, 2),
+                        anchor_info: None,
+                        window_type: WindowType::Editor,
+                    });
+                    window.handle_window_draw_command(WindowDrawCommand::HostSize {
+                        width: 4 + reserved_columns,
+                        height: 2,
+                    });
+                    window.viewport_margins = ViewportMargins { top: 0, bottom: 1 };
+                    let mut recorder = PictureRecorder::new();
+                    renderer.draw_background(
+                        recorder.begin_recording(Rect::from_wh(4.0 * cell_width, 16.0), false),
+                        &(0..4),
+                        &style,
+                        1.0,
+                    );
+                    window.actual_lines[1] = Some(Rc::new(RefCell::new(RenderedLine {
+                        line: Line::empty(),
+                        background_picture: recorder.finish_recording_as_picture(None),
+                        foreground_picture: None,
+                        boxchar_picture: None,
+                        trailing_background: style
+                            .as_ref()
+                            .map(|_| renderer.background_paint_color(&style, 1.0)),
+                        has_transparency: normal_opacity < 1.0,
+                        is_valid: true,
+                    })));
+                    let host_width = (4 + reserved_columns) as f32 * cell_width;
+                    let content_width = host_width.ceil() as i32 + 3;
+                    let content = PixelRect::from_origin_and_size(
+                        PixelPos::ZERO,
+                        PixelSize::new(content_width as f32, 39.0),
+                    );
+                    let mut surface = surfaces::raster_n32_premul((content_width, 39)).unwrap();
+                    surface.canvas().clear(base);
+                    let details = window.draw(surface.canvas(), base, scale, Some(content), true);
+                    assert_eq!(details.region.max.x, content_width as f32);
+                    assert_eq!(window.grid_size.width, 4, "background fill must not resize text");
+                    let pixels = surface.peek_pixels().unwrap();
+                    let adjacent = pixels.get_color(((4.0 * cell_width) as i32 - 2, 24));
+                    assert_eq!(adjacent.a(), expected_alpha, "{name} adjacent alpha");
+                    let expected_margin = if reserved_columns > 0 { base } else { adjacent };
+                    for x in (4.0 * cell_width).ceil() as i32..content_width {
+                        assert_eq!(
+                            pixels.get_color((x, 24)),
+                            expected_margin,
+                            "{name}: cell_width={cell_width}, reserved={reserved_columns}, x={x}"
+                        );
+                    }
+                    assert_eq!(
+                        pixels.get_color((content_width - 1, 35)),
+                        base,
+                        "fractional bottom padding keeps its independent default background"
                     );
                 }
             }

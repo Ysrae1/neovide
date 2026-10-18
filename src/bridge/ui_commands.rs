@@ -363,6 +363,8 @@ fn normalize_file_drop_path(path: String, windows: bool) -> String {
 pub enum ParallelCommand {
     Quit,
     Resize { width: u64, height: u64 },
+    ResizeGrid { grid: u64, width: u64, height: u64 },
+    CellMetrics { width: f32, height: f32 },
     FileDrop { path: String, tabs: Option<bool> },
     FocusLost,
     FocusGained,
@@ -517,6 +519,18 @@ impl ParallelCommand {
                 .ui_try_resize(width.max(10) as i64, height.max(3) as i64)
                 .await
                 .context("Resize failed"),
+            ParallelCommand::ResizeGrid { grid, width, height } => nvim
+                .ui_try_resize_grid(grid as i64, width.max(1) as i64, height.max(1) as i64)
+                .await
+                .context("Notebook text grid resize failed"),
+            ParallelCommand::CellMetrics { width, height } => nvim
+                .exec_lua(
+                    include_str!("../../lua/cell_metrics.lua"),
+                    call_args![Value::from(width as f64), Value::from(height as f64)],
+                )
+                .await
+                .map(|_| ())
+                .context("Native cell metrics update failed"),
             ParallelCommand::FocusLost => {
                 nvim.ui_set_focus(false).await.context("FocusLost failed")
             }
@@ -611,6 +625,7 @@ pub fn start_ui_command_handler(
     }
 
     let (serial_tx, mut serial_rx) = unbounded_channel::<SerialCommand>();
+    let (grid_tx, mut grid_rx) = unbounded_channel::<ParallelCommand>();
     let (_ui_command_sender, mut ui_command_receiver) = handler.get_ui_command_channel();
 
     let handler_for_parallel = handler.clone();
@@ -622,6 +637,12 @@ pub fn start_ui_command_handler(
                     tracy_dynamic_zone!(serial_command.as_ref());
                     // This can fail if the serial_rx loop exits before this one, so ignore the errors
                     let _ = serial_tx.send(serial_command);
+                }
+                Some(UiCommand::Parallel(
+                    command @ (ParallelCommand::ResizeGrid { .. }
+                    | ParallelCommand::CellMetrics { .. }),
+                )) => {
+                    let _ = grid_tx.send(command);
                 }
                 Some(UiCommand::Parallel(parallel_command)) => {
                     tracy_dynamic_zone!(parallel_command.as_ref());
@@ -641,6 +662,19 @@ pub fn start_ui_command_handler(
             }
         }
         log::info!("ui command receiver finished");
+    });
+
+    // Grid requests are asynchronous to both editor and GUI, but ordered with
+    // each other: an old resize acknowledgement can never overwrite a newer
+    // Notebook width or its full-width restoration.
+    let grid_handler = handler.clone();
+    let grid_settings = settings.clone();
+    tokio::spawn(async move {
+        while let Some(command) = grid_rx.recv().await {
+            if let Some(nvim) = grid_handler.clone_current_neovim() {
+                command.execute(&nvim, grid_settings.as_ref(), &grid_handler).await;
+            }
+        }
     });
 
     let handler_for_serial = handler.clone();

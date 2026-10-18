@@ -4,6 +4,7 @@ use rmpv::Value;
 use skia_safe::{Canvas, Color, Paint, PathBuilder, Rect, paint::Style};
 use std::collections::{HashMap, HashSet};
 
+use crate::image_preview::ImageAnchor;
 use crate::units::{GridScale, to_skia_rect};
 
 const MAX_FRAMES: usize = 512;
@@ -63,6 +64,10 @@ pub(crate) struct NotebookWindow {
     size: (f32, f32),
     scroll: f64,
     animation: f32,
+    floating: bool,
+    host_width: f32,
+    host_height: f32,
+    content_clip: Rect,
 }
 impl NotebookWindow {
     pub fn from_window(window: &super::RenderedWindow, scale: GridScale) -> Option<Self> {
@@ -70,6 +75,10 @@ impl NotebookWindow {
             return None;
         }
         let region = window.pixel_region(scale);
+        let mut content_clip = window.inner_region(region, scale);
+        if !content_clip.intersect(to_skia_rect(&window.background_region(scale))) {
+            return None;
+        }
         Some(Self {
             grid: window.id,
             window: window.window_id?,
@@ -80,6 +89,12 @@ impl NotebookWindow {
             ),
             scroll: window.viewport_scroll,
             animation: window.scroll_animation.position,
+            floating: window.anchor_info.is_some(),
+            host_width: window.host_grid_size.unwrap_or(window.grid_size).width as f32
+                * scale.width(),
+            host_height: window.host_grid_size.unwrap_or(window.grid_size).height as f32
+                * scale.height(),
+            content_clip,
         })
     }
     fn scroll_pixels(&self, baseline: f64, height: f32) -> f32 {
@@ -212,36 +227,167 @@ impl NotebookFrame {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NotebookViewport {
+    pub window: u64,
+    pub width: u64,
+}
+
 #[derive(Clone, Debug, PartialEq)]
-pub struct FrameSnapshot(pub Vec<NotebookFrame>);
+pub struct FrameSnapshot {
+    pub frames: Vec<NotebookFrame>,
+    pub viewports: Vec<NotebookViewport>,
+}
 impl FrameSnapshot {
     pub fn parse(arguments: &[Value]) -> Result<Self, String> {
-        let [frames] = arguments else {
-            return Err("Notebook frames expects one array".into());
+        let (frames, viewports) = match arguments {
+            [frames] => (frames, None),
+            [frames, viewports] => (frames, Some(viewports)),
+            _ => return Err("Notebook frames expects frames and optional viewports".into()),
         };
         let frames = frames
             .as_array()
             .filter(|f| f.len() <= MAX_FRAMES)
             .ok_or("Notebook frames must be an array with at most 512 entries")?;
-        Ok(Self(frames.iter().map(NotebookFrame::parse).collect::<Result<_, _>>()?))
+        let viewports =
+            viewports
+                .map(|value| {
+                    let values = value
+                        .as_array()
+                        .filter(|v| v.len() <= 64)
+                        .ok_or("Notebook viewports must be an array with at most 64 entries")?;
+                    values
+                        .iter()
+                        .map(|value| {
+                            let fields = value.as_map().ok_or("Notebook viewport must be a map")?;
+                            let positive =
+                                |name| {
+                                    fields.iter().find(|(k, _)| k.as_str() == Some(name))
+                    .and_then(|(_, v)| v.as_u64()).filter(|v| *v > 0 && *v <= 1_000_000)
+                    .ok_or_else(|| format!("Notebook viewport {name} must be positive and bounded"))
+                                };
+                            Ok::<_, String>(NotebookViewport {
+                                window: positive("window")?,
+                                width: positive("width")?,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?
+                .unwrap_or_default();
+        Ok(Self {
+            frames: frames.iter().map(NotebookFrame::parse).collect::<Result<_, _>>()?,
+            viewports,
+        })
     }
+}
+
+struct ResolvedFrame {
+    bounds: Rect,
+    clip: Rect,
+    owner_clip: Option<Rect>,
+    owner_grid: Option<u64>,
+}
+
+pub(super) struct ImageOwnerTransform {
+    pub origin: (f32, f32),
+    pub offset: (f32, f32),
+    pub clip: Rect,
+}
+
+fn resolve_frame(
+    frame: &NotebookFrame,
+    scale: GridScale,
+    windows: &[NotebookWindow],
+    bindings: &mut HashMap<(u64, u64), f64>,
+    host_widths: &HashMap<u64, u64>,
+) -> Option<ResolvedFrame> {
+    let mut bounds = frame.rect.pixels(scale);
+    let mut clip = frame.clip.pixels(scale);
+    let mut owner_grid = None;
+    let mut owner_clip = None;
+    if let Some(anchor) = frame.anchor {
+        let Some(window) = windows.iter().find(|w| w.window == anchor.window) else {
+            return None;
+        };
+        let baseline = *bindings.entry((anchor.window, anchor.epoch)).or_insert(window.scroll);
+        let scroll =
+            if anchor.scroll { window.scroll_pixels(baseline, scale.height()) } else { 0.0 };
+        bounds = bounds.with_offset((window.origin.0, window.origin.1 + scroll));
+        clip = clip.with_offset(window.origin);
+        owner_clip = Some(Rect::from_xywh(
+            window.origin.0,
+            window.origin.1,
+            if !window.floating && !frame.overlay {
+                host_widths
+                    .get(&anchor.window)
+                    .map(|w| (*w as f32 * scale.width()).min(window.host_width))
+                    .unwrap_or(window.size.0)
+            } else {
+                window.size.0
+            },
+            if window.floating { window.size.1 } else { window.size.1.min(window.host_height) },
+        ));
+        owner_grid = Some(window.grid);
+    }
+    Some(ResolvedFrame { bounds, clip, owner_clip, owner_grid })
 }
 
 #[derive(Default)]
 pub(crate) struct NotebookRenderer {
     frames: Vec<NotebookFrame>,
     bindings: HashMap<(u64, u64), f64>,
+    host_widths: HashMap<u64, u64>,
 }
 impl NotebookRenderer {
+    pub(super) fn image_owner_transform(
+        &mut self,
+        anchor: ImageAnchor,
+        scale: GridScale,
+        windows: &[NotebookWindow],
+    ) -> Option<ImageOwnerTransform> {
+        let window = windows.iter().find(|window| window.window == anchor.window)?;
+        let baseline = *self.bindings.entry((anchor.window, anchor.epoch)).or_insert(window.scroll);
+        let scroll =
+            if anchor.scroll { window.scroll_pixels(baseline, scale.height()) } else { 0.0 };
+        Some(ImageOwnerTransform {
+            origin: window.origin,
+            offset: (window.origin.0, window.origin.1 + scroll),
+            clip: window.content_clip,
+        })
+    }
     pub fn replace(&mut self, snapshot: FrameSnapshot) {
         let keys: HashSet<_> =
-            snapshot.0.iter().filter_map(|f| f.anchor.map(|a| (a.window, a.epoch))).collect();
+            snapshot.frames.iter().filter_map(|f| f.anchor.map(|a| (a.window, a.epoch))).collect();
         self.bindings.retain(|key, _| keys.contains(key));
-        self.frames = snapshot.0;
+        self.host_widths = snapshot.viewports.into_iter().map(|v| (v.window, v.width)).collect();
+        self.frames = snapshot.frames;
     }
     pub fn clear(&mut self) {
         self.frames.clear();
         self.bindings.clear();
+        self.host_widths.clear();
+    }
+    /// Hit regions use precisely the same owner binding and scroll transform
+    /// as the visible frames. Only inline outputs take over native selection.
+    pub fn output_bounds(
+        &mut self,
+        scale: GridScale,
+        windows: &[NotebookWindow],
+    ) -> Vec<(u64, Rect)> {
+        self.frames
+            .iter()
+            .filter(|frame| frame.output && !frame.overlay)
+            .filter_map(|frame| {
+                let resolved =
+                    resolve_frame(frame, scale, windows, &mut self.bindings, &self.host_widths)?;
+                let mut bounds = resolved.bounds;
+                if !bounds.intersect(resolved.clip) || !bounds.intersect(resolved.owner_clip?) {
+                    return None;
+                }
+                Some((resolved.owner_grid?, bounds))
+            })
+            .collect()
     }
     pub fn draw(
         &mut self,
@@ -252,31 +398,11 @@ impl NotebookRenderer {
         windows: &[NotebookWindow],
     ) {
         for frame in self.frames.iter().filter(|f| f.overlay == overlay) {
-            let mut bounds = frame.rect.pixels(scale);
-            let mut clip = frame.clip.pixels(scale);
-            let mut owner_grid = None;
-            let mut owner_clip = None;
-            if let Some(anchor) = frame.anchor {
-                let Some(window) = windows.iter().find(|w| w.window == anchor.window) else {
-                    continue;
-                };
-                let baseline =
-                    *self.bindings.entry((anchor.window, anchor.epoch)).or_insert(window.scroll);
-                let scroll = if anchor.scroll {
-                    window.scroll_pixels(baseline, scale.height())
-                } else {
-                    0.0
-                };
-                bounds = bounds.with_offset((window.origin.0, window.origin.1 + scroll));
-                clip = clip.with_offset(window.origin);
-                owner_clip = Some(Rect::from_xywh(
-                    window.origin.0,
-                    window.origin.1,
-                    window.size.0,
-                    window.size.1,
-                ));
-                owner_grid = Some(window.grid);
-            }
+            let Some(ResolvedFrame { bounds, clip, owner_clip, owner_grid }) =
+                resolve_frame(frame, scale, windows, &mut self.bindings, &self.host_widths)
+            else {
+                continue;
+            };
             canvas.save();
             canvas.clip_rect(clip, None, false);
             if let Some(owner_clip) = owner_clip {
@@ -427,6 +553,65 @@ mod tests {
         assert!(FrameSnapshot::parse(&[]).is_err());
     }
     #[test]
+    fn notebook_viewport_preserves_host_border_but_clips_stale_snapshots_after_split_resize() {
+        use super::super::{RenderedWindow, WindowDrawCommand};
+        let scale: GridScale = PixelSize::new(10.0, 20.0).into();
+        let mut window = RenderedWindow::new(2);
+        window.handle_window_draw_command(WindowDrawCommand::Position {
+            grid_position: (0.0, 0.0),
+            grid_size: (8, 10),
+            anchor_info: None,
+            window_type: WindowType::Editor,
+        });
+        window.handle_window_draw_command(WindowDrawCommand::HostSize { width: 10, height: 10 });
+        window.handle_window_draw_command(WindowDrawCommand::Viewport {
+            window_id: 1000,
+            scroll_delta: 0.0,
+        });
+        let Value::Map(mut fields) = packet() else { unreachable!() };
+        fields[0].1 = rect(1.0, 1.0, 8.0, 4.0);
+        fields.push((
+            "anchor".into(),
+            Value::Map(vec![("window".into(), 1000.into()), ("epoch".into(), 1.into())]),
+        ));
+        let viewport =
+            Value::Map(vec![("window".into(), 1000.into()), ("width".into(), 10.into())]);
+        let snapshot = FrameSnapshot::parse(&[
+            Value::Array(vec![Value::Map(fields)]),
+            Value::Array(vec![viewport]),
+        ])
+        .unwrap();
+        assert_eq!(snapshot.viewports, [NotebookViewport { window: 1000, width: 10 }]);
+        let mut renderer = NotebookRenderer::default();
+        renderer.replace(snapshot);
+        let mut surface = surfaces::raster_n32_premul((110, 210)).unwrap();
+        let draw = |renderer: &mut NotebookRenderer,
+                    window: &RenderedWindow,
+                    surface: &mut skia_safe::Surface| {
+            surface.canvas().clear(Color::WHITE);
+            renderer.draw(
+                surface.canvas(),
+                scale,
+                false,
+                &[],
+                &[NotebookWindow::from_window(window, scale).unwrap()],
+            );
+        };
+        draw(&mut renderer, &window, &mut surface);
+        assert_ne!(
+            surface.peek_pixels().unwrap().get_color((90, 60)),
+            Color::WHITE,
+            "host frame survives beyond the eight-column text grid"
+        );
+        window.handle_window_draw_command(WindowDrawCommand::HostSize { width: 8, height: 10 });
+        draw(&mut renderer, &window, &mut surface);
+        assert_eq!(
+            surface.peek_pixels().unwrap().get_color((90, 60)),
+            Color::WHITE,
+            "old ten-column snapshot cannot paint into the neighboring split"
+        );
+    }
+    #[test]
     fn joined_cell_keeps_blue_top_green_bottom_and_one_straight_shared_seam() {
         let item = |kind: &str, join: &str, row: f64, height: f64, color: u32| {
             Value::Map(vec![
@@ -530,7 +715,7 @@ mod tests {
             label_gaps: vec![],
         };
         let mut renderer = NotebookRenderer::default();
-        renderer.replace(FrameSnapshot(vec![frame.clone()]));
+        renderer.replace(FrameSnapshot { frames: vec![frame.clone()], viewports: vec![] });
         let mut surface = surfaces::raster_n32_premul((320, 640)).unwrap();
         let check = |renderer: &mut NotebookRenderer,
                      window: &RenderedWindow,
@@ -572,7 +757,7 @@ mod tests {
                 // viewport. Rebinding during scroll must not apply delta twice.
                 frame.rect.row = 10.0 - window.viewport_scroll as f32;
                 frame.anchor.as_mut().unwrap().epoch = 2;
-                renderer.replace(FrameSnapshot(vec![frame.clone()]));
+                renderer.replace(FrameSnapshot { frames: vec![frame.clone()], viewports: vec![] });
                 check(&mut renderer, &window, &mut surface);
                 window.handle_window_draw_command(WindowDrawCommand::Position {
                     grid_position: (4.0, 3.0),
@@ -600,7 +785,7 @@ mod tests {
             label_gaps: vec![],
         };
         let mut renderer = NotebookRenderer::default();
-        renderer.replace(FrameSnapshot(vec![frame]));
+        renderer.replace(FrameSnapshot { frames: vec![frame], viewports: vec![] });
         let region = |id, x, y, w, h| super::super::WindowDrawDetails {
             id,
             region: PixelRect::from_origin_and_size(PixelPos::new(x, y), PixelSize::new(w, h)),
