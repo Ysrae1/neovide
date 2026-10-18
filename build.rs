@@ -110,8 +110,9 @@ fn build_native_previews() {
         "x86_64" => "x86_64",
         other => panic!("Unsupported macOS preview architecture: {other}"),
     };
+    println!("cargo:rerun-if-changed=src/native_preview/media.h");
     let mut objects = Vec::new();
-    for name in ["media", "web"] {
+    for name in ["media", "web", "pdf"] {
         let source = format!("src/native_preview/{name}.m");
         println!("cargo:rerun-if-changed={source}");
         let object = out.join(format!("glow_{name}.o"));
@@ -142,7 +143,9 @@ fn build_native_previews() {
     assert!(status.success(), "Could not archive native previews");
     println!("cargo:rustc-link-search=native={}", out.display());
     println!("cargo:rustc-link-lib=static=glow_native_preview");
-    for framework in ["AppKit", "AVFoundation", "AVKit", "CoreMedia", "QuartzCore", "WebKit"] {
+    for framework in
+        ["AppKit", "AVFoundation", "AVKit", "CoreMedia", "QuartzCore", "WebKit", "PDFKit"]
+    {
         println!("cargo:rustc-link-lib=framework={framework}");
     }
 }

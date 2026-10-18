@@ -9,7 +9,7 @@ use std::{
 
 use skia_safe::{
     AlphaType, Canvas, ColorType, Data, FilterMode, Image, ImageInfo, MipmapMode, Paint, Path,
-    PathBuilder, PathOp, Rect, SamplingOptions, canvas::SrcRectConstraint, images,
+    PathOp, Rect, SamplingOptions, canvas::SrcRectConstraint, images,
 };
 
 use crate::{
@@ -76,24 +76,25 @@ impl ImageRenderer {
         scale: GridScale,
         floating: &[super::WindowDrawDetails],
     ) -> Option<Path> {
-        let mut builder = PathBuilder::new();
-        let mut visible = false;
+        let mut mask: Option<Path> = None;
         for preview in self.previews.values() {
-            if let (Some(image), Some(view)) = (&preview.image, &preview.view)
-                && image.live.load(Ordering::Acquire)
-            {
-                builder.add_rect(view_bounds(view, scale), None, None);
-                visible = true;
+            let (Some(image), Some(view)) = (&preview.image, &preview.view) else { continue };
+            if !image.live.load(Ordering::Acquire) {
+                continue;
             }
+            let mut region = Path::rect(view_bounds(view, scale), None);
+            if !view.overlay {
+                for window in floating {
+                    region = region
+                        .op(&Path::rect(to_skia_rect(&window.region), None), PathOp::Difference)?;
+                }
+            }
+            mask = Some(match mask {
+                Some(mask) => mask.op(&region, PathOp::Union)?,
+                None => region,
+            });
         }
-        if !visible {
-            return None;
-        }
-        let mut mask = builder.detach();
-        for window in floating {
-            mask = mask.op(&Path::rect(to_skia_rect(&window.region), None), PathOp::Difference)?;
-        }
-        Some(mask)
+        mask
     }
 
     pub fn clear(&mut self) {
@@ -134,9 +135,17 @@ impl ImageRenderer {
     }
 
     pub fn draw(&self, canvas: &Canvas, scale: GridScale) {
+        self.draw_layer(canvas, scale, false);
+    }
+
+    pub fn draw_overlay(&self, canvas: &Canvas, scale: GridScale) {
+        self.draw_layer(canvas, scale, true);
+    }
+
+    fn draw_layer(&self, canvas: &Canvas, scale: GridScale, overlay: bool) {
         for preview in self.previews.values() {
             let (Some(image), Some(view)) = (&preview.image, &preview.view) else { continue };
-            if !image.live.load(Ordering::Acquire) {
+            if !image.live.load(Ordering::Acquire) || view.overlay != overlay {
                 continue;
             }
             let bounds = view_bounds(view, scale);
@@ -189,7 +198,16 @@ mod tests {
     use skia_safe::{Color, surfaces};
 
     fn view() -> ImageView {
-        ImageView { row: 2.0, col: 2.0, width: 6.0, height: 6.0, zoom: 1.0, pan_x: 0.0, pan_y: 0.0 }
+        ImageView {
+            row: 2.0,
+            col: 2.0,
+            width: 6.0,
+            height: 6.0,
+            zoom: 1.0,
+            pan_x: 0.0,
+            pan_y: 0.0,
+            overlay: false,
+        }
     }
 
     #[test]
@@ -258,5 +276,30 @@ mod tests {
             assert!(renderer.previews.is_empty());
             assert_eq!(Arc::strong_count(&live), 1);
         }
+    }
+    #[test]
+    fn output_float_overlay_is_separate_and_excluded_from_bloom() {
+        let mut renderer = ImageRenderer::default();
+        let image = PreparedImage::new(
+            DecodedImage { pixels: [255, 0, 0, 255].repeat(8), width: 4, height: 2 },
+            Arc::new(AtomicBool::new(true)),
+        )
+        .unwrap();
+        let mut v = view();
+        v.overlay = true;
+        renderer.handle(ImageCommand::Begin(1));
+        renderer.handle(ImageCommand::Ready(1, image));
+        renderer.handle(ImageCommand::Show(1, v));
+        let scale = crate::units::PixelSize::new(10.0, 10.0).into();
+        let mut surface = surfaces::raster_n32_premul((100, 100)).unwrap();
+        surface.canvas().clear(Color::BLUE);
+        renderer.draw(surface.canvas(), scale);
+        assert_eq!(surface.peek_pixels().unwrap().get_color((50, 50)), Color::BLUE);
+        renderer.draw_overlay(surface.canvas(), scale);
+        assert_eq!(surface.peek_pixels().unwrap().get_color((50, 50)), Color::RED);
+        let mask = renderer.bloom_exclusion(scale, &[]).unwrap();
+        assert!(mask.contains((50.0, 50.0)));
+        renderer.handle(ImageCommand::Close(1));
+        assert!(renderer.bloom_exclusion(scale, &[]).is_none());
     }
 }

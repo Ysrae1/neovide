@@ -6,10 +6,30 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include "media.h"
+
+@interface GlowWebView : WKWebView
+@property(nonatomic, copy) NSArray<NSValue *> *occlusionRegions;
+@property(nonatomic) NSSize occlusionSize;
+- (void)setOcclusions:(const double *)rects count:(size_t)count;
+@end
+
+@implementation GlowWebView
+- (void)setOcclusions:(const double *)rects count:(size_t)count {
+    NSArray<NSValue *> *regions = GlowPreviewOcclusionRects(self, rects, count);
+    if (NSEqualSizes(self.occlusionSize, self.bounds.size) && [self.occlusionRegions isEqualToArray:regions]) return;
+    self.occlusionRegions = regions;
+    self.occlusionSize = self.bounds.size;
+    GlowPreviewApplyOcclusion(self, regions);
+}
+- (NSView *)hitTest:(NSPoint)point {
+    return GlowPreviewOccludesPoint(self, self.occlusionRegions, point) ? nil : [super hitTest:point];
+}
+@end
 
 @interface GlowWebPreview : NSObject <WKNavigationDelegate, WKUIDelegate>
 @property(nonatomic, weak) NSView *parent;
-@property(nonatomic, strong) WKWebView *view;
+@property(nonatomic, strong) GlowWebView *view;
 @property(nonatomic, strong) id keyMonitor;
 @property(nonatomic, copy) NSString *state;
 @property(nonatomic, copy) NSString *error;
@@ -53,7 +73,7 @@ static BOOL GlowWebAllowedChildURL(NSURL *url) {
     configuration.defaultWebpagePreferences.allowsContentJavaScript = YES;
     // Keep preview browser state in an ephemeral WebKit data store.
     configuration.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
-    _view = [[WKWebView alloc] initWithFrame:NSZeroRect configuration:configuration];
+    _view = [[GlowWebView alloc] initWithFrame:NSZeroRect configuration:configuration];
     _view.navigationDelegate = self;
     _view.UIDelegate = self;
     _view.autoresizingMask = NSViewNotSizable;
@@ -288,6 +308,14 @@ void glow_web_frame(void *handle, double x, double y, double width, double heigh
         double originY = parent.isFlipped ? NSMinY(bounds) + y : NSMaxY(bounds) - y - height;
         preview.view.frame = NSMakeRect(NSMinX(bounds) + x, originY, width, height);
         preview.view.hidden = width <= 0 || height <= 0;
+    }
+}
+
+void glow_web_occlusion(void *handle, const double *rects, size_t count) {
+    if (!handle || ![NSThread isMainThread]) return;
+    @autoreleasepool {
+        GlowWebPreview *preview = (__bridge GlowWebPreview *)handle;
+        if (!preview.destroyed) [preview.view setOcclusions:rects count:count];
     }
 }
 

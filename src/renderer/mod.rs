@@ -401,6 +401,9 @@ impl Renderer {
             })
             .collect_vec();
 
+        // The adapter confines these to their owner output float and suspends
+        // them whenever another popup overlaps; ordinary split images stay below floats.
+        self.images.draw_overlay(root_canvas, grid_scale);
         let image_bloom_exclusion =
             self.images.bloom_exclusion(grid_scale, &floating_window_regions);
         self.window_regions =

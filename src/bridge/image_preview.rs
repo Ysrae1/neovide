@@ -160,7 +160,7 @@ fn report_status(nvim: Neovim<NeovimWriter>, id: u64, status: Result<(i32, i32),
         };
         // The companion configuration ignores ids that were closed while loading.
         let _ = nvim.exec_lua(
-            "local args={...}; vim.schedule(function() local ok,m=pcall(require,'config.media.image'); if ok then m.on_status(unpack(args)) end end)",
+            "local args={...}; vim.schedule(function() local module=args[1]>=1000000 and 'config.media.molten_images' or 'config.media.image'; local ok,m=pcall(require,module); if ok then m.on_status(unpack(args)) end end)",
             vec![id.into(), width.into(), height.into(), error],
         ).await;
     });

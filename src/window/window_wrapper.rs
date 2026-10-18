@@ -1482,13 +1482,30 @@ impl WinitWindowWrapper {
             return;
         };
 
-        #[cfg(target_os = "macos")]
-        route.window.native_previews.layout(
-            &window,
-            renderer.grid_renderer.grid_scale,
-            (route.state.window_padding.left, route.state.window_padding.top),
-        );
         renderer.draw_frame(skia_renderer.canvas(), Some(&content_rect), dt);
+        #[cfg(target_os = "macos")]
+        {
+            // Native child views sit above the Metal surface. Cut out every editor
+            // floating grid using this frame's actual animated geometry so floats
+            // remain visible and receive mouse input above native preview splits.
+            let occlusions = renderer
+                .window_regions
+                .iter()
+                .filter_map(|region| {
+                    renderer
+                        .rendered_windows
+                        .get(&region.id)
+                        .filter(|window| window.anchor_info.is_some())
+                        .map(|_| region.region)
+                })
+                .collect();
+            route.window.native_previews.set_occlusions(occlusions);
+            route.window.native_previews.layout(
+                &window,
+                renderer.grid_renderer.grid_scale,
+                (route.state.window_padding.left, route.state.window_padding.top),
+            );
+        }
 
         skia_renderer.flush();
 

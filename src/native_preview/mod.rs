@@ -24,8 +24,8 @@ impl NativeCommand {
                 let kind = args
                     .get(1)
                     .and_then(Value::as_str)
-                    .filter(|k| ["audio", "video", "web"].contains(k))
-                    .ok_or("Preview kind must be audio, video or web")?;
+                    .filter(|k| ["audio", "video", "web", "pdf"].contains(k))
+                    .ok_or("Preview kind must be audio, video, web or pdf")?;
                 let source = args
                     .get(2)
                     .and_then(Value::as_str)
@@ -44,7 +44,8 @@ impl NativeCommand {
                     .filter(|a| {
                         [
                             "play", "pause", "toggle", "seek", "volume", "status", "reload",
-                            "zoom", "focus", "blur", "back", "forward",
+                            "zoom", "focus", "blur", "back", "forward", "page", "next", "previous",
+                            "fit",
                         ]
                         .contains(a)
                     })

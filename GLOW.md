@@ -81,13 +81,13 @@ git push origin glow-preview
 
 ## 媒体预览开发计划
 
-2026-10-18 记录。第一阶段及后续音视频、macOS WebView、Notebook 保存输出查看与 Jupyter Book 构建首版已实现；实际验收与平台边界见下文。
+2026-10-18 记录。第一阶段及后续音视频、macOS WebView、Notebook 保存输出查看与 Jupyter Book 构建首版已实现；后续补充原生 Notebook 编辑执行与 macOS PDFKit 预览。以下计划保留开发阶段的先后关系，当前交付和实际验收以对应章节为准。
 
 - **第一阶段：图片原生预览。** 评估移植 [fredizzimo 的 img-support 分支 / PR #3039](https://github.com/neovide/neovide/pull/3039)及其[配套 Snacks 分支](https://github.com/fredizzimo/snacks.nvim/tree/neovide-image)，接入 Neo-tree 的图片预览入口，支持适应窗口、缩放和关闭。参考代码仍为实验实现，需要适配当前 Neovide 和 Neovim，补齐异步加载、错误处理与资源释放。
 - **第二阶段：音频播放。** 在图片预览稳定后评估内嵌播放控制，包括播放、暂停、进度和音量，以及关闭面板后的停止行为。
 - **第三阶段：视频播放。** 单独评估解码、画面输出、音画同步和拖动进度的实现方式与维护成本，再确定范围。
 - **独立方向：内嵌 WebView 预览。** 评估使用 [Wry](https://github.com/tauri-apps/wry)，先在 macOS 上复用系统 WebKit，将网页嵌入 Neovide 右侧分屏。初步范围包括本地 HTML／CSS／JavaScript 保存后自动刷新、URL 页面查看，以及分屏尺寸、缩放、Tab 切换、焦点、输入法和快捷键的协调；按需创建预览，关闭时释放资源。参考[上游议题 #2427](https://github.com/neovide/neovide/issues/2427)，当前尚未找到可直接复用的 Neovide 实现。HTML 的源码与页面双向定位另行评估，不默认视为已有能力。
-- **独立方向：Jupyter Notebook 渲染。** 支持打开 `.ipynb`，按单元格展示代码、Markdown 和已保存输出，包括表格、公式、图片及 HTML 输出；接入 Matplotlib 等绘图库的 PNG／SVG 图表输出，评估复用图片与 WebView 预览能力。先实现已有内容与静态图表的查看，内核连接、单元格执行后的输出实时更新及交互式图表缩放另行评估。
+- **独立方向：Jupyter Notebook 渲染。** 首版支持打开 `.ipynb`，按单元格展示代码、Markdown 和已保存输出，包括表格、公式、图片及 HTML 输出；接入 Matplotlib 等绘图库的 PNG／SVG 已保存图表。后续已补充 Molten＋Jupytext 的原生 Python 编辑、内核执行和输出保存；独立图形化输入卡片及交互图表仍不纳入当前交付。
 - **独立方向：Jupyter Book 预览。** 支持文档项目的构建入口和站点预览，评估在内嵌 WebView 中显示页面并随构建结果刷新；与 `.ipynb` 单文件的单元格渲染分别实现和验收。
 - **必要验收：** 保留现有柔光及底部渲染修复；图片预览覆盖浅深主题、缩放、裁切和 Tab 切换，加载失败不阻塞编辑器，关闭后释放资源。音视频阶段另补对应播放验收。
 
@@ -126,15 +126,16 @@ git push origin glow-preview
 | 音频 | 面板内播放/暂停、进度、音量 | macOS AVPlayer 异步准备；播放/暂停/跳转/音量、失败、Tab 与关闭释放已检查 |
 | 视频 | 带播放控制的原生视频面板 | macOS AVPlayerView 原生画面；共享时钟、跳转、Tab 与关闭已检查，外部音画延迟未测 |
 | macOS WebView | 系统 WebKit/Wry 右侧分屏，本地站点/URL 预览 | 直接使用系统 WKWebView；本地保存刷新、URL、尺寸/缩放、Tab、中文输入与关闭已检查 |
-| Notebook 单文件 | `.ipynb` 单元格、Markdown、已保存输出查看 | macOS WebView 查看 nbformat 4；公式、表格、HTML、PNG/SVG、Matplotlib 已保存静态输出已检查 |
+| Notebook 单文件 | 原生 Python 单元格编辑执行，以及独立的静态保存输出预览 | Molten＋Jupytext 真实内核计算、错误和保存已检查；静态 WebView 的公式、表格、HTML、PNG/SVG、Matplotlib 已保存输出保留 |
+| macOS PDF | PDFKit 文档面板、翻页、缩放、适应、连续滚动与文本选择 | 原生 PDF 实际 GUI 翻页、缩放，以及 Neovim 浮窗覆盖与点击已检查 |
 | Jupyter Book | 项目构建入口、构建日志、站点预览与刷新 | 独立异步构建；Jupyter Book 1.0.4.post1 的成功、失败与产物刷新已检查；MyST 工具链未实测 |
 
-实施判断：Notebook 的首版只查看已有内容和已保存输出。内核执行、执行后的实时更新、交互图表，以及 HTML 源码/页面双向定位均需另外设计协议、进程管理与映射，当前不纳入已交付能力。Jupyter Book 不通过把 `.ipynb` 当网页打开来替代项目构建。
+阶段边界：Notebook 的历史首版只查看已有内容与保存输出；当前新增的原生编辑入口支持 Python 内核执行、结果更新及保存回 `.ipynb`，静态预览入口继续保留。当前单元格使用 Neovim 文本缓冲区；独立图形化输入卡片、交互图表和 HTML 源码/页面双向定位仍需另行设计。Jupyter Book 继续提供独立项目构建流程。
 
 
 ### macOS 后续阶段首版：播放、网页与文档预览
 
-新功能通过系统 AVFoundation/AVKit 和 WebKit 嵌入现有 winit 窗口；无需第二套窗口事件循环。已评估 Wry：其 macOS 后端也使用 WebKit，当前直接桥接已有 NSView 可减少依赖与焦点层级。此部分最低构建目标为 macOS 11，实际验收仅限本机 Apple Silicon/Metal；Windows/Linux 继续保留图片能力，不提供音视频/WebView 原生后端。
+新功能通过系统 AVFoundation/AVKit、WebKit 和 PDFKit 嵌入现有 winit 窗口；无需第二套窗口事件循环。已评估 Wry：其 macOS 后端也使用 WebKit，当前直接桥接已有 NSView 可减少依赖与焦点层级。此部分最低构建目标为 macOS 11，实际验收仅限本机 Apple Silicon/Metal；Windows/Linux 继续保留图片能力，不提供音视频/WebView/PDF 原生后端。
 
 主配置与 `portable/payload/nvim` 同步后可用：
 
@@ -142,22 +143,51 @@ git push origin glow-preview
 | --- | --- |
 | `:GlowMedia /path/file.wav`、`:GlowMedia /path/file.mp4` | 在右侧面板预览音频或视频 |
 | `:GlowWeb /path/index.html`、`:GlowWeb https://example.com` | 本地网页或 URL 页面 |
-| `:GlowNotebook /path/file.ipynb` | 单元格与已保存静态输出 |
+| `:GlowNotebook /path/file.ipynb` | 原生 Python 单元格编辑、运行及保存输出 |
+| `:GlowNotebookPreview /path/file.ipynb` | 静态查看 Markdown、公式及已保存富输出 |
+| `:GlowPDF /path/file.pdf` | macOS PDFKit 原生 PDF 预览 |
 | `:GlowBook /path/project` | 查找项目配置并异步构建 HTML 站点 |
 | `:GlowBookLog`、`:GlowBookCancel` | 查看构建日志、取消本模块启动的构建 |
 | `:GlowPreviewFocus`、`:GlowPreviewClose` | 进入原生面板、关闭当前 Tab 的预览 |
 
-Neo-tree 的 Enter、双击、分屏和新 Tab 入口继续保留图片预览，并支持上述音视频扩展名、HTML 与 `.ipynb`。音频入口包含 MP3/M4A/AAC/WAV/AIFF/CAF/FLAC；视频入口包含 MP4/M4V/MOV/MPG/MPEG。实际编码是否可播放由系统解码器决定，文件后缀不构成兼容性保证。
+Neo-tree 的 Enter、双击、分屏和新 Tab 入口继续保留图片预览，并支持上述音视频扩展名、HTML、PDF 与 `.ipynb`；Notebook 默认进入原生编辑。音频入口包含 MP3/M4A/AAC/WAV/AIFF/CAF/FLAC；视频入口包含 MP4/M4V/MOV/MPG/MPEG。实际编码是否可播放由系统解码器决定，文件后缀不构成兼容性保证。
 
 音视频面板有原生播放/暂停、进度与音量控件。编辑器焦点下 Space 播放/暂停，`h/l` 跳转五秒，`+/-` 调音量，`0` 回到开头，`r` 重新加载，`q`/Esc 关闭。初始暂停；离开 Neovim Tab 即停止并销毁原生播放器，返回时按最近异步反馈的位置重新载入并保持暂停。位置反馈每 500 ms 更新，离开时可能有最多约一个反馈周期的进度差。关闭和编辑器 route 销毁会解除观察器、取消加载、移除子视图并释放播放器。
 
 网页按需创建，右侧分屏尺寸与编辑器字号/缩放变化同步。编辑器焦点下 `i`/Enter 进入网页，`+/-` 调整网页缩放，`0` 复位，`r` 刷新；网页中普通 Tab 保持表单导航，Cmd+Esc 返回编辑器，Ctrl+Tab/Ctrl+Shift+Tab 切换 Neovim Tab。Cmd+A/C/X/V/Z 与 Cmd+Shift+Z 在网页焦点下交给系统编辑动作。Neovim 中保存本地 HTML、CSS、JS/MJS 时，同一目录树中的活动页面刷新；解析真实路径，避免 `/tmp` 与 `/private/tmp` 等别名漏掉保存事件。此首版不监视其他程序的磁盘写入，也不实现源码/页面双向定位。WebKit 使用临时数据存储，关闭释放视图与本模块监听，不保留登录会话。
 
-Notebook 异步读取上限 32 MiB、4000 单元格，支持 nbformat 4。随配置携带 markdown-it 14.1.0、KaTeX 0.16.22 及字体，可离线查看公式、Markdown 表格、代码、文本/错误、静态 HTML、PNG/SVG 和 Matplotlib 已保存输出。HTML 输出在脚本停用的子框架内显示；不连接内核、不执行单元格、不提供交互图表。保存 `.ipynb` 重新渲染，关闭删除临时 HTML；异步准备完成时不抢走其他 Tab，回到原 Tab 后才首次打开面板。
+原生网页、音视频和 PDF 面板按所有 Neovim 浮窗的实际区域裁切，并将这些区域的鼠标事件交还编辑器；补全、选择器、菜单等浮窗可以覆盖原生面板并接收点击。该规则按浮窗几何统一处理，不依赖特定插件名称。
+
+PDF 使用系统 PDFKit，提供页码、上一页/下一页、缩放与适应按钮、连续纵向滚动及文本选择。编辑器焦点下 `]p`/`[p` 或 PageDown/PageUp 翻页，`+`/`=`、`-` 缩放，`0` 适应当前面板，`i`/Enter 进入 PDF 焦点，`q`/Esc 关闭；PDF 焦点下可选择文字并用 Cmd+C 复制，Cmd+Esc 返回编辑器。Tab 生命周期与其他原生面板一致，关闭释放文档与视图。
+
+Notebook 静态入口 `:GlowNotebookPreview` 异步读取上限 32 MiB、4000 单元格，支持 nbformat 4。随配置携带 markdown-it 14.1.0、KaTeX 0.16.22 及字体，可离线查看公式、Markdown 表格、代码、文本/错误、静态 HTML、PNG/SVG 和 Matplotlib 已保存输出。HTML 输出在脚本停用的子框架内显示；此入口仅查看保存内容。保存 `.ipynb` 重新渲染，关闭删除临时 HTML；异步准备完成时不抢走其他 Tab，回到原 Tab 后才首次打开面板。
+
+### 原生 Notebook 编辑与执行
+
+`:GlowNotebook` 在真正的 Neovim Python 缓冲区中编辑 `.ipynb`，沿用现有字体、主题、光标、补全与快捷键。Jupytext 使用 `# %%` 和 `# %% [markdown]` 表示代码及 Markdown 单元格，Molten 负责连接 Jupyter 内核、异步执行和显示输出。单元格分隔和当前范围使用 Neovim 高亮与虚拟文字；当前没有独立的图形化输入卡片。Markdown、公式和复杂 HTML 的排版可通过 `:GlowNotebookPreview` 查看。
+
+依赖固定为 Molten [`bedea63819c618e007e7c40059fc6e72d598c8df`](https://github.com/benlubas/molten-nvim/commit/bedea63819c618e007e7c40059fc6e72d598c8df) 和 Jupytext.nvim [`c8baf3ad344c59b3abd461ecc17fc16ec44d0f7b`](https://github.com/GCBallesteros/jupytext.nvim/commit/c8baf3ad344c59b3abd461ecc17fc16ec44d0f7b)。配套 `config/media/runtime/install.sh` 安装固定 Python 依赖至 Neovim 数据目录下的 `glow-notebook-venv`，并注册独立的 `glow-python` 内核；本机路径为 `~/.local/share/nvim/glow-notebook-venv`。既有全局/Conda 环境及 `python3` 内核不被覆盖；显式配置的 Python provider 保持优先。配置只新增这两项插件固定版本，保留原插件锁的其他条目。
+
+首次运行才启动内核，并异步等待 `MoltenKernelReady` 后导入保存输出、执行请求；等待期间仍可编辑，若代码已改变会要求重新运行。打开文件本身不执行代码。`:w` 将代码写回原 `.ipynb`，并保存已产生的新输出；转换使用私有缓存，不覆盖或删除同名 `.py` 文件。输出保存需要已有 Python Treesitter 解析器。关闭最后一个显示该 Notebook 的窗口会停止本入口创建的内核；手动连接的用户内核保留其原有归属。
+
+| 操作 | 命令或按键 |
+| --- | --- |
+| 运行当前代码单元格 | Shift+Enter（普通/插入模式）、`:GlowNotebookRun` |
+| 运行全部代码单元格 | `:GlowNotebookRunAll` |
+| 打开当前单元格输出浮窗 | `:GlowNotebookOutput` |
+| 启动默认或指定内核 | `:GlowNotebookKernel`、`:GlowNotebookKernel kernelspec-name` |
+| 中断、重启内核 | `:GlowNotebookInterrupt`、`:GlowNotebookRestart` |
+| 添加代码、Markdown 单元格 | `:GlowNotebookAddCode`、`:GlowNotebookAddMarkdown` |
+| 上一个、下一个单元格 | `[c`、`]c` |
+| 保存代码与已完成输出 | `:w` |
+
+文本结果和错误在代码下方以原生虚拟文字显示；Molten 标注排队、运行、完成或失败状态。PNG/Matplotlib 静态图表通过 Neovide 图片接口显示在原生输出浮窗中，使用 `:GlowNotebookOutput` 查看；当前不在正文虚拟行内嵌图像。该适配不替换其他插件的 `image.nvim` 实现，也不承诺交互图表、网页控件或任意 Jupyter 富输出均可原生显示。当前编辑执行流程以 Python 验收，其他语言内核未验收。
+
+### Jupyter Book 与首版验收记录
 
 Jupyter Book 使用选定环境中的真实命令，并按该项目配置构建；与单文件 Notebook 查看分别实现。传统 `_config.yml` 使用 `jupyter-book build`，`myst.yml` 使用 `jupyter book build --html`。找不到命令时给出反馈，不自动修改用户 Python 环境；也可通过 `require("config.media.book").open(path, { builder = { ... } })` 传入环境启动命令的参数数组。重建成功才刷新已有站点，失败保留原站点并显示日志；首版通过再次执行入口重建，不承诺自动监视整个项目。取消只向本模块启动的构建进程发送 SIGTERM，不保证终止项目自行派生的长期进程。现代 MyST 参数与常见产物路径已接入，但未进行真实 MyST 工具链验收。
 
-2026-10-18 验收：
+2026-10-18 播放、网页与静态文档首版验收（历史记录）：
 
 - Rust release 构建、协议边界检查、分屏生命周期测试及 Notebook/Book 的 38 项针对性断言通过；插件锁不变。音频 AppKit 检查覆盖异步准备、播放时钟、暂停、跳转、音量、错误、加载中关闭与释放。WebKit 检查覆盖 CSS/JS、子框架输出、错误、焦点、缩放、坐标及释放。
 - H.264/AAC 原生视频测试在跳转前后采样 85 帧，解码帧时间戳与同一 AVPlayer 时钟最大偏差约 11 ms；4.25 s 跳转、音视频轨启用、首帧和关闭释放通过。播放检查静音进行，不能作为外部扬声器/显示延迟或主观口型同步的测量。
@@ -165,3 +195,11 @@ Jupyter Book 使用选定环境中的真实命令，并按该项目配置构建�
 - 在隔离环境中使用官方 Jupyter Book 1.0.4.post1 实际构建、修改内容后重建刷新、非法目录配置失败；构建站点另在开发应用中打开。用户既有 Python 环境未升级。未据此宣称现代 MyST、Windows/Linux 或所有媒体编解码器已验收。
 
 开发应用继续使用 `target/Neovide Glow Images.app`；没有覆盖 `/Applications/Neovide.app`、gm2 发行包、冻结标签或图标资源。源码和配套配置均应保留；原生预览 RPC 是 `neovide.preview.open/show/action/close` 通知，状态通过异步 Lua 回调送达，没有新增同步 Neovim 查询。
+
+2026-10-18 原生 Notebook 与 PDF 增量验收：
+
+- Apple Silicon release 构建及图片相关 9 项 release 测试通过，包含输出浮窗图像独立绘制和柔光排除；PDFKit 与统一原生浮层检查覆盖加载、翻页、缩放、关闭竞态、裁切合成及点击穿透。
+- 真实隔离 `glow-python` 内核自动检查通过：异步运行得到 `42`、显示 `ValueError`、保存新输出及执行计数回 `.ipynb`、关闭后内核释放。运行期间编辑器仍响应；Jupytext 检查覆盖特殊字符路径、私有缓存、同名 Python 文件保护、保存输出保留及磁盘内容重新加载。图表生成与原生图片加载通知已检查。
+- 独立开发应用中的 PDFKit 实际 GUI 检查通过：文档显示、翻页、缩放，以及覆盖 PDF 的 Neovim 浮窗显示和点击。其他原生面板继续使用统一的浮窗裁切与鼠标穿透实现。
+- 独立开发应用中实际查看了完整的 Matplotlib 原生输出浮窗图像，保存后重新打开可恢复图像。静态 Notebook 的 WKWebView 上方，右侧菜单和跨越右侧面板的悬浮终端均完整覆盖；实际点击右侧终端区域可将焦点从源码窗口切换到终端，关闭两个浮窗后网页完整恢复。
+- GUI 验收限本机 macOS/Metal。Windows/Linux、其他 Notebook 内核及交互图表未验收；本轮没有重复已通过的图片、柔光和音视频全量检查。

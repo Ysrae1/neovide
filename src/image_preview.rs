@@ -33,6 +33,8 @@ pub struct ImageView {
     pub zoom: f32,
     pub pan_x: f32,
     pub pan_y: f32,
+    /// Molten images inside an editor output float use the overlay pass.
+    pub overlay: bool,
 }
 
 impl ImageView {
@@ -60,6 +62,10 @@ impl ImageView {
             zoom: number("zoom", Some(1.0))?,
             pan_x: number("pan_x", Some(0.0))?,
             pan_y: number("pan_y", Some(0.0))?,
+            overlay: match fields.iter().find(|(name, _)| name.as_str() == Some("overlay")) {
+                Some((_, value)) => value.as_bool().ok_or("Image overlay must be a boolean")?,
+                None => false,
+            },
         };
         if view.row < 0.0 || view.col < 0.0 {
             return Err("Image viewport row and col must be nonnegative".to_owned());

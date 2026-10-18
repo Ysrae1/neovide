@@ -14,6 +14,9 @@ static void *GlowMediaPlayerStatusContext = &GlowMediaPlayerStatusContext;
 
 @interface GlowMediaView : NSView
 @property(nonatomic, weak) GlowMediaContext *context;
+@property(nonatomic, copy) NSArray<NSValue *> *occlusionRegions;
+@property(nonatomic) NSSize occlusionSize;
+- (void)setOcclusions:(const double *)rects count:(size_t)count;
 @end
 
 @interface GlowMediaContext : NSObject
@@ -55,6 +58,16 @@ static void *GlowMediaPlayerStatusContext = &GlowMediaPlayerStatusContext;
 
 @implementation GlowMediaView
 - (BOOL)isFlipped { return YES; }
+- (void)setOcclusions:(const double *)rects count:(size_t)count {
+    NSArray<NSValue *> *regions = GlowPreviewOcclusionRects(self, rects, count);
+    if (NSEqualSizes(self.occlusionSize, self.bounds.size) && [self.occlusionRegions isEqualToArray:regions]) return;
+    self.occlusionRegions = regions;
+    self.occlusionSize = self.bounds.size;
+    GlowPreviewApplyOcclusion(self, regions);
+}
+- (NSView *)hitTest:(NSPoint)point {
+    return GlowPreviewOccludesPoint(self, self.occlusionRegions, point) ? nil : [super hitTest:point];
+}
 - (BOOL)acceptsFirstResponder { return YES; }
 - (void)layout {
     [super layout];
@@ -470,6 +483,14 @@ void glow_media_frame(void *ctx, double x, double y, double width, double height
         context.view.hidden = NO;
         [context.view setNeedsLayout:YES];
         [context.view layoutSubtreeIfNeeded];
+    }
+}
+
+void glow_media_occlusion(void *ctx, const double *rects, size_t count) {
+    @autoreleasepool {
+        if (!ctx || !NSThread.isMainThread) return;
+        GlowMediaContext *context = (__bridge GlowMediaContext *)ctx;
+        if (!context.destroyed) [context.view setOcclusions:rects count:count];
     }
 }
 
