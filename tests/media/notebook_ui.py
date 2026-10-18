@@ -75,11 +75,11 @@ try:
     label_text = ''.join(chunk[0] for chunk in labels[0][3]['virt_lines'][0])
     assert 'python' not in label_text and 'Markdown' not in label_text and '󰼛' in label_text
     lower = outputs[0]['rect']
-    assert abs(lower['row'] - (last_row + .95)) < .01, (lower, last_row)
+    assert abs(lower['row'] - (last_row + 1.5)) < .01, 'seam is centered in its own blank virtual row'
     assert abs(inputs[0]['rect']['row'] + inputs[0]['rect']['height'] - lower['row']) < .01, 'upper and lower sections share the identical seam'
     assert inputs[0]['active'] == outputs[0]['active'], 'joined sides keep matching stroke width'
     outer_bottom = lower['row'] + lower['height']
-    assert abs(outer_bottom - (last_row + 1 + 2 + .2)) < .01, 'single outer contains every output row'
+    assert abs(outer_bottom - (last_row + 2 + 2 + .2)) < .01, 'output follows the independent separator row'
     assert inputs[0]['rect']['row'] < lower['row'] < outer_bottom, 'shared seam stays inside the compound frame'
     # Inspect actual rendered lines, not only API geometry.
     screen = nvim.exec_lua("""local rows={};for r=1,15 do local text='';for c=1,40 do
@@ -87,6 +87,21 @@ try:
     assert not any('jupyter:' in line for line in screen), screen
     assert not any('# %%' in line for line in screen), 'cell markers are hidden without removing source'
     assert any('print(42)' in line for line in screen), screen
+    def separator_snapshot():
+        snapshot = nvim.exec_lua("""local a=vim.api;local rows={}
+          for r=1,a.nvim_win_get_height(0) do local text='';for c=1,96 do
+            text=text..vim.fn.screenstring(r,c) end;rows[r]=text end
+          local ns=a.nvim_get_namespaces()['glow.notebook.separator']
+          return {source=vim.fn.screenpos(0,7,1).row-1,rows=rows,
+            marks=a.nvim_buf_get_extmarks(0,ns,0,-1,{details=true})}""")
+        source_row = snapshot['source']
+        assert snapshot['rows'][source_row + 1].strip() == '', 'separator must occupy a genuinely empty screen row'
+        assert snapshot['rows'][source_row + 2].lstrip().startswith('Out['), 'Molten header must start in the following row'
+        assert len(snapshot['marks']) == 1
+        assert snapshot['marks'][0][3]['right_gravity'] is False
+        assert len(snapshot['marks'][0][3]['virt_lines']) == 1
+        return source_row, snapshot['marks']
+    separator_snapshot()
     # Multiple output marks belong to their source cell, independently of their
     # identity and proximity to the next cell. Keep one lower section each.
     nvim.exec_lua("""extra=vim.api.nvim_buf_set_extmark(0,ns,7,0,{virt_lines={
@@ -142,7 +157,7 @@ try:
     anchor = SimpleNamespace(bufno=nvim.current.buffer.number, lineno=6)
     for status in [OutputStatus.NEW, OutputStatus.RUNNING]:
         live.output.status = status
-        previous_geometry, ids = None, set()
+        previous_geometry, previous_separator, ids = None, None, set()
         for turn in range(6):
             live.output.chunks = [] if status == OutputStatus.NEW else [TextOutputChunk(str(42 + turn))]
             live.show_virtual_output(anchor)
@@ -153,10 +168,15 @@ try:
             after = nvim.api.buf_get_extmark_by_id(0, live.extmark_namespace, live.virt_text_id, {'details': True})
             assert before == after, 'Notebook UI must never rewrite Molten output marks'
             assert len(after[2]['virt_lines']) == (1 if status == OutputStatus.NEW else 2)
+            nvim.command('redraw')
+            separator = separator_snapshot()
+            lower = next(f for f in current if f['kind'] == 'output')['rect']
+            assert abs(lower['row'] - (separator[0] + 1.5)) < .01, 'seam leaves half a blank row above and below'
             geometry = [(f['rect'], f['anchor']) for f in current]
             if previous_geometry is not None:
                 assert geometry == previous_geometry, 'same-height real Molten ticks must keep geometry and epoch'
-            previous_geometry = geometry
+                assert separator == previous_separator, 'recreated Molten marks must not move or rewrite the independent spacer'
+            previous_geometry, previous_separator = geometry, separator
         assert len(ids) == 6, 'test must cover actual Molten mark replacement'
     old_epoch = current[0]['anchor']['epoch']
     live.output.chunks = [TextOutputChunk('42\n43')]
@@ -200,7 +220,7 @@ try:
     nvim.command('tabprevious')
     returned = nvim.exec_lua('return ui.refresh()')
     assert returned[0]['anchor']['epoch'] != epoch, 'returning to a hidden tab remeasures its current viewport'
-    print('PASS: joined blue/green sections share one seam; no-output frames remain whole; multiple-mark envelopes/cross-cell ownership; real Molten 12 ticks keep raw height/epoch; hidden metadata; source/scroll/Tab preserved')
+    print('PASS: seam centered on a real independent blank row; Molten header starts in next row; 12 real NEW/RUNNING ticks preserve raw marks/spacer/epoch; joined geometry/multiple marks/reload/scroll remain stable')
 finally:
     try:
         nvim.command('qa!')
