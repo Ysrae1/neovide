@@ -1,5 +1,15 @@
 # 冻结版本记录
 
+## 2026-10-19 · glow-stack-20261019-gm1
+
+本机配置与 Neovide／portable 使用同名冻结标签。旧 gm2、配色标签及下载完整保留；本版继续作为预发布。
+
+- 原生 Liquid Glass、音视频／网页／PDF 与 SyncTeX、Notebook 保存输出和切 Tab 保留；本地 Notebook 输出与错误不因关闭重开而消失。
+- 工具弹窗统一实心并移除 backdrop；同名引用增加可调细框，Cursor 显式绑定主题颜色。Neo-tree 渐隐／裁切、多光标和主题切换读取同步修复，保留用户当前 Ayu 配色与材质设置。
+- 统一原生分层图标与启动行为，安装盘保留已确认的 Sketch 背景。随包 FiraCode Nerd Font Mono 与 Noto；Mac 中文调用系统苹方。
+- 安装器固定 70 个插件并准备隔离 Notebook Python、内核声明和远程命令；不复制用户登录、会话或运行数据。Mac DMG 固定原生源码 `bf17179d226df65f0b5ddb3d94093f743fc6fbac`，准确下载校验与配置提交见 manifest.json。
+- 已完成本机浅深 GUI、Rust 284 项／clippy／构建、隔离配置和新安装流程针对检查。Windows／旧 macOS／新机联网整套安装未验收；Mac App 未公证。Mason 传递依赖与 Notebook Python 发行文件哈希不完整锁定，第三方许可索引保留 dispatch 0.2.0 上游原文缺口。
+
 ## 2026-10-18 · ayu-colors-20261018-v1
 
 冻结当前 Ayu Light／Dark 自定义配色、Base46 插件映射与编辑配置。两个主题文件统一命名为 `ayu_light_customed.lua`、`ayu_dark_customed.lua`，保留相同字段结构，加载入口与重载命令同步更新。

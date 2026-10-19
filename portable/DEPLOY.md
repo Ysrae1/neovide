@@ -24,9 +24,16 @@
 
 请整体解压，不能只单独复制 `install.sh` 或 `install.ps1`。单文件 Mac 安装器已经将这些内容封装在内部，可以整体移动到另一台 Apple Silicon Mac。首次安装需要访问 GitHub、Node.js、Python 包源和 Rust 包源；没有把他人的登录凭据打进安装包。
 
-源码中的下一版字体方案使用 FiraCode Nerd Font Mono 3.3.0，并为 Windows／WSL 附带 Noto Sans Mono CJK SC 2.004 的常规体和粗体。Mac 保留系统 PingFang SC，不安装 Noto 或复制苹方文件。安装器先校验整套字体及已有同名文件，才写入当前用户字体目录；不会覆盖不同版本。字体资源直接包含在 ZIP 和单文件安装器中，不依赖字体下载服务。本机隔离验证不代表 Windows 字体 API 已验收；冻结 gm2 发行包不含本次增量。
+本冻结版字体方案使用 FiraCode Nerd Font Mono 3.3.0，并为 Windows／WSL 附带 Noto Sans Mono CJK SC 2.004 的常规体和粗体。Mac 保留系统 PingFang SC，不安装 Noto 或复制苹方文件。安装器先校验整套字体及已有同名文件，才写入当前用户字体目录；不会覆盖不同版本。字体资源直接包含在 ZIP 和单文件安装器中，不依赖字体下载服务。本机隔离验证不代表 Windows 字体 API 已验收；旧 gm2 发行包保持原样。
 
 `*.sh` 表示所有以 `.sh` 结尾的文件。真正执行的文件名是 `install.sh`，不含星号。Windows 对应的入口是 `install.ps1`。
+
+
+### Notebook 环境
+
+`plugins` 阶段还会安装固定提交的 Molten／Jupytext，并用随包锁定的 Python 3.12.2 建立版本目录内的 `data/nvim/glow-notebook-venv`，安装固定版本的 Notebook 依赖、注册该环境自己的 `glow-python` 内核与 Neovim 远程命令。安装和注册不会执行 Notebook 或启动内核，也不改系统／Conda 的 Python。重复运行验证安装记录；发现已有不同环境或被手调的生成文件时保留并停止。
+
+Notebook Python 包版本已固定，但没有逐个发行文件的 SHA256；与 Mason 的历史传递依赖一样，不承诺未来下载逐字节复现。新机联网完整安装和 Windows／WSL 的 Notebook 执行尚未实机验收。
 
 ## Apple Silicon Mac
 
@@ -67,7 +74,7 @@ bash install.sh
 默认环境在：
 
 ```text
-~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm2/
+~/.local/share/neovide-glow/stacks/neovide-glow-20261019-gm1/
 ```
 
 下载会核对清单中的 SHA256。安装器把 Neovim、配置、插件、运行库和缓存放进这个版本目录；失败时保留结果并退出，可以在处理具体错误后重跑同一命令。首次源码构建需要联网和一定磁盘空间；构建耗时取决于网络和电脑，不能把仍在编译误判为无响应。
@@ -85,7 +92,7 @@ bash install.sh
 
 ```sh
 bash install.sh --doctor
-~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm2/bin/nvim --version
+~/.local/share/neovide-glow/stacks/neovide-glow-20261019-gm1/bin/nvim --version
 ```
 
 再启动 GUI，确认字体完整、Glow 正常、启动字母雨能结束、首页和侧栏正常。打开一个 Lua 或 Python 文件，确认没有启动报错并检查对应 LSP。详细检查项见后面的验收清单。
@@ -142,7 +149,7 @@ Windows 使用同一 Glow 源码与静态浅色图标，Apple `.icon/Assets.car`
 
 ## AI 登录和公式
 
-AI 仍使用 Avante 原侧栏与原快捷键，通过固定版本的 Codex ACP 适配器连接。首次使用时在这套环境中启动登录流程，使用自己的 ChatGPT 账号完成浏览器授权，例如在 Mac 或 WSL 终端运行 `~/.local/share/neovide-glow/stacks/neovide-glow-20261017-gm2/bin/codex login`；已有宿主电脑的登录不会自动复制到另一台机器。WSL 后端需要在 WSL 里完成登录，Windows 宿主的登录文件不等于 Linux 后端的登录。
+AI 仍使用 Avante 原侧栏与原快捷键，通过固定版本的 Codex ACP 适配器连接。首次使用时在这套环境中启动登录流程，使用自己的 ChatGPT 账号完成浏览器授权，例如在 Mac 或 WSL 终端运行 `~/.local/share/neovide-glow/stacks/neovide-glow-20261019-gm1/bin/codex login`；已有宿主电脑的登录不会自动复制到另一台机器。WSL 后端需要在 WSL 里完成登录，Windows 宿主的登录文件不等于 Linux 后端的登录。
 
 不要把 `auth.json`、密钥、会话和账号目录发到 GitHub 或交给其他用户。部署说明可以交给 Codex，账号登录仍由账号本人完成。
 

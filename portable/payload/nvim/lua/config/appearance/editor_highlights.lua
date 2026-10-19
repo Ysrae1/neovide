@@ -13,8 +13,8 @@ M.config = {
   cursorline = {
     enabled = true, -- 光标所在行开关，对应 :set cursorline / nocursorline。
     area = "both", -- both=整行含行号；line=正文整行；number=只有行号；screenline=换行后的当前屏幕行。
-    style = { bg = "one_bg" }, -- 当前：Dark #1C1F25，Light #EBEBEB；one_bg2/one_bg3 对比更强。
-    neovide_blend = 40, -- 仅 Neovide 的行背景透明度：0=不混合，100=全透明；文字不受影响。
+    style = { bg = "one_bg2" }, -- 当前：Dark #1C1F25，Light #EBEBEB；one_bg2/one_bg3 对比更强。
+    neovide_blend = 20, -- 仅 Neovide 的行背景透明度：0=不混合，100=全透明；文字不受影响。
     -- 普通终端不应用 blend；最终背景透明度由终端自身设置决定。
   },
 
@@ -25,7 +25,7 @@ M.config = {
     debounce = 200, -- 光标停留多久后更新，毫秒；越小响应越快、请求越频繁。
     modes = { "n", "i", "c" }, -- n=普通、i=插入、c=命令行；加 "v" 可在 Visual 时也显示。
     outline = true, -- 新版 Neovide 绘制 1 像素细框；false 关闭。终端及旧前端保留原底色。
-    style = { bg = "one_bg3", sp = "blue" }, -- 三类引用共用样式；sp 调节细框颜色。
+    style = { bg = "grey", sp = "blue" }, -- 三类引用共用样式；sp 调节细框颜色。
     text = {}, -- 普通引用 LspReferenceText；例如 { underline = true }。
     read = {}, -- 读取引用 LspReferenceRead；例如 { bg = "one_bg2" }。
     write = {}, -- 写入引用 LspReferenceWrite；例如 { underline = true, sp = "orange" }。
@@ -34,7 +34,7 @@ M.config = {
 
   visual = {
     selection = "inclusive", -- inclusive=包含光标字符；exclusive=不含末端字符。
-    style = { bg = "base02", bold = true }, -- Visual 选区：Dark #24272D，Light #EEEEEE。
+    style = { bg = "visual_selection", bold = true }, -- Visual 选区：Dark #24272D，Light #EEEEEE。
     inactive_style = { fg = "base08", bold = true }, -- VisualNOS：未持有系统选区时的备用样式，是否显示由前端决定。
     -- 修改 selection 只改变选区边界规则，不改变拖拽、复制和多光标的快捷键。
   },
@@ -42,9 +42,9 @@ M.config = {
   multicursor = {
     -- 主选区与附加选区独立于 Visual；点光标覆盖一个字符，拖选则覆盖整个所选范围。
     -- 以下保留插件原配色与现有加粗；可改用 "light_grey"、"base02" 等随主题变化的色槽。
-    style = { bg = "#161714", bold = true }, -- 两组共用样式；可加 fg、underline、italic、sp。
-    main = { fg = "#D6F31F" }, -- 当前主选区：MultiCursorMain。
-    others = { fg = "#DBEC6B" }, -- 其他已添加的选区：MultiCursor。
+    style = { bg = "visual_selection", bold = true }, -- 两组共用样式；可加 fg、underline、italic、sp。
+    main = { fg = "yellow" }, -- 当前主选区：MultiCursorMain。
+    others = { fg = "yellow" }, -- 其他已添加的选区：MultiCursor。
     -- main / others 的字段覆盖共用 style；例如 others = { bg = "base02", bold = false }。
     neovide_blend = 0, -- 仅 Neovide 的选区背景：0=不混合，100=全透明；普通终端不应用 blend。
     -- 这里只控制显示；添加/撤销光标、Command+拖选和编辑快捷键仍由 multicursors.lua 管理。
@@ -112,10 +112,14 @@ end
 
 function M.apply()
   local base46 = package.loaded.base46
-  if type(base46) ~= "table" then return end
+  if type(base46) ~= "table" then
+    return
+  end
   -- 兼容层在 Base46 的透明处理和插件主题回调之后调用，终端也保留行背景。
   local cursorline = resolve_style(M.config.cursorline.style, base46)
-  if vim.g.neovide then cursorline.blend = M.config.cursorline.neovide_blend end
+  if vim.g.neovide then
+    cursorline.blend = M.config.cursorline.neovide_blend
+  end
   vim.api.nvim_set_hl(0, "CursorLine", cursorline)
   for suffix, key in pairs({ Text = "text", Read = "read", Write = "write" }) do
     local style = vim.tbl_extend("force", M.config.references.style, M.config.references[key])

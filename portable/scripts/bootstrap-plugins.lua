@@ -1,5 +1,5 @@
 -- Run with the isolated profile's XDG_* variables and -u NONE.
--- NEOVIDE_BUNDLE_PAYLOAD=/path/to/payload NVIM_BUNDLE_PHASE=parsers|mason|health
+-- NEOVIDE_BUNDLE_PAYLOAD=/path/to/payload NVIM_BUNDLE_PHASE=notebook|parsers|mason|health
 local payload = assert(vim.env.NEOVIDE_BUNDLE_PAYLOAD, "NEOVIDE_BUNDLE_PAYLOAD is required")
 local phase = vim.env.NVIM_BUNDLE_PHASE or "health"
 local data = vim.fn.stdpath("data")
@@ -16,7 +16,11 @@ local plugin_manifest = read_json(payload .. "/plugins.json")
 for _, plugin in ipairs(plugin_manifest.plugins) do
   local path = data .. "/lazy/" .. plugin.name
   ensure(vim.fn.isdirectory(path) == 1, "Missing pinned plugin: " .. path)
-  vim.opt.runtimepath:append(path)
+  -- Remote registration needs only these two plugins. Other plugins must not
+  -- create Python hosts or run initialization/build actions in this phase.
+  if phase ~= "notebook" or plugin.name == "molten-nvim" or plugin.name == "jupytext.nvim" then
+    vim.opt.runtimepath:append(path)
+  end
 end
 vim.opt.runtimepath:prepend(vim.fn.stdpath("config"))
 
@@ -122,6 +126,22 @@ local function install_mason()
   print("Installed/verified " .. #selected .. " selected versioned tools from the frozen registry on " .. platform .. "; skipped " .. skipped .. " optional tools")
 end
 
+local function notebook()
+  local runtime = require("config.media.runtime")
+  ensure(runtime.ready(), "Isolated Notebook Python/Jupytext executables are missing")
+  runtime.prepare_host()
+  ensure(vim.g.python3_host_prog == runtime.python(), "Notebook default provider must use its isolated Python")
+  vim.cmd("runtime plugin/rplugin.vim")
+  vim.cmd("UpdateRemotePlugins")
+  local manifest = data .. "/rplugin.vim"
+  ensure(vim.fn.filereadable(manifest) == 1, "Notebook remote-plugin manifest was not generated")
+  local text = read_text(manifest)
+  ensure(text:find("MoltenInit", 1, true), "Molten commands missing from generated remote-plugin manifest")
+  local kernel = read_json(runtime.directory() .. "/share/jupyter/kernels/glow-python/kernel.json")
+  ensure(vim.fs.normalize(kernel.argv[1]) == vim.fs.normalize(runtime.python()), "Notebook kernel uses a different Python")
+  print("Notebook isolated Python provider, kernel spec and remote-plugin commands registered; no kernel started")
+end
+
 local function health()
   local native = require("fff.rust")
   ensure(type(native) == "table", "FFF native library did not load")
@@ -135,7 +155,8 @@ local function health()
 end
 
 local ok, err = xpcall(function()
-  if phase == "parsers" then install_parsers()
+  if phase == "notebook" then notebook()
+  elseif phase == "parsers" then install_parsers()
   elseif phase == "mason" then install_mason()
   elseif phase == "health" then health()
   else error("Unknown NVIM_BUNDLE_PHASE: " .. phase) end

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "snapshot_date": "2026-10-17",
+  "snapshot_date": "2026-10-19",
   "plugins": [
     {
       "name": "Comment.nvim",
@@ -561,6 +561,22 @@
       "name": "window-picker",
       "url": "https://github.com/s1n7ax/nvim-window-picker.git",
       "commit": "6382540b2ae5de6c793d4aa2e3fe6dbb518505ec",
+      "branch": "main",
+      "build_action": "none",
+      "build_required": false
+    },
+    {
+      "name": "jupytext.nvim",
+      "url": "https://github.com/GCBallesteros/jupytext.nvim.git",
+      "commit": "c8baf3ad344c59b3abd461ecc17fc16ec44d0f7b",
+      "branch": "main",
+      "build_action": "none",
+      "build_required": false
+    },
+    {
+      "name": "molten-nvim",
+      "url": "https://github.com/benlubas/molten-nvim.git",
+      "commit": "bedea63819c618e007e7c40059fc6e72d598c8df",
       "branch": "main",
       "build_action": "none",
       "build_required": false

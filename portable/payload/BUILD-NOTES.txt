@@ -1,4 +1,4 @@
-Portable Neovim payload — 2026-10-17
+Portable Neovim payload — 2026-10-19
 
 Profile layout: STACK/config/nvim, STACK/data/nvim, STACK/state/nvim,
 STACK/cache/nvim, with XDG_CONFIG_HOME=STACK/config etc. NVIM_APPNAME=nvim.
@@ -69,3 +69,9 @@ NEOVIDE_BUNDLE_PAYLOAD=/absolute/payload NVIM_BUNDLE_PHASE=parsers
 nvim --headless -u NONE -l /absolute/scripts/bootstrap-plugins.lua
 Run again with phase=mason, then phase=health. These phases may download/build
 but have not been run against a new machine during payload creation.
+
+Notebook runtime
+The plugins stage adds the pinned Molten/Jupytext sources and an isolated
+Python 3.12.2 environment at data/nvim/glow-notebook-venv. A prefix-only
+glow-python kernelspec and UpdateRemotePlugins registration are generated
+without starting a kernel. Pinned Python versions are not wheel-hash locks.

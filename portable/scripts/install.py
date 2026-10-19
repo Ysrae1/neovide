@@ -231,6 +231,10 @@ class Installer:
                 failures.append('Codex ACP adapter not installed')
             if not (acp / 'package-lock.json').is_file() or sha(acp / 'package-lock.json') != sha(self.payload / 'codex-acp/package-lock.json'):
                 failures.append('Codex ACP lock missing/different')
+            try:
+                self.check_notebook_runtime()
+            except (InstallError, OSError, ValueError, KeyError) as error:
+                failures.append(str(error))
         if 'languages' in required_stages:
             for name in read_json(self.payload / 'treesitter.json')['parsers']:
                 if not (self.profile_data / 'lazy/nvim-treesitter/parser' / (name + '.so')).is_file():
@@ -785,7 +789,83 @@ end
                 self.run([self.root / 'bin/uv', 'venv', '--python', self.root / 'runtime/bin/python-app', venv])
             self.run([self.root / 'bin/uv', 'pip', 'install', '--python', venv / 'bin/python', '--require-hashes', '-r', lock])
             write_json(marker, {'lock': sha(lock)})
+        self.install_notebook_runtime()
         self.stage_marker('plugins')
+
+    def notebook_inputs(self):
+        requirements = self.payload / 'nvim/lua/config/media/runtime/requirements.txt'
+        expected = {name: next((p['commit'] for p in self.plugins if p['name'] == name), None)
+                    for name in ('molten-nvim', 'jupytext.nvim')}
+        if not all(expected.values()):
+            raise InstallError('Frozen Notebook plugin sources are missing from plugins.json.')
+        installed = self.root / 'config/nvim/lua/config/media/runtime/requirements.txt'
+        if not installed.is_file() or sha(installed) != sha(requirements):
+            raise InstallError('Notebook requirements are missing or locally edited; configuration was preserved.')
+        return {'requirements': sha(requirements), 'python': self.manifest['runtimes']['mason_python'],
+                'platform': self.target, 'plugins': expected,
+                'bootstrap': sha(self.bundle / 'scripts/bootstrap-plugins.lua')}
+
+    def notebook_files(self):
+        venv = self.profile_data / 'glow-notebook-venv'
+        return (venv / 'pyvenv.cfg', venv / 'share/jupyter/kernels/glow-python/kernel.json',
+                self.profile_data / 'rplugin.vim')
+
+    def notebook_packages(self):
+        # Import the host dependencies, but never instantiate/start a kernel.
+        code = ('import importlib.metadata as m, json; '
+                'import pynvim, jupyter_client, jupytext, nbformat, PIL, matplotlib; '
+                'print(json.dumps(sorted((d.metadata["Name"].lower().replace("_", "-"), '
+                'd.version) for d in m.distributions())))')
+        result = self.run([self.profile_data / 'glow-notebook-venv/bin/python', '-c', code], capture=True)
+        return fingerprint(json.loads(result))
+
+    def check_notebook_runtime(self):
+        marker = self.meta / 'notebook-runtime.json'
+        if not marker.is_file():
+            raise InstallError('Notebook runtime has no completed installer record.')
+        record = read_json(marker)
+        if record.get('inputs') != self.notebook_inputs() or record.get('status') != 'ready':
+            raise InstallError('Notebook runtime is incomplete or has a different frozen input.')
+        for path in self.notebook_files():
+            if not path.is_file() or sha(path) != record.get('files', {}).get(str(path)):
+                raise InstallError('Notebook generated file missing/changed; preserved: ' + str(path))
+        if self.notebook_packages() != record.get('packages'):
+            raise InstallError('Notebook Python packages changed; existing environment was preserved.')
+        return record
+
+    def install_notebook_runtime(self):
+        inputs = self.notebook_inputs()
+        marker = self.meta / 'notebook-runtime.json'
+        venv = self.profile_data / 'glow-notebook-venv'
+        record = read_json(marker) if marker.is_file() else None
+        if record:
+            if record.get('inputs') != inputs:
+                raise InstallError('Notebook runtime inputs changed; existing environment was preserved.')
+            if record.get('status') == 'ready':
+                self.check_notebook_runtime()
+                say('Frozen Notebook runtime and remote-plugin registration retained; no package install needed.')
+                return
+        elif venv.exists() or self.notebook_files()[-1].exists():
+            raise InstallError('Unmanaged Notebook environment/remote-plugin manifest was preserved.')
+        # Record ownership before creating the environment so interrupted installs
+        # can resume. A different existing environment is never pip-synced.
+        write_json(marker, {'inputs': inputs, 'status': 'preparing'})
+        if not (venv / 'bin/python').is_file():
+            self.run([self.root / 'bin/uv', 'venv', '--python', self.root / 'runtime/bin/python3', venv])
+        requirements = self.payload / 'nvim/lua/config/media/runtime/requirements.txt'
+        self.run([self.root / 'bin/uv', 'pip', 'sync', '--python', venv / 'bin/python', requirements])
+        self.run([venv / 'bin/python', '-m', 'ipykernel', 'install', '--prefix', venv,
+                  '--name', 'glow-python', '--display-name', 'Neovide Glow Python'])
+        env = dict(self.env, NEOVIDE_BUNDLE_PAYLOAD=str(self.payload), NVIM_BUNDLE_PHASE='notebook')
+        self.run([self.root / 'bin/nvim', '--headless', '-u', 'NONE', '-l',
+                  self.bundle / 'scripts/bootstrap-plugins.lua'], env=env)
+        packages = self.notebook_packages()
+        files = self.notebook_files()
+        if not all(path.is_file() for path in files):
+            raise InstallError('Notebook setup did not create its environment, kernel spec and remote-plugin manifest.')
+        write_json(marker, {'inputs': inputs, 'status': 'ready', 'packages': packages,
+                            'files': {str(path): sha(path) for path in files}})
+        say('Frozen Notebook Python host, prefix-only kernel and remote plugins are ready; no kernel was started.')
 
     def stage_marker(self, stage):
         write_json(self.meta / 'stages' / (stage + '.json'), {'stack_id': self.stack_id, 'manifest_sha256': sha(self.manifest_path), 'completed': time.strftime('%Y-%m-%dT%H:%M:%S%z')})

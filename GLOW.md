@@ -6,6 +6,12 @@
 
 2026-10-19，Codex；本节保存接手所需的当前事实，下面保留功能说明与历史记录。
 
+- 冻结发布 `glow-stack-20261019-gm1`：配置 `0ff8d9cd`，原生二进制源码 `bf17179`；源码／portable 使用本次发布准备提交，两个仓库同名标签。保留旧 gm2 与配色标签，不替换本机安装。发布入口 https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261019-gm1 。
+- 修复 Base46 编译先于 background 切换导致 Lazy／LSP inlay／补全按旧模式计算；兼容层重算并回写三份缓存。LazyButton 跟随主题正文色，另刷新 FFF 三个复制前景及 Noice 进度复制色。两配置 × 两前端的浅深往返／延迟加载／旧缓存注入／namespace 检查通过；当前窗口已热应用，LazyButton 前景等于当前 Normal。
+- portable 同步用户最终显示值，固定 70 个插件；安装器补 Notebook 独立 Python 3.12.2、prefix 内核与远程命令，五项隔离保护回归及真实临时 XDG 注册通过，未启动内核。24 项配置检查通过。DMG 实际挂载／签名／二进制／Assets.car／许可检查通过，SHA256 `d19a4b36c57711bcd8274493a2204484739a64b132a6979ed3b517678c5fc75f`；沿用已完成的 Rust 284 项／clippy／构建与浅深 GUI，不重复全量检查。
+- 发布产物与检查日志在 `target/releases/glow-stack-20261019-gm1/`；Windows／新机联网完整安装／旧 macOS 未新增验收，Notebook Python 固定版本但无发行文件哈希，dispatch 原文缺口保留。
+
+
 - 本轮按用户要求整理为本地提交；配置仓库 `982df08a` 包含弹窗实心／去遮罩、引用细框配置、Cursor 绑定、Notebook 当前行及本轮 Neo-tree／多光标调整，保留用户当前手调值。配套源码与 portable 在本次源码提交中；沿用已完成的配置、浅深 GUI、284 项 Rust／clippy／构建结果，未推送或替换安装。
 
 - Notebook 清空 Molten 默认的 `MoltenCell → CursorLine` 整格高亮，仅保留真实光标行；两配置的 `notebook_highlights.lua` 与既有回归已更新。主题重载及实际 Molten 选区／附加 UI 的浅深四组检查通过；当前会话热加载，内容、输出 extmarks、边框和内核均保留。
