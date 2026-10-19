@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Real Jupytext saves survive lost handlers and a bare restored percent buffer."""
 import json
+import os
 import tempfile
 from pathlib import Path
 
@@ -29,7 +30,7 @@ with tempfile.TemporaryDirectory(prefix="glow writer's ") as temporary:
           _convert=_runtime.convert;_conversions=0;_posts=0
           _runtime.convert=function(args)_conversions=_conversions+1;return _convert(args)end
           vim.api.nvim_create_autocmd('BufWritePost',{pattern='*.ipynb',callback=function()_posts=_posts+1 end})
-        ''', str(ROOT / 'portable/payload/nvim'))
+        ''', str(Path(os.environ.get('GLOW_TEST_CONFIG', ROOT / 'portable/payload/nvim'))))
         assert editor.exec_lua("return require('config.media.notebook_edit').open(...)", str(path))
         source = editor.current.buffer[:]
         editor.exec_lua('_conversions=0;_posts=0')

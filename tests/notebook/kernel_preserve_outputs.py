@@ -105,7 +105,7 @@ def main():
         init.write_text('\n'.join([
             "vim.g.mapleader=' ';vim.o.hidden=true",
             "_G.kernel_test_notifications={};vim.notify=function(msg) kernel_test_notifications[#kernel_test_notifications+1]=msg end",
-            'vim.opt.rtp:prepend(' + json.dumps(str(root / 'portable/payload/nvim')) + ')',
+            'vim.opt.rtp:prepend(' + json.dumps(str(Path(os.environ.get('GLOW_TEST_CONFIG', root / 'portable/payload/nvim')))) + ')',
             *['vim.opt.rtp:append(' + json.dumps(str(data / 'lazy' / plugin)) + ')'
               for plugin in ['molten-nvim', 'nvim-treesitter', 'jupytext.nvim']],
             "require('config.media.runtime').configure_molten()",

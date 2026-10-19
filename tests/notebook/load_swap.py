@@ -68,8 +68,8 @@ with tempfile.TemporaryDirectory(prefix="glow swap's read ") as temporary:
         signal.alarm(35)
         editor.ui_attach(100, 30, rgb=True)
         editor.exec_lua('''
-          local root,directory=...
-          vim.opt.rtp:prepend(root..'/portable/payload/nvim')
+          local config,directory=...
+          vim.opt.rtp:prepend(config)
           vim.opt.rtp:append(vim.fn.expand('~/.local/share/nvim/lazy/jupytext.nvim'))
           vim.o.directory=directory..'//';vim.o.hidden=true
           _runtime=require('config.media.runtime');_runtime.configure_jupytext()
@@ -79,7 +79,7 @@ with tempfile.TemporaryDirectory(prefix="glow swap's read ") as temporary:
           vim.notify=function(message)_messages[#_messages+1]=message end
           vim.api.nvim_create_autocmd('BufReadPost',{pattern='*.ipynb',callback=function()_posts=_posts+1 end})
           _set_lines=vim.api.nvim_buf_set_lines
-        ''', str(ROOT), str(directory))
+        ''', str(Path(os.environ.get('GLOW_TEST_CONFIG', ROOT / 'portable/payload/nvim'))), str(directory))
         baseline = swap_read("local ok,err=pcall(vim.cmd.edit,{args={...}});return {ok=ok,error=tostring(err),ft=vim.bo.filetype,posts=_posts,lines=vim.api.nvim_buf_get_lines(0,0,-1,false)}")
         assert not baseline['ok'] and 'E325:' in baseline['error'] and baseline['ft'] == '', baseline
         assert 'value = 42' in baseline['lines'] and baseline['posts'] == 0, baseline
