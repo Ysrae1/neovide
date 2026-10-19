@@ -131,8 +131,21 @@ compensation, export the icon, generate the shared PNG/ICO/SVG variants, replace
 the embedded icon in the editable Sketch installer panel, and regenerate both
 PNG background sizes and the PDF. It also refreshes the Sketch
 document's cached background. See [assets/README.md](../assets/README.md).
-Its native Core Graphics shadow follows the Icon Composer export's alpha;
-never add a shadow or rounded mask from the old Sketch base.
+The static icon is rendered by IconServices from an isolated temporary app
+compiled with the same `make-native-icon`/`actool` path as the packaged app.
+The flat `ictool` export differs from the system's material and outer shape;
+neither its design-generation setting nor an added mask makes it equivalent.
+Keep the system-rendered margins and alpha unchanged: do not apply another
+832/1024 scale, outside shadow, or rounded mask from the old Sketch base.
+The exporter rejects generic or blank system icons before replacing the PNG.
+After system rendering, `staticBrightnessGain` in
+`assets/icon-color-compensation.json` applies the approved 1.025 brightness
+gain to static PNGs for the white installer background. Valid gains are 1–1.05;
+the premultiplied RGB channels are bounded by their unchanged alpha. The native
+material, `saturationGain`, and the app's `Assets.car` are unaffected. The
+static fallback is therefore slightly brighter than the native app icon,
+rather than an exact pixel match. Each export starts from the system render,
+so repeated exports never compound the gain.
 
 The variant step calls `swift macos-builder/export-icon-variants.swift` on the
 new `assets/neovide-1024.png`. It writes the 16, 32, 48, and 256 pixel PNGs and a
@@ -153,8 +166,8 @@ The local `neovide-update` maintenance entry runs this pipeline after copying
 custom assets and before `make-icns`, Rust compilation or packaging. Missing
 tools or failed artwork exports stop the update before compilation; the existing
 asset restoration and manual DMG installation flow are retained. Use
-`ICON_COMPOSER_TOOL` and `SKETCH_TOOL` to select tools outside their default
-application locations. `export-static-artwork --check` only checks prerequisites
+`SKETCH_TOOL` to select Sketch outside its default application location; select
+the Xcode providing `actool` with `xcode-select`. `export-static-artwork --check` only checks prerequisites
 and compensation inputs. `swift macos-builder/compensate-icon.swift --check ASSETS_DIR` can validate
 a selected custom-assets directory without modifying it. Keep its original PNG,
 compensation settings and layered `.icon` source synchronized with the chosen

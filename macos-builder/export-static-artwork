@@ -3,7 +3,6 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-composer_tool="${ICON_COMPOSER_TOOL:-/Applications/Icon Composer.app/Contents/Executables/ictool}"
 sketch_tool="${SKETCH_TOOL:-/Applications/Sketch.app/Contents/Resources/sketchtool/bin/sketchtool}"
 assets_dir="$project_root/assets"
 sketch_source="$assets_dir/dmg-background/Neovide Liquid Glass Installer.sketch"
@@ -16,12 +15,14 @@ case "${1:-}" in
   *) fail "Usage: $0 [--check]" ;;
 esac
 [ "$#" -le 1 ] || fail "Usage: $0 [--check]"
-[ -x "$composer_tool" ] || fail "Icon Composer's ictool is required: $composer_tool"
+command -v xcrun >/dev/null 2>&1 && xcrun --find actool >/dev/null 2>&1 \
+  || fail "Xcode's actool with Icon Composer support is required."
 [ -x "$sketch_tool" ] || fail "Sketch's sketchtool is required: $sketch_tool"
 command -v swift >/dev/null 2>&1 || fail "Swift with Core Graphics support is required."
 command -v python3 >/dev/null 2>&1 || fail "Python 3 is required to update the installer source."
 [ -x "$project_root/macos-builder/export-static-icon" ] || fail "Missing static icon exporter."
-[ -f "$project_root/macos-builder/export-static-icon.swift" ] || fail "Missing native shadow compositor."
+[ -x "$project_root/macos-builder/make-native-icon" ] || fail "Missing native bundle icon compiler."
+[ -f "$project_root/macos-builder/export-static-icon.swift" ] || fail "Missing native bundle icon renderer."
 [ -f "$project_root/macos-builder/compensate-icon.swift" ] || fail "Missing color compensation generator."
 [ -f "$project_root/macos-builder/export-icon-variants.swift" ] || fail "Missing cross-platform icon exporter."
 [ -f "$project_root/macos-builder/update-installer-icon.py" ] || fail "Missing installer source updater."
@@ -38,8 +39,9 @@ work_dir="$(mktemp -d "${TMPDIR:-/tmp}/neovide-static-artwork.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT
 
 # 1. Regenerate compensated material from the immutable original and config.
-# 2. Icon Composer renders the material and final continuous corner shape.
-# 3. Core Graphics derives the outside shadow from that exact image's alpha.
+# 2. actool compiles the same layered icon used by the actual app.
+# 3. IconServices renders its final material, geometry and system margins.
+# Do not rescale that already-normalized icon or add a second outside shadow.
 # Never import or subtract the old Sketch rounded base/shadow.
 "$project_root/macos-builder/export-static-icon"
 # Keep every active platform icon on the same compensated native artwork.

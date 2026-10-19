@@ -18,6 +18,7 @@ fn set_rerun() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=assets/neovide.ico");
+    println!("cargo:rerun-if-changed=extra/osx/Neovide.app/Contents/Resources/Neovide.icns");
 
     for path in ["HEAD", "refs", "index", "packed-refs"] {
         if let Some(path) = git_path(path) {

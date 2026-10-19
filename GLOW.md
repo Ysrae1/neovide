@@ -6,13 +6,16 @@
 
 2026-10-19，Codex；本节保存接手所需的当前事实，下面保留功能说明与历史记录。
 
-- 本轮在源码与本机配置仓库各整理为五个本地提交，包含 Claude 既有署名改动；`glow-preview` 领先远端 25 个提交，配置 `my-config` 为 `110df735`、领先远端 20 个提交。未推送、替换已安装程序、改写冻结标签或 gm2 发行包；本机配置验证后定向同步 portable，原有九处平台／冻结适配差异保留。
+- 本地增量已整理为提交，包含 Claude 既有署名改动；`glow-preview` 领先远端 27 个提交，配置 `my-config` 为 `647b829f`、领先远端 21 个提交。未推送、替换已安装程序、改写冻结标签或 gm2 发行包；原有九处 portable 适配差异保留。
+- 图标：修复 macOS 启动时静态 ICNS 覆盖原生分层图标；保留显式自定义图标和独立 CLI 回退。静态资源改由同一原生编译／系统渲染路径生成，按用户认可设置 `staticBrightnessGain=1.025`；未改原始材质。模板／自定义源的 PNG、ICO、SVG、ICNS、Sketch 和 TIFF 已同步。
+- 已通过新增 NSBundle 定向测试、release 构建与 all-targets clippy；隔离真实 App 验证旧版启动覆盖 1 次、新版 0 次、自定义覆盖仍有效。实际 Finder 测试盘 `target/glow-icon-qa/Neovide-Icon-Preview.dmg` 已打开供用户查看，当前挂载 `/Volumes/Neovide Glow Icon Preview`；其他自有 GUI 均已退出。用户决定跳过上下静态／原生图标描边逐像素一致性的比较，不再扩展该点。
+- 编辑区三类高亮集中在本机及 portable 的 `lua/config/appearance/editor_highlights.lua`，保留原默认效果并附中文调节说明；八组前端／主题默认比对及参数重载检查通过。颜色／样式可调用模块 `reload()`；行为参数完整生效需新会话。
 - 本轮补显式高亮角色 RPC、全应用总八槽／Molten 六槽预留、网页固定读取范围与信息入口、Rust／Skia 许可收集打包；接口见 [glow-protocol.md](extra/glow-protocol.md)。字体方案见下一节。
 - Notebook 修复隐藏即关闭内核造成的输出丢失，并新增无内核显示保存输出、输出未保存保护、重复源码单元格导出位置校验。当前用户窗口只热移除了旧的破坏性 `BufHidden` 回调；完整新 Python 功能需新 Neovim 会话，未重启用户编辑器。快照 `notebook-history-20261019T135006`、`saved-outputs-20261019T135327`。
 - 按用户要求将光标行背景提升至现有 `one_bg`（Dark `#1C1F25`、Light `#EBEBEB`），在透明处理后的覆盖层设置；不改色板或 Neovide 透明度。已同步 portable，两个配置 × 深浅主题 × 两种前端共八组实际高亮检查通过；本次未新增 GUI 像素验收。快照 `cursorline-contrast-20261019T140649`。
 - 验证：22 项隔离 headless、Rust release 276 通过／1 个 Metal 默认忽略、release all-targets clippy `-D warnings`、真实 WebKit 边界、真实内核保存／切换／错误／dirty／重复源码及 E325 恢复均通过；独立 GUI 实测混合配额和无内核文本／错误／PNG 恢复。开发 App、实际 DMG 内容／签名验证和记录在 `target/glow-closure-qa/`，本轮自有 GUI／内核已清理。
 - 更新准备：构建工具、图标／Sketch 源的只读预检、离线许可索引及字体检查通过；`neovide-sync-source --no-fetch` 已实际通过，当前 origin／upstream 提交均已包含在本地。配置的 Python 缓存仅加入本地忽略，保留原文件。`neovide-update` 默认更新命令行程序并生成 DMG，应用本体需手动拖入替换；本轮未执行该命令。
-- 剩余：`dispatch 0.2.0` 上游缺许可／版权原文，严格完整许可检查拒绝；Windows/Linux、旧 macOS、未推送代码的远端 CI、终端实机截图与正式 DMG 布局／签名公证未新增验收。CI 已加入三平台配置、字体与许可检查；Ghostty 截图沿用工具安全限制。发布页第 13 版与旧回执保留，本轮不重复部署或唤醒 Claude。
+- 剩余：`dispatch 0.2.0` 上游缺许可／版权原文，严格完整许可检查拒绝；Windows/Linux、旧 macOS、未推送代码的远端 CI、终端实机截图与正式发行签名／公证未新增验收。CI 已加入三平台配置、字体与许可检查；Ghostty 截图沿用工具安全限制。发布页第 13 版与旧回执保留，本轮不重复部署或唤醒 Claude。
 
 ### 字体安装方案与 Claude 建议核对（2026-10-19，Codex）
 

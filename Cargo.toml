@@ -171,6 +171,7 @@ objc2-core-video = { version = "0.3.1", default-features = false, features = [
 objc2-foundation = { version = "0.3.1", default-features = false, features = [
   "NSArray",
   "NSAttributedString",
+  "NSBundle",
   "NSDictionary",
   "NSProcessInfo",
   "NSString",

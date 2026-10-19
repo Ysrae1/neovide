@@ -67,19 +67,24 @@ requires a new comparison after native rendering; this is not a universal gain.
 
 `neovide-1024.png` is the static macOS fallback. Regenerate it with
 `macos-builder/export-static-icon`: the script prepares color compensation,
-then Icon Composer renders the complete icon,
-then native Core Graphics draws it at the existing 832 × 832 size within a
-1024 × 1024 transparent canvas and generates its outside shadow from that same
-image's alpha. The export pins design generation 27, matching the current
-material; `ICON_DESIGN_GENERATION` can explicitly select another generation.
+compiles the layered source into a temporary app with the same `actool` path
+as the real application, and renders its icon through macOS IconServices.
+This preserves the system's material, continuous corners, margins and shadow.
+An independent flat `ictool` export does not reproduce that final appearance.
 The layered icon uses the same compensated material as this static fallback;
-the preserved original material remains unchanged.
+the preserved original material remains unchanged. The static PNG then receives
+the user-approved `staticBrightnessGain` of 1.025 for the white installer
+background. This bounded 1–1.05 RGB gain preserves alpha and the system shadow;
+it does not change native `Assets.car` rendering or the material's separate
+1.17 saturation gain. All static variants and the Sketch background use that
+slightly brighter PNG, so they are intentionally not exact native-icon pixels.
 
 Do not reuse the old Sketch base shadow or subtract its rounded mask: that
 geometry differs from Icon Composer's continuous corners and creates a detached
-second outline. Core Graphics owns the static fallback's outside shadow; Icon
-Composer retains the internal material and layer effects. The native application
-continues to use its compiled layered icon.
+second outline. Do not shrink the already-normalized system render or add a
+second outside shadow. Icon Composer retains the editable material and layers;
+the application keeps its compiled layered icon under AppKit's control instead
+of replacing it with a flattened image when it starts.
 
 The shared `neovide-16x16.png`, `neovide-32x32.png`, `neovide-48x48.png`, and
 `neovide-256x256.png`, Windows `neovide.ico`, and shared `neovide.svg` are generated

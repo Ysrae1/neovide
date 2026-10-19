@@ -2,9 +2,9 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-composer_tool="${ICON_COMPOSER_TOOL:-/Applications/Icon Composer.app/Contents/Executables/ictool}"
-design_generation="${ICON_DESIGN_GENERATION:-27}"
-[ -x "$composer_tool" ] || { echo "Icon Composer's ictool is required." >&2; exit 1; }
+command -v xcrun >/dev/null 2>&1 && xcrun --find actool >/dev/null 2>&1 || {
+  echo "Xcode's actool with Icon Composer support is required." >&2; exit 1;
+}
 
 # Always start from the preserved material, not a previously compensated PNG.
 swift "$project_root/macos-builder/compensate-icon.swift" --prepare
@@ -12,10 +12,30 @@ swift "$project_root/macos-builder/compensate-icon.swift" --prepare
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/neovide-static-icon.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT
 
-"$composer_tool" "$project_root/assets/Neovide.icon" \
-  --export-image --output-file "$work_dir/composer.png" \
-  --platform macOS --rendition Default --width 1024 --height 1024 --scale 1 \
-  --design-generation "$design_generation"
+# Flat ictool exports do not match the material and outer shape rendered from
+# Assets.car. Use the same bundle compiler as the actual app, then IconServices.
+# A fresh bundle path/identifier avoids serving an older export from its cache.
+app_bundle="$work_dir/Neovide.app"
+minimum_system_version="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' \
+  "$project_root/extra/osx/Neovide.app/Contents/Info.plist")"
+mkdir -p "$app_bundle/Contents/MacOS" "$app_bundle/Contents/Resources"
+cat > "$app_bundle/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>com.neovide.glow.icon-export.$(basename "$work_dir")</string>
+  <key>CFBundleName</key><string>Neovide</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleExecutable</key><string>icon-export</string>
+  <key>LSMinimumSystemVersion</key><string>$minimum_system_version</string>
+</dict></plist>
+EOF
+# A missing executable makes IconServices add an unavailable-app badge. This
+# system binary is only a temporary bundle marker; it is never launched.
+cp -X /usr/bin/true "$app_bundle/Contents/MacOS/icon-export"
+chmod 755 "$app_bundle/Contents/MacOS/icon-export"
+"$project_root/macos-builder/make-native-icon" "$app_bundle" "$project_root/assets/Neovide.icon"
 swift "$project_root/macos-builder/export-static-icon.swift" \
-  "$work_dir/composer.png" "$project_root/assets/neovide-1024.png"
-echo "Exported native static icon with a shadow derived from its own alpha."
+  "$app_bundle" "$project_root/assets/neovide-1024.png" "$project_root/assets/icon-color-compensation.json"
+echo "Exported the native icon with configured static brightness; no rescaling or extra shadow."

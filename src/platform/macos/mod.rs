@@ -30,9 +30,9 @@ use objc2_app_kit::{
 };
 use objc2_core_foundation::CGFloat;
 use objc2_foundation::{
-    MainThreadMarker, NSArray, NSAttributedString, NSData, NSDictionary, NSInteger, NSNotification,
-    NSNotificationCenter, NSObject, NSObjectProtocol, NSPoint, NSProcessInfo, NSRange, NSRect,
-    NSSize, NSString, NSTimer, NSURL, NSUserDefaults, ns_string,
+    MainThreadMarker, NSArray, NSAttributedString, NSBundle, NSData, NSDictionary, NSInteger,
+    NSNotification, NSNotificationCenter, NSObject, NSObjectProtocol, NSPoint, NSProcessInfo,
+    NSRange, NSRect, NSSize, NSString, NSTimer, NSURL, NSUserDefaults, ns_string,
 };
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -297,9 +297,22 @@ pub fn get_ns_window(window: &Window) -> Retained<NSWindow> {
     }
 }
 
-fn load_icon_from_custom_path(icon_path: &str) -> Option<Retained<NSImage>> {
-    let path = NSString::from_str(icon_path);
+fn load_icon_from_custom_path(icon_path: Option<&String>) -> Option<Retained<NSImage>> {
+    let path = NSString::from_str(&expand_tilde(icon_path?));
     NSImage::initWithContentsOfFile(NSImage::alloc(), &path)
+}
+
+fn bundle_declares_application_icon(bundle: &NSBundle) -> bool {
+    let bundle_path = bundle.bundlePath().to_string();
+    let is_application_bundle = Path::new(&bundle_path)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("app"));
+    is_application_bundle
+        && [ns_string!("CFBundleIconName"), ns_string!("CFBundleIconFile")].into_iter().any(|key| {
+            bundle.objectForInfoDictionaryKey(key).is_some_and(|value| {
+                value.downcast_ref::<NSString>().is_some_and(|name| !name.is_empty())
+            })
+        })
 }
 
 fn load_icon_from_default_bytes() -> Option<Retained<NSImage>> {
@@ -313,13 +326,35 @@ fn load_icon_from_default_bytes() -> Option<Retained<NSImage>> {
 }
 
 pub fn load_neovide_icon(custom_icon_path: Option<&String>) -> Option<Retained<NSImage>> {
-    custom_icon_path
-        .and_then(|path| {
-            let expanded = expand_tilde(path);
-            load_icon_from_custom_path(&expanded)
+    load_icon_from_custom_path(custom_icon_path)
+        .or_else(|| {
+            if !bundle_declares_application_icon(&NSBundle::mainBundle()) {
+                return None;
+            }
+            let mtm = MainThreadMarker::new()?;
+            NSApplication::sharedApplication(mtm).applicationIconImage()
         })
         .or_else(load_icon_from_default_bytes)
 }
+
+fn initialize_application_icon(app: &NSApplication, custom_icon_path: Option<&String>) {
+    let icon = load_icon_from_custom_path(custom_icon_path).or_else(|| {
+        // Leave bundle icons under AppKit's control. Setting even a matching
+        // flattened NSImage replaces the native layered icon and its material.
+        if bundle_declares_application_icon(&NSBundle::mainBundle()) {
+            None
+        } else {
+            // Standalone CLI launches have no bundle icon to discover.
+            load_icon_from_default_bytes()
+        }
+    });
+    if let Some(icon) = icon {
+        unsafe { app.setApplicationIconImage(Some(&icon)) }
+    }
+}
+
+#[cfg(test)]
+mod icon_tests;
 
 fn open_external_url(url: &str) {
     let ns_url_string = NSString::from_str(url);
@@ -1067,10 +1102,7 @@ impl MacosWindowFeature {
             #[allow(deprecated)]
             app.activateIgnoringOtherApps(true);
 
-            // Make sure the icon is loaded when launched from terminal
-            let icon = load_neovide_icon(self.settings.get::<CmdLineSettings>().icon.as_ref());
-            let icon_ref: Option<&NSImage> = icon.as_ref().map(|img| img.as_ref());
-            unsafe { app.setApplicationIconImage(icon_ref) }
+            initialize_application_icon(&app, self.settings.get::<CmdLineSettings>().icon.as_ref());
         });
     }
 }

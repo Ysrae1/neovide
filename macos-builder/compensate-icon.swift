@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 struct Settings: Decodable {
     let version: Int
     let saturationGain: Double
+    let staticBrightnessGain: Double
 }
 
 func fail(_ message: String) -> Never {
@@ -36,6 +37,10 @@ do {
           (1...3).contains(settings.saturationGain) else {
         fail("Expected version 1 and a saturationGain between 1 and 3")
     }
+    guard settings.staticBrightnessGain.isFinite,
+          (1...1.05).contains(settings.staticBrightnessGain) else {
+        fail("Expected a staticBrightnessGain between 1 and 1.05")
+    }
     guard let source = CGImageSourceCreateWithURL(inputURL as CFURL, nil),
           let original = CGImageSourceCreateImageAtIndex(source, 0, nil),
           original.width == 1024, original.height == 1024 else {
@@ -53,7 +58,7 @@ do {
         fail("Expected exactly one original material layer; preserve its name and geometry")
     }
     if arguments[1] == "--check" {
-        print("Original material and saturation compensation settings are available.")
+        print("Original material, native saturation and static brightness settings are available.")
         exit(0)
     }
 
