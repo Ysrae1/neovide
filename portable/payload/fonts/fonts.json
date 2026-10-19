@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "fonts": [
+    {
+      "filename": "FiraCodeNerdFontMono-Bold.ttf",
+      "family": "FiraCode Nerd Font Mono",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "sha256": "5852768d3cfaa3a327c092ba329e8beb44b2466c2f2a1e51a85e25cf30fd74bf",
+      "source": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/FiraCode.zip#FiraCodeNerdFontMono-Bold.ttf",
+      "version": "Fira Code 6.002; Nerd Fonts 3.3.0"
+    },
+    {
+      "filename": "FiraCodeNerdFontMono-Light.ttf",
+      "family": "FiraCode Nerd Font Mono",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "sha256": "d1f207c9bbc3845147b9483a741a203b6ae15d8be2256e062e97171e01dca5d5",
+      "source": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/FiraCode.zip#FiraCodeNerdFontMono-Light.ttf",
+      "version": "Fira Code 6.002; Nerd Fonts 3.3.0"
+    },
+    {
+      "filename": "FiraCodeNerdFontMono-Medium.ttf",
+      "family": "FiraCode Nerd Font Mono",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "sha256": "233774009c1ec6fafa20a1d4ea68cf7913da68fcd0b80f1e477b7df3110be467",
+      "source": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/FiraCode.zip#FiraCodeNerdFontMono-Medium.ttf",
+      "version": "Fira Code 6.002; Nerd Fonts 3.3.0"
+    },
+    {
+      "filename": "FiraCodeNerdFontMono-Regular.ttf",
+      "family": "FiraCode Nerd Font Mono",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "sha256": "25e08bcd4ce0273c388458fc07b01fa2216fc7e867d37f997482803312764e5d",
+      "source": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/FiraCode.zip#FiraCodeNerdFontMono-Regular.ttf",
+      "version": "Fira Code 6.002; Nerd Fonts 3.3.0"
+    },
+    {
+      "filename": "FiraCodeNerdFontMono-Retina.ttf",
+      "family": "FiraCode Nerd Font Mono",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "sha256": "0ba9fe362f26adce4b0790791428014beff74739346251930112bf76a855f343",
+      "source": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/FiraCode.zip#FiraCodeNerdFontMono-Retina.ttf",
+      "version": "Fira Code 6.002; Nerd Fonts 3.3.0"
+    },
+    {
+      "filename": "FiraCodeNerdFontMono-SemiBold.ttf",
+      "family": "FiraCode Nerd Font Mono",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "sha256": "77df4beb67f1fe64add4c118d19692597213f732e4de35eb13cd417bea3b0e95",
+      "source": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/FiraCode.zip#FiraCodeNerdFontMono-SemiBold.ttf",
+      "version": "Fira Code 6.002; Nerd Fonts 3.3.0"
+    },
+    {
+      "filename": "NotoSansMonoCJKsc-Regular.otf",
+      "family": "Noto Sans Mono CJK SC",
+      "platforms": [
+        "windows",
+        "linux"
+      ],
+      "sha256": "ec04cc376b34887cedbdf84074e2e226ed2761eeabdcb9173fc1dd7bfd153ef7",
+      "source": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/Mono/NotoSansMonoCJKsc-Regular.otf",
+      "version": "2.004"
+    },
+    {
+      "filename": "NotoSansMonoCJKsc-Bold.otf",
+      "family": "Noto Sans Mono CJK SC",
+      "platforms": [
+        "windows",
+        "linux"
+      ],
+      "sha256": "a452fedfc0619e43e080b7b861ce34cbd3ec4fbcea495bf8c402a5a02a5dcbdc",
+      "source": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/Mono/NotoSansMonoCJKsc-Bold.otf",
+      "version": "2.004"
+    }
+  ],
+  "notices": [
+    {
+      "filename": "licenses/FiraCode-README.md",
+      "sha256": "0abe08480b9609ce5f6f049a270b5a2fecea7817c748f9a7a0ad10fde59b39fa",
+      "source": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/FiraCode.zip#README.md"
+    },
+    {
+      "filename": "licenses/FiraCode-LICENSE.txt",
+      "sha256": "1d41e10031ab125302780a05ec4c91d218e47db0c7e37cf315cce5e608cdc25c",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/patched-fonts/FiraCode/Regular/LICENSE"
+    },
+    {
+      "filename": "licenses/NerdFonts-LICENSE.txt",
+      "sha256": "1f6ad4edae6479aaace3112ede5279a23284ae54b2a34db66357aef5f64df160",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/LICENSE"
+    },
+    {
+      "filename": "licenses/NerdFonts-license-audit.md",
+      "sha256": "22c490a48e08adcabab0b06d317fe6c6310a420e081d8ebff7f44d0210096cd1",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/license-audit.md"
+    },
+    {
+      "filename": "licenses/NotoSansCJK-LICENSE.txt",
+      "sha256": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+      "source": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/LICENSE"
+    },
+    {
+      "filename": "licenses/NotoSansCJK-README-third_party.md",
+      "sha256": "aa229a2136c426e3deca957c305727e02415198116138d8c1721222b12e22131",
+      "source": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/README-third_party.md"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_README.md",
+      "sha256": "8538467a6f1f67b9d7fb7f95da492796ac1f02046121aa4138c07026e85c5fb2",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/README.md"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_codicons_LICENSE.txt",
+      "sha256": "d6239afa918961b465b07bf7411cbe34ff6685854f58553db7966f4881a0211f",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/codicons/LICENSE.txt"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_codicons_README.md",
+      "sha256": "86fd7d1b3b215633d6a8457fe0dbf561bda25af01c5c1ca4a4c53ec4e7c9ffea",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/codicons/README.md"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_devicons_README.md",
+      "sha256": "4d5547fb89112b934f117d1688872dc29389f1ac1cd7e831fc938561a1023aea",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/devicons/README.md"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_devicons_vorillaz_README.md",
+      "sha256": "4772f570f66011a1f0d2b1358f48809c472cea8439cfca54f66a9ed9ad34c828",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/devicons/vorillaz/README.md"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_font-awesome_LICENSE.txt",
+      "sha256": "de784a808496d49f5f80dd9d1d6e9a51cff712cfbc339e7c25155631ae3cdb5d",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/font-awesome/LICENSE.txt"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_font-awesome_README.md",
+      "sha256": "83a5c255a5c182d1697086313265bf83788c22fe9f2c160777ecda3e32d8d76c",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/font-awesome/README.md"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_materialdesign_LICENSE",
+      "sha256": "3bae6305bcaa6d10219b999f65c342034c2d40b1c0e8567fa08605e73ccba829",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/materialdesign/LICENSE"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_materialdesign_README.md",
+      "sha256": "7afc59be7303f6877297db80c1ea8f506bcf4e18290ff85e1bba1584ffa0555b",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/materialdesign/README.md"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_octicons_LICENSE",
+      "sha256": "4f886642f9e8d99eeadd484acdac011c3fde8a338faf52f5ca1408c13b9a9b63",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/octicons/LICENSE"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_pomicons_LICENSE",
+      "sha256": "cb4797a9745683f287c28833db596e9d68ec43082d59359b3a49c504f0f610ce",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/pomicons/LICENSE"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_powerline-extra_LICENSE",
+      "sha256": "544307a58e6826c24145b2af1c3578b53e2e21ae0e6c67ab4c6abd544304d26a",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/powerline-extra/LICENSE"
+    },
+    {
+      "filename": "licenses/NerdFonts-src_glyphs_powerline-symbols_LICENSE.txt",
+      "sha256": "46d5355e4734468135d8e4a30d0916292cc4df2b3ec30aa68c866f82497933be",
+      "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/powerline-symbols/LICENSE.txt"
+    },
+    {
+      "filename": "NOTICE.md",
+      "sha256": "d2592484d2069fbd753404e99984ee1b07c9227fab48951069d2bbf1d11cdc2e",
+      "source": "local:bundled-font-attribution; original metadata and pinned upstream sources"
+    },
+    {
+      "filename": "licenses/FontLogos-LICENSE.txt",
+      "sha256": "88d9b4eb60579c191ec391ca04c16130572d7eedc4a86daa58bf28c6e14c9bcd",
+      "source": "https://raw.githubusercontent.com/lukas-w/font-logos/e92426e28ee5bbf4ca328b33e3a393b7a5045f01/LICENSE"
+    },
+    {
+      "filename": "licenses/FontLogos-README.md",
+      "sha256": "b7c98abe0c74e0804e5852fa508ee2bc51b44a4aee45a8384204938a705fabf8",
+      "source": "https://raw.githubusercontent.com/lukas-w/font-logos/e92426e28ee5bbf4ca328b33e3a393b7a5045f01/README.md"
+    },
+    {
+      "filename": "licenses/FontLogos-provenance.json",
+      "sha256": "12a113b28588849e3f2b3e69cdcd8044e92b477192e90514f26f8e0d3185df59",
+      "source": "https://github.com/lukas-w/font-logos/releases/tag/v1.3.0; https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/font-logos.ttf"
+    },
+    {
+      "filename": "licenses/Apache-2.0.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "source": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+    }
+  ],
+  "archives": [
+    {
+      "filename": "FiraCode.zip",
+      "sha256": "89978e6f870d044286a339161d5ed961569744b1cd2afee62337fa140cd0b397",
+      "source": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/FiraCode.zip",
+      "version": "3.3.0"
+    }
+  ]
+}

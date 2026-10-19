@@ -2,8 +2,10 @@
 """Package only reviewed deployment files; never include caches or user state."""
 from pathlib import Path
 import argparse, hashlib, io, json, os, shutil, tarfile, zipfile
+from install import bundled_font_files
 
 ROOT = Path(__file__).resolve().parents[1]
+bundled_font_files(ROOT / 'payload/fonts')
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', required=True)
 args = parser.parse_args()

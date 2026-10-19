@@ -48,6 +48,41 @@ def write_json(path, value):
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
     temporary.replace(path)
 
+def bundled_font_files(directory, platform_name=None):
+    """Validate shipped font inputs before copying anything into a user font directory."""
+    directory = Path(directory)
+    metadata = read_json(directory / 'fonts.json')
+    if metadata.get('schema_version') != 1:
+        raise InstallError('Unsupported bundled font manifest.')
+    selected = []
+    families = set()
+    seen = set()
+    for item in metadata['fonts'] + metadata['notices']:
+        filename = item['filename']
+        relative = Path(filename)
+        path = directory / relative
+        if (relative.is_absolute() or '..' in relative.parts or '\\' in filename
+                or filename in seen or not path.resolve().is_relative_to(directory.resolve())
+                or path.is_symlink() or not path.is_file()):
+            raise InstallError('Invalid/missing bundled font or notice: ' + filename)
+        seen.add(filename)
+        if sha(path) != item['sha256']:
+            raise InstallError('Bundled font/notice checksum mismatch: ' + filename)
+        if item in metadata['fonts']:
+            if relative.name != filename or relative.suffix not in ('.ttf', '.otf'):
+                raise InstallError('Invalid bundled font filename: ' + filename)
+            if platform_name is None or platform_name in item['platforms']:
+                selected.append(path)
+                families.add(item['family'])
+    if not selected:
+        raise InstallError('No bundled fonts for platform: ' + str(platform_name))
+    required = {'FiraCode Nerd Font Mono'}
+    if platform_name != 'macos':
+        required.add('Noto Sans Mono CJK SC')
+    if not required.issubset(families):
+        raise InstallError('Bundled default font families missing: ' + ', '.join(sorted(required - families)))
+    return selected
+
 class Installer:
     def __init__(self, args):
         self.args = args
@@ -126,11 +161,15 @@ class Installer:
     def plan(self):
         say(f'Stack: {self.stack_id}\nTarget: {self.target}\nIsolated root: {self.root}\nStage: {self.args.stage}')
         for key, tool in self.manifest['assets'].items():
+            if key == 'font':
+                continue  # Fonts are shipped in payload, not fetched at installation time.
             entry = tool['platforms'].get(self.target) or tool['platforms'].get('any')
             if entry:
                 say(f'  {key} {tool["version"]}: {entry["filename"]} / SHA256 {entry["sha256"]}')
         say(f'{len(self.plugins)} plugin checkouts are pinned. Config, data, state and cache stay inside the isolated root.')
         say('No preinstalled Neovim is needed: tools downloads and verifies the locked Neovim first; later stages use only the isolated launcher.')
+        fonts = bundled_font_files(self.payload / 'fonts', 'macos' if self.is_mac else 'linux')
+        say(f'{len(fonts)} default font files are bundled and checksum-verified; macOS uses system PingFang SC, Windows/WSL use bundled Noto Sans Mono CJK SC.')
         say('Stages: tools (runtimes/config/fonts), plugins (exact sources/native builds/ACP/formula converter), languages (frozen parsers/Mason/health).')
         say('macOS keeps DMG drag installation. Windows uses install.ps1 for its native GUI; this script manages the WSL profile.')
         say('Optional features not installed: MarkdownPreview, Peek, full TeX/PDF toolchain, rich video/PDF/image previews. Codex login remains local and is never copied.')
@@ -144,6 +183,15 @@ class Installer:
         say(f'Read-only doctor: {self.target}\nIsolated root: {self.root}')
         missing = self.prereqs(self.args.stage)
         failures = ['host prerequisite: ' + name for name in missing]
+        try:
+            fonts = bundled_font_files(self.payload / 'fonts', 'macos' if self.is_mac else 'linux')
+            font_directory = self.user_font_directory()
+            for font in fonts:
+                installed = font_directory / font.name
+                if not installed.is_file() or sha(installed) != sha(font):
+                    failures.append('font missing/different: ' + str(installed))
+        except (InstallError, OSError, ValueError, KeyError) as error:
+            failures.append(str(error))
         required_stages = ['tools']
         if self.args.stage in ('plugins', 'languages', 'all'):
             required_stages.append('plugins')
@@ -362,9 +410,38 @@ exec {shlex.quote(str(executable))} {arguments}
         config = (self.payload / 'neovide/config.toml').read_text()
         literal = json.dumps(str(self.root / 'bin/nvim'))
         config = re.sub(r'^neovim-bin\s*=.*$', 'neovim-bin = ' + literal, config, flags=re.M)
+        if not self.is_mac:
+            config = config.replace('"PingFang SC"', '"Noto Sans Mono CJK SC"')
         self.managed_bytes(self.root / 'config/neovide/config.toml', config.encode())
 
+    def user_font_directory(self):
+        if self.is_mac:
+            return Path.home() / 'Library/Fonts'
+        return Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share'))) / 'fonts/neovide-glow'
+
+    def install_fonts(self):
+        source = self.payload / 'fonts'
+        fonts = bundled_font_files(source, 'macos' if self.is_mac else 'linux')
+        directory = self.user_font_directory()
+        # Preflight all destinations: a later duplicate must not leave a half-installed family.
+        for font in fonts:
+            target = directory / font.name
+            if target.is_symlink() or (target.exists() and (not target.is_file() or sha(target) != sha(font))):
+                raise InstallError(f'A different font already exists and was preserved: {target}. Resolve this duplicate font explicitly, then rerun.')
+        for path in source.rglob('*'):
+            if path.is_file():
+                staged = self.root / 'payload/fonts' / path.relative_to(source)
+                if staged.is_symlink() or (staged.exists() and (not staged.is_file() or sha(staged) != sha(path))):
+                    raise InstallError('Different staged font payload was preserved: ' + str(staged))
+        self.copy_tree(source, self.root / 'payload/fonts')
+        for font in fonts:
+            self.managed_bytes(directory / font.name, font.read_bytes())
+        if not self.is_mac and shutil.which('fc-cache'):
+            self.run(['fc-cache', '-f', directory])
+        say(f'Installed/verified {len(fonts)} bundled font files for this user; no font download was needed.')
+
     def tools(self):
+        bundled_font_files(self.payload / 'fonts', 'macos' if self.is_mac else 'linux')
         for name in ('bin', 'runtime/bin', 'config', 'data', 'state', 'cache'):
             (self.root / name).mkdir(parents=True, exist_ok=True)
         for key in ('nvim', 'yazi', 'rg', 'fd', 'fzf', 'lazygit', 'uv', 'tree_sitter', 'node', 'python', 'python_mason'):
@@ -395,17 +472,7 @@ exec {shlex.quote(str(executable))} {arguments}
         source = self.unpack('unimatrix')
         self.wrapper('unimatrix', self.root / 'runtime/bin/python-app', arguments=shlex.quote(str(self.locate(source, self.entry('unimatrix')[1]['filename']))) + ' "$@"')
         self.install_cmatrix()
-        fonts = self.unpack('font')
-        font_files = list(fonts.rglob('FiraCodeNerdFontMono-*.ttf'))
-        if not font_files:
-            raise InstallError('Locked FiraCode archive contains no Mono fonts.')
-        for font in font_files:
-            self.managed_bytes(self.root / 'payload/fonts' / font.name, font.read_bytes())
-            if self.is_mac:
-                target = Path.home() / 'Library/Fonts' / font.name
-                if target.exists() and sha(target) != sha(font):
-                    raise InstallError(f'A different font already exists and was preserved: {target}. Resolve this duplicate font explicitly, then rerun.')
-                self.managed_bytes(target, font.read_bytes())
+        self.install_fonts()
         self.install_profile()
         if self.is_mac:
             dmg = self.manifest['neovide'].get('macos_dmg')

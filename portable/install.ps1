@@ -159,26 +159,59 @@ function Convert-ToWslPath([string]$Wsl, [string]$WindowsPath) {
 }
 
 function Install-UserFonts([string[]]$FontDirectories) {
-    Add-Type -AssemblyName System.Drawing
-    $fonts = @()
+    $fontDirectory = $null
     foreach ($directory in $FontDirectories) {
-        if ($directory -and (Test-Path -LiteralPath $directory -PathType Container)) {
-            $fonts = @(Get-ChildItem -LiteralPath $directory -Recurse -File | Where-Object { $_.Extension -in @('.ttf', '.otf') })
-            if ($fonts.Count -gt 0) { break }
+        if ($directory -and (Test-Path -LiteralPath (Join-Path $directory 'fonts.json') -PathType Leaf)) {
+            $fontDirectory = $directory
+            break
         }
     }
-    if ($fonts.Count -eq 0) {
-        $collection = New-Object System.Drawing.Text.InstalledFontCollection
-        try { $alreadyInstalled = @($collection.Families | Where-Object { $_.Name -eq 'FiraCode Nerd Font Mono' }).Count -gt 0 }
-        finally { $collection.Dispose() }
-        if (-not $alreadyInstalled) {
-            throw 'FiraCode Nerd Font Mono is missing. Install the bundled payload/fonts/*.ttf using Windows Font Settings (Install for this user), or rerun after the shared installer has downloaded the fonts. Linux font installation alone does not install Windows GUI fonts.'
+    if (-not $fontDirectory) {
+        throw 'Bundled fonts.json is missing. Keep the complete payload/fonts directory with the installer; an installed Fira font alone cannot supply the required Windows Chinese font.'
+    }
+    $fontManifest = Get-Content -LiteralPath (Join-Path $fontDirectory 'fonts.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ((Read-RequiredValue $fontManifest 'schema_version') -ne '1' -or $null -eq $fontManifest.PSObject.Properties['fonts']) {
+        throw 'Unsupported or incomplete bundled fonts.json.'
+    }
+    $fonts = @()
+    $filenames = @{}
+    foreach ($entry in @($fontManifest.fonts)) {
+        if ($null -eq $entry -or $null -eq $entry.PSObject.Properties['platforms']) { throw 'A bundled font is missing its platform list.' }
+        if (@($entry.platforms) -notcontains 'windows') { continue }
+        $filename = Read-RequiredValue $entry 'filename'
+        $family = Read-RequiredValue $entry 'family'
+        $expectedHash = Read-RequiredValue $entry 'sha256'
+        if ($filename -match '[<>:"/\\|?*\x00-\x1f]' -or $filename -match '[. ]$' -or
+            $filename -match '^(?:CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(?:\.|$)' -or
+            [IO.Path]::GetExtension($filename) -notin @('.ttf', '.otf')) {
+            throw "Unsafe bundled font filename: $filename"
         }
-        Write-Host 'FiraCode Nerd Font Mono is already installed in Windows.'
-        return
+        if ($filenames.ContainsKey($filename)) { throw "Duplicate bundled font filename: $filename" }
+        $filenames[$filename] = $true
+        if ($expectedHash -notmatch '^[0-9a-fA-F]{64}$') { throw "Invalid bundled font checksum: $filename" }
+        $sourcePath = Join-Path $fontDirectory $filename
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) { throw "Bundled font is missing: $sourcePath" }
+        if ((Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash -ne $expectedHash) {
+            throw "Bundled font checksum mismatch: $sourcePath"
+        }
+        $fonts += [pscustomobject]@{ Name = $filename; Family = $family; FullName = $sourcePath; Sha256 = $expectedHash }
+    }
+    foreach ($requiredFamily in @('FiraCode Nerd Font Mono', 'Noto Sans Mono CJK SC')) {
+        if (@($fonts | Where-Object { $_.Family -eq $requiredFamily }).Count -eq 0) {
+            throw "Bundled fonts.json is missing the required Windows font family: $requiredFamily"
+        }
     }
     $userFontDirectory = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
     $fontRegistry = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+    # Check every destination before installing any file, so a later conflict cannot leave a partial font set.
+    foreach ($font in $fonts) {
+        $destination = Join-Path $userFontDirectory $font.Name
+        if ((Test-Path -LiteralPath $destination) -and
+            (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or
+             (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne $font.Sha256)) {
+            throw "A different font already uses $destination. It was preserved; remove or rename it through Windows Font Settings before retrying."
+        }
+    }
     $null = New-Item -ItemType Directory -Path $userFontDirectory -Force
     $null = New-Item -Path $fontRegistry -Force
     if (-not ('NeovideGlow.FontApi' -as [type])) {
@@ -198,14 +231,12 @@ namespace NeovideGlow {
     }
     foreach ($font in $fonts) {
         $destination = Join-Path $userFontDirectory $font.Name
-        if (Test-Path -LiteralPath $destination) {
-            if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $font.FullName -Algorithm SHA256).Hash) {
-                throw "A different font already uses $destination. It was preserved; remove or rename it through Windows Font Settings before retrying."
-            }
-        } else { Copy-Item -LiteralPath $font.FullName -Destination $destination }
-        $label = $font.BaseName + $(if ($font.Extension -eq '.otf') { ' (OpenType)' } else { ' (TrueType)' })
+        if (-not (Test-Path -LiteralPath $destination)) { [IO.File]::Copy($font.FullName, $destination, $false) }
+        $label = [IO.Path]::GetFileNameWithoutExtension($font.Name) + $(if ([IO.Path]::GetExtension($font.Name) -eq '.otf') { ' (OpenType)' } else { ' (TrueType)' })
         $null = New-ItemProperty -LiteralPath $fontRegistry -Name $label -PropertyType String -Value $destination -Force
-        $null = [NeovideGlow.FontApi]::AddFontResourceEx($destination, 0, [IntPtr]::Zero)
+        if ([NeovideGlow.FontApi]::AddFontResourceEx($destination, 0, [IntPtr]::Zero) -eq 0) {
+            throw "Windows could not activate the bundled font: $destination"
+        }
     }
     $fontChangeResult = [UIntPtr]::Zero
     $null = [NeovideGlow.FontApi]::SendMessageTimeout([IntPtr]0xffff, 0x001d, [UIntPtr]::Zero, [IntPtr]::Zero, 2, 1000, [ref]$fontChangeResult)
@@ -214,11 +245,18 @@ namespace NeovideGlow {
 
 function Write-WindowsConfig([string]$Source, [string]$Destination) {
     $topLevel = $true
+    $fontSection = $false
     $lines = @('# Versioned Windows configuration; the existing user Neovide configuration is untouched.', 'frame = "full"', 'wsl = true')
     foreach ($line in Get-Content -LiteralPath $Source -Encoding UTF8) {
-        if ($line -match '^\s*\[') { $topLevel = $false }
-        # The source is the approved shared appearance. Only platform-specific launch keys change.
+        if ($line -match '^\s*\[') {
+            $topLevel = $false
+            $fontSection = $line -match '^\s*\[font\]\s*(?:#.*)?$'
+        }
+        # Preserve the shared appearance; use the bundled Chinese fallback on Windows.
         if ($topLevel -and $line -match '^\s*(?:neovim-bin|frame|title-hidden|wsl|icon|system-[A-Za-z-]+)\s*=') { continue }
+        if ($fontSection -and $line -match '^\s*normal\s*=') {
+            $line = $line.Replace('"PingFang SC"', '"Noto Sans Mono CJK SC"').Replace("'PingFang SC'", "'Noto Sans Mono CJK SC'")
+        }
         $lines += $line
     }
     [IO.File]::WriteAllLines($Destination, [string[]]$lines, (New-Object Text.UTF8Encoding($false)))
@@ -262,7 +300,7 @@ Write-Host "Rust $rustVersion / $target; Linux environment: $Distro (WSL2)"
 Write-Host "Output directory: $InstallRoot"
 foreach ($entry in $detectedTools.GetEnumerator()) { Write-Host ('{0,-15} {1}' -f $entry.Key, $entry.Value) }
 if ($Plan) {
-    Write-Host 'Plan only: install missing Windows build prerequisites through interactive WinGet; ensure WSL2 and a non-root Ubuntu user; run the shared pinned Linux installer (it downloads its own locked Neovim, so no preinstalled Windows or Linux Neovim is needed); install the downloaded fonts for this Windows user; build the exact Glow commit with cargo --locked plus the approved icon overlay; write a separate runnable directory, configuration and launcher.'
+    Write-Host 'Plan only: install missing Windows build prerequisites through interactive WinGet; ensure WSL2 and a non-root Ubuntu user; run the shared pinned Linux installer (it downloads its own locked Neovim, so no preinstalled Windows or Linux Neovim is needed); verify and install bundled Fira and Noto fonts for this Windows user; build the exact Glow commit with cargo --locked plus the approved icon overlay; write a separate runnable directory, configuration and launcher.'
     Write-Host 'No files, packages, default distro, running apps, or settings were changed.'
     return
 }

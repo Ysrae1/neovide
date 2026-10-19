@@ -4,5 +4,5 @@ frame = "buttonless"
 title-hidden = true
 
 [font]
-normal = ["FiraCode Nerd Font Mono"]
+normal = ["FiraCode Nerd Font Mono", "PingFang SC"]
 size = 16.0

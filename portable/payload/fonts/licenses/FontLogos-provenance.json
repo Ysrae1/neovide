@@ -1,0 +1,22 @@
+{
+  "component": "Font Logos glyph source in Nerd Fonts 3.3.0",
+  "version": "1.3.0",
+  "license": "Unlicense",
+  "upstream_commit": "e92426e28ee5bbf4ca328b33e3a393b7a5045f01",
+  "upstream_release": "https://github.com/lukas-w/font-logos/releases/tag/v1.3.0",
+  "upstream_archive": {
+    "source": "https://github.com/lukas-w/font-logos/releases/download/v1.3.0/font-logos-1.3.0.zip",
+    "sha256": "53376d5496cfbc78035ca60f58791ba5b2bfec6a9e751ac521aace6acdacb012"
+  },
+  "upstream_font": {
+    "path": "font-logos-1.3.0/assets/font-logos.ttf",
+    "sha256": "7f0b055275bb3710afee586519884f3e302ec295a2f4ff4158daacf437c49852"
+  },
+  "nerd_fonts_source": {
+    "source": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/e2dc2203202ed148ceb76d2c3100216170e94297/src/glyphs/font-logos.ttf",
+    "sha256": "7f0b055275bb3710afee586519884f3e302ec295a2f4ff4158daacf437c49852"
+  },
+  "nerd_fonts_update": "https://github.com/ryanoasis/nerd-fonts/commit/4ab9d898d7c8dcba604d7b9b5e3377d222614948",
+  "verification": "The Nerd Fonts v3.3.0 glyph source is byte-for-byte identical to the font in the official Font Logos v1.3.0 release. That release includes the same Unlicense text as the pinned source commit.",
+  "trademarks": "All brand icons are trademarks of their respective owners and should only be used to represent the company or product to which they refer (upstream README)."
+}
