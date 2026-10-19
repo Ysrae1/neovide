@@ -192,6 +192,30 @@ impl GridRenderer {
         BackgroundInfo { custom_color, transparent: alpha < 1.0 }
     }
 
+    /// A foreground decoration, independent of background blend and font size.
+    /// Coordinates already use physical pixels; inset keeps the complete 1px
+    /// stroke inside the highlighted cells and the line's vertical clip.
+    pub fn draw_reference_outline(
+        &self,
+        canvas: &Canvas,
+        cells: &Range<u32>,
+        color: Color4f,
+    ) -> bool {
+        let mut region = to_skia_rect(&self.compute_text_region(cells));
+        if region.width() <= 1.0 || region.height() <= 1.0 {
+            return false;
+        }
+        region.inset((0.5, 0.5));
+        let mut paint = Paint::default();
+        paint
+            .set_anti_alias(false)
+            .set_style(skia_safe::paint::Style::Stroke)
+            .set_stroke_width(1.0)
+            .set_color(color.to_color());
+        canvas.draw_rect(region, &paint);
+        true
+    }
+
     /// Draws some foreground text.
     /// Returns true if any text was actually drawn.
     pub fn draw_foreground(

@@ -1,6 +1,6 @@
 # Glow 维护验证
 
-统一入口为 `python3 tests/validate.py`，可以从任意目录调用脚本。默认只运行 11 个 headless Lua 检查；需要已安装的 Python 3 和 Neovim 0.12+。它不安装依赖、不联网、不打开 GUI、不启动 Notebook 内核。Book 生命周期使用仓库内的假 builder，通过当前 Python 解释器启动。
+统一入口为 `python3 tests/validate.py`，可以从任意目录调用脚本。默认只运行 12 个 headless Lua 检查；需要已安装的 Python 3 和 Neovim 0.12+。它不安装依赖、不联网、不打开 GUI、不启动 Notebook 内核。Book 生命周期使用仓库内的假 builder，通过当前 Python 解释器启动。
 
 ```sh
 # 默认检查 portable；两份配置均验证时显式选择，配置只读，不同步或覆盖文件。
@@ -18,6 +18,8 @@ python3 tests/validate.py all --config local --config portable --clippy
 每个 Lua 检查都有独立配置、数据、状态和缓存临时目录；`-u NONE`、`--noplugin`、`-i NONE` 禁用用户初始化、插件和 ShaDa。runtimepath 只保留指定配置与 Neovim 自带运行库，因此 portable 缺文件不会回落到本机配置而假通过。`--config local` 使用 XDG 配置路径（Windows 为 LOCALAPPDATA），也可直接传入配置根目录。单项检查失败立即退出非零；默认每项限时 60 秒，可用 `--timeout` 调整。
 
 Rust 套件先检查格式，再运行 release 测试；`--rust-filter` 可重复，适合只验证本次改动。运行前确认共享 `target/` 没有其他构建。首次构建需要预备依赖和 Skia 缓存，Cargo 离线模式不代替第三方构建脚本的联网隔离。`--clippy` 仅使用已安装的组件。Notebook 图标像素回归在 macOS 上使用仓库内嵌 FiraCode Nerd Font，不要求系统另装字体；Unix FIFO 回归使用系统的 `mkfifo` 工具。
+
+默认套件中的 `popup_materials.lua` 使用真实隔离浮窗检查浅深底色、当前行／选区不透明、namespace 样式及重复重载、明确遮罩移除，并保护主编辑区、Dashboard 和终端前端。
 
 ## 需要显式准备的检查
 

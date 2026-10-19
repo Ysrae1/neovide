@@ -42,6 +42,7 @@ pub enum HighlightRole {
     NotebookKernel,
     NotebookActions,
     SolidTitleCap,
+    ReferenceOutline,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -63,6 +64,8 @@ pub struct Style {
     pub notebook_title: Option<NotebookTitleGroup>,
     /// Avante's solid title endcap over its independently blended panel base.
     pub avante_solid_cap: bool,
+    /// Draw one thin box around each contiguous highlighted reference.
+    pub reference_outline: bool,
 }
 
 impl Style {
@@ -78,6 +81,7 @@ impl Style {
             enlarged_icon: false,
             notebook_title: None,
             avante_solid_cap: false,
+            reference_outline: false,
         }
     }
 
@@ -85,6 +89,7 @@ impl Style {
         self.enlarged_icon = false;
         self.notebook_title = None;
         self.avante_solid_cap = false;
+        self.reference_outline = false;
         for role in roles {
             match role {
                 HighlightRole::EnlargedIcon => self.enlarged_icon = true,
@@ -95,6 +100,7 @@ impl Style {
                     self.notebook_title = Some(NotebookTitleGroup::Actions)
                 }
                 HighlightRole::SolidTitleCap => self.avante_solid_cap = true,
+                HighlightRole::ReferenceOutline => self.reference_outline = true,
             }
         }
         self
@@ -144,8 +150,9 @@ mod tests {
             HighlightRole::EnlargedIcon,
             HighlightRole::NotebookKernel,
             HighlightRole::SolidTitleCap,
+            HighlightRole::ReferenceOutline,
         ]);
-        assert!(marked.enlarged_icon && marked.avante_solid_cap);
+        assert!(marked.enlarged_icon && marked.avante_solid_cap && marked.reference_outline);
         assert_eq!(marked.notebook_title, Some(NotebookTitleGroup::Kernel));
         assert_eq!(marked.colors, original.colors);
         assert_eq!(marked.with_roles([]), original);

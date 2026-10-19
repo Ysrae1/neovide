@@ -152,3 +152,104 @@ fn solid_title_caps_render_below_ordinary_logos_without_reordering_box_lines() {
         }
     }
 }
+
+fn reference_outline_pixels(
+    renderer: &mut GridRenderer,
+    styles: &[Option<Arc<Style>>; 8],
+    position: PixelPos<f32>,
+) -> Vec<Color> {
+    // Alternating native shapes create separate cell fragments. Empty their
+    // text afterwards so this measures only the decoration, without fonts.
+    let line = Line::from_test_cells(&["│", "─", "│", "─", "│", "─", "│", "─"]);
+    let fragments = line.fragments().enumerate().map(|(column, mut fragment)| {
+        fragment.style = &styles[column];
+        fragment.text = "";
+        fragment
+    });
+    let bounds = Rect::from_wh(144.0, 64.0);
+    let (mut text, mut boxes) = (PictureRecorder::new(), PictureRecorder::new());
+    let text_canvas = text.begin_recording(bounds, false);
+    let box_canvas = boxes.begin_recording(bounds.with_offset((position.x, 0.0)), false);
+    draw_line_foreground(renderer, text_canvas, box_canvas, fragments, position, 0.2);
+    raster(
+        &text.finish_recording_as_picture(None).unwrap(),
+        &boxes.finish_recording_as_picture(None).unwrap(),
+        position,
+        false,
+    )
+}
+
+fn outlined_style(color: Color, alternate: bool) -> Option<Arc<Style>> {
+    Some(Arc::new(
+        Style {
+            // Different syntax foregrounds and CursorLine backgrounds must
+            // not add interior edges to one continuous reference range.
+            blend: if alternate { 80 } else { 0 },
+            ..Style::new(Colors::new(
+                Some(if alternate { Color::RED.into() } else { Color::BLUE.into() }),
+                alternate.then_some(Color::GRAY.into()),
+                Some(color.into()),
+            ))
+        }
+        .with_roles([crate::editor::HighlightRole::ReferenceOutline]),
+    ))
+}
+
+#[test]
+fn reference_outline_merges_style_fragments_and_stays_inside_grid_edges() {
+    let settings = Arc::new(Settings::new());
+    settings.set(&RendererSettings::default());
+    settings.set(&WindowSettings::default());
+    let mut renderer = GridRenderer::new(1.0, settings);
+    renderer.grid_scale = GridScale::new(PixelSize::new(18.0, 64.0));
+    let styles = std::array::from_fn(|column| match column {
+        0..=3 => outlined_style(Color::GREEN, column % 2 == 0),
+        4 => None,
+        _ => outlined_style(Color::CYAN, column % 2 == 0),
+    });
+    for position in [PixelPos::ZERO, PixelPos::new(83.5, 47.0)] {
+        let actual = reference_outline_pixels(&mut renderer, &styles, position);
+        for y in 0..64 {
+            for x in 0..144 {
+                let expected = if x < 72 && (x == 0 || x == 71 || y == 0 || y == 63) {
+                    Color::GREEN
+                } else if x >= 90 && (x == 90 || x == 143 || y == 0 || y == 63) {
+                    Color::CYAN
+                } else {
+                    Color::TRANSPARENT
+                };
+                assert_eq!(
+                    actual[y * 144 + x],
+                    expected,
+                    "reference outline pixel ({x},{y}) at {position:?}"
+                );
+            }
+        }
+        let cleared = styles
+            .clone()
+            .map(|style| style.map(|style| Arc::new((*style).clone().with_roles([]))));
+        assert!(
+            reference_outline_pixels(&mut renderer, &cleared, position)
+                .iter()
+                .all(|color| *color == Color::TRANSPARENT),
+            "removing the role must remove the whole outline"
+        );
+    }
+}
+
+#[test]
+fn reference_outline_color_changes_start_a_separate_box() {
+    let settings = Arc::new(Settings::new());
+    settings.set(&RendererSettings::default());
+    settings.set(&WindowSettings::default());
+    let mut renderer = GridRenderer::new(1.0, settings);
+    renderer.grid_scale = GridScale::new(PixelSize::new(18.0, 64.0));
+    let styles = std::array::from_fn(|column| {
+        outlined_style(if column < 4 { Color::GREEN } else { Color::CYAN }, false)
+    });
+    let actual = reference_outline_pixels(&mut renderer, &styles, PixelPos::ZERO);
+    for y in 0..64 {
+        assert_eq!(actual[y * 144 + 71], Color::GREEN);
+        assert_eq!(actual[y * 144 + 72], Color::CYAN);
+    }
+}

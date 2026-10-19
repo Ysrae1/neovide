@@ -4,7 +4,7 @@ local configured, queued = false, false
 local material_blend = 40 -- Every glass component uses 60% background opacity.
 -- Base surfaces precede aliases, so links which already inherit the requested
 -- blend stay links. Syntax, selections and solid capsule bodies stay opaque.
-local surfaces = {
+local popup_surfaces = {
   'NormalFloat', 'FloatBorder', 'Pmenu', 'PmenuSbar',
   'CmpPmenu', 'CmpDoc', 'CmpBorder', 'CmpDocBorder',
   'BlinkCmpMenu', 'BlinkCmpMenuBorder', 'BlinkCmpDoc', 'BlinkCmpDocBorder',
@@ -12,23 +12,28 @@ local surfaces = {
   'WhichKeyNormal', 'WhichKeyBorder',
   'TelescopeNormal', 'TelescopeBorder', 'TelescopePromptNormal', 'TelescopePromptBorder',
   'TelescopeResultsNormal', 'TelescopeResultsBorder', 'TelescopePreviewNormal', 'TelescopePreviewBorder',
-  'SnacksNormal', 'SnacksNormalNC', 'SnacksInputNormal', 'SnacksInputBorder',
-  'SnacksPicker', 'SnacksPickerBorder', 'SnacksPickerBox', 'SnacksPickerBoxBorder',
-  'SnacksPickerInput', 'SnacksPickerInputBorder', 'SnacksPickerList', 'SnacksPickerListBorder',
-  'SnacksPickerPreview', 'SnacksPickerPreviewBorder',
-  'SnacksNotifierMinimal', 'SnacksNotifierHistory',
+  'SnacksInputNormal', 'SnacksInputBorder',
   'NoicePopup', 'NoicePopupBorder', 'NoiceCmdlinePopup', 'NoiceCmdlinePopupBorder',
   'NoiceCmdlinePopupBorderSearch', 'NoiceConfirm', 'NoiceConfirmBorder', 'NoiceMini',
   'NoicePopupmenu', 'NoicePopupmenuBorder', 'NoiceSplit', 'NoiceSplitBorder',
   'LazyNormal', 'MasonNormal',
+}
+local surfaces = {
+  'SnacksNormal', 'SnacksNormalNC',
   'NeoTreeWinSeparator',
   'AvanteSidebarNormal', 'AvanteSidebarWinSeparator', 'AvanteSidebarWinHorizontalSeparator',
   'AvantePromptInput', 'AvantePromptInputBorder', 'AvantePopupHint',
 }
+local notifier_surfaces = { SnacksNotifierMinimal = "NormalFloat", SnacksNotifierHistory = "Normal" }
 for _, level in ipairs({ 'Trace', 'Debug', 'Info', 'Warn', 'Error' }) do
-  surfaces[#surfaces + 1] = 'SnacksNotifier' .. level
-  surfaces[#surfaces + 1] = 'SnacksNotifierBorder' .. level
+  notifier_surfaces['SnacksNotifier' .. level] = "Normal"
+  popup_surfaces[#popup_surfaces + 1] = 'SnacksNotifierBorder' .. level
 end
+local picker_surfaces = {
+  "SnacksPicker", "SnacksPickerBorder", "SnacksPickerBox", "SnacksPickerBoxBorder",
+  "SnacksPickerInput", "SnacksPickerInputBorder", "SnacksPickerList", "SnacksPickerListBorder",
+  "SnacksPickerPreview", "SnacksPickerPreviewBorder",
+}
 local rows = { 'CursorLine', 'NeoTreeNormal', 'NeoTreeNormalNC', 'NeoTreeCursorLine' }
 -- 底栏与玻璃组件共用透明度；只处理底材和端帽外侧，胶囊内部保持实心。
 local bottom_bar = {
@@ -203,9 +208,67 @@ local function dashboard_material()
   end
 end
 
+local function neo_tree_selection_blend()
+  local base46 = package.loaded.base46
+  local polish = base46 and base46.get_theme_tb("polish_hl")
+  local tree = polish and polish["neo-tree"]
+  local selection = tree and tree.NeoTreeCursorLine
+  return selection and selection.blend or material_blend
+end
+
+function M.apply_popup_material()
+  if not vim.g.neovide then return end
+  local background = require("config.appearance.popups").background()
+  local normal = vim.api.nvim_get_hl_by_id(vim.fn.hlID("Normal"), true)
+  for _, name in ipairs(popup_surfaces) do
+    if vim.fn.hlexists(name) == 1 then
+      local attrs = vim.api.nvim_get_hl_by_id(vim.fn.hlID(name), true)
+      attrs.background, attrs.blend = background, 0
+      attrs.foreground = attrs.foreground or normal.foreground
+      vim.api.nvim_set_hl(0, name, attrs)
+    end
+  end
+end
+
+function M.apply_notifier_material()
+  if not vim.g.neovide then return end
+  local normal = vim.api.nvim_get_hl_by_id(vim.fn.hlID("Normal"), true)
+  -- 这些正文原本链接 Normal / NormalFloat；每次读取源颜色，避免模块重载后旧配色滞留。
+  for name, source in pairs(notifier_surfaces) do
+    if vim.fn.hlexists(name) == 1 then
+      local attrs = vim.api.nvim_get_hl_by_id(vim.fn.hlID(source), true)
+      attrs.foreground = attrs.foreground or normal.foreground
+      attrs.background = require("config.appearance.popups").background()
+      attrs.blend = 0
+      vim.api.nvim_set_hl(0, name, attrs)
+    end
+  end
+end
+
+function M.apply_picker_material()
+  if not vim.g.neovide then return end
+  -- 所有工具浮窗共用主题已有的弹窗底色；与主编辑区分离，保证本体完全不透明。
+  local normal = vim.api.nvim_get_hl_by_id(vim.fn.hlID("Normal"), true)
+  if not normal.background then return end
+  normal.background = require("config.appearance.popups").background()
+  normal.blend = 0
+  -- 提前定义基础组，首次打开也不闪现玻璃；标题、选中行、匹配文字保留各自的高亮。
+  for _, name in ipairs(picker_surfaces) do
+    vim.api.nvim_set_hl(0, name, normal)
+  end
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.wo[win].winhighlight:find(":SnacksPicker", 1, true) and vim.wo[win].winblend ~= 0 then
+      vim.wo[win].winblend = 0
+    end
+  end
+end
+
 function M.apply()
   if not vim.g.neovide then return end
   for _, name in ipairs(surfaces) do apply(name, material_blend) end
+  M.apply_popup_material()
+  M.apply_notifier_material()
+  M.apply_picker_material()
   -- 新的底栏试用仅接入原生 Liquid Glass，其他前端保持既有行为。
   if vim.g.neovide_liquid_glass == true then
     for _, name in ipairs(bottom_bar) do apply(name, material_blend) end
@@ -227,11 +290,16 @@ function M.apply()
     local cursorline = require('config.appearance.editor_highlights').config.cursorline
     -- NONE 明确取消行底色，不能再把空高亮物化成带透明度的 Normal 背景。
     if name ~= 'CursorLine' or (cursorline.style.bg ~= 'NONE' and cursorline.style.bg ~= 'none') then
-      apply(name, name == 'CursorLine' and cursorline.neovide_blend or material_blend)
+      local blend = name == 'CursorLine' and cursorline.neovide_blend or material_blend
+      if name == 'NeoTreeCursorLine' then
+        blend = neo_tree_selection_blend() -- 与主题中同一行的 bg / blend 一起调，不被面板材质覆盖。
+      end
+      apply(name, blend)
     end
   end
   dashboard_material()
   split_separators()
+  require("config.appearance.popups").apply()
 end
 
 local function schedule()

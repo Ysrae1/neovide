@@ -20,6 +20,7 @@ HEADLESS = (
     "media/image_transport.lua",
     "media/notebook_book.lua",
     "media/open_spec.lua",
+    "media/popup_materials.lua",
     "media/preview_spec.lua",
     "media/preview_fairness.lua",
     "notebook/output_highlights.lua",

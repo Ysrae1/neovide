@@ -6,6 +6,18 @@
 
 2026-10-19，Codex；本节保存接手所需的当前事实，下面保留功能说明与历史记录。
 
+- 本轮按用户要求整理为本地提交；配置仓库 `982df08a` 包含弹窗实心／去遮罩、引用细框配置、Cursor 绑定、Notebook 当前行及本轮 Neo-tree／多光标调整，保留用户当前手调值。配套源码与 portable 在本次源码提交中；沿用已完成的配置、浅深 GUI、284 项 Rust／clippy／构建结果，未推送或替换安装。
+
+- Notebook 清空 Molten 默认的 `MoltenCell → CursorLine` 整格高亮，仅保留真实光标行；两配置的 `notebook_highlights.lua` 与既有回归已更新。主题重载及实际 Molten 选区／附加 UI 的浅深四组检查通过；当前会话热加载，内容、输出 extmarks、边框和内核均保留。
+- 工具弹窗按类别统一实心：新 `appearance/popups.lua` 对浮窗正文／边框及透明语义背景设 blend=0／winblend=0，用现有 darker_black 避免 Normal 同色触发窗口透明；稀疏 namespace 保留原样式与映射并复用。Lazy／Mason／Snacks 取消 backdrop，通知／Noice／WhichKey 取消额外混合；主编辑区、侧栏、Dashboard 保留。两配置及独立浅深 GUI 已检查，当前会话已刷新策略。
+- `references.outline` 开关与 `references.style.sp` 调整引用词的 1 物理像素细框；新增显式角色与能力／就绪握手，旧 GUI 安全保留底色。跨语法与 CursorLine 片段合并一框；Rust 284 通过／1 个 Metal 忽略，格式、release all-targets clippy 和 release 构建通过。22 项既有配置检查、新弹窗两配置回归、更新后角色声明两配置回归通过。
+- 光标规则已存在但 guicursor 未绑定，导致 Cursor 改色无效；已绑定编辑模式到 Cursor/lCursor，保持形状与 TermCursor。两配置 UI 事件检查通过，当前会话已应用；用户随后手调的 pmenu_bg 配色保留并同步该 Cursor 映射。独立预览 `target/glow-popup-outline-qa/Popup Outline Preview.app` 已实看浅深弹窗、通知和细框，自有 GUI／Neovim 已清理；本轮已整理为本地提交，未推送或替换安装。
+- 修复浅色 Neo-tree 渐隐再次加黑：按名称读取 Normal 会经过当前窗口的 winhighlight，得到缺前景的 NeoTreeNormal 并误回退黑色；无显式 fg 时改用全局 Normal 原始 ID 读取。两配置同步并热加载；24 组真实窗口重映射／浅深主题／路径与文件名检查通过，原有渐隐算法和样式保留。
+- 多光标显式禁用插件默认 Ctrl+n 选点，统一用 Leader+m 添加，保留 Ctrl+p 撤销；两份配置与 README 已同步。实际插件默认合并／生成 heads 检查通过，当前无活动编辑层时已更新会话，现有选区数量不变。
+- 两主题 `polish_hl["neo-tree"].NeoTreeCursorLine` 集中设置选中行 `bg`／独立 `blend`，透明处理尊重主题值，缺省才回退 `material_blend`；初值沿用本机 80／portable 40，保留用户浅色 `bg=ui.black`。八组主题／前端检查覆盖 0、23、100、重复刷新、RGB、缺省和终端；当前会话及主题缓存已更新。
+- `editor_highlights.lua` 新增独立 `multicursor` 段，共用 style、主／其他选区覆盖及 Neovide blend 均附注释；原 `visual.multicursor_bold` 合入共用样式，默认配色和加粗保持原状。已同步 portable 并热应用当前会话；八组前端／主题检查通过，保留用户其他手调及两配置原有差异。
+- 两主题新增可手调的 `base_30.mid_fg`：当前 base04／base05 的 RGB 中间值，Dark `#7E7F7D`、Light `#979A9C`，暂未绑定高亮。本机、portable 与当前会话色表已同步，两配置 × 两主题的实际 Base46 读取验证通过。
+- Neo-tree 右侧状态列增加 `container.right_padding=1`，避免斜体 Git 图标在侧栏边界被裁切；保持图标、颜色与斜体。已同步本机及 portable，当前会话热应用后实际 GUI 确认右边完整，两份 Lua 语法检查通过；未重编或替换程序。
 - 底部材质试用已按用户要求整理为本地提交，配套配置为 `6b257072`：仅底栏 `St_*` 底材及端帽外侧沿用 `material_blend`，胶囊主体显式 `blend=0`；公共 StatusLineNC／顶部 Tab 栏保持原状。新增可撤销的 `neovide_bottom_margin_opacity` 处理底部不足一格余量；实心端帽移到普通图标下方，其他框线次序不变，接口见 `extra/glow-protocol.md`。
 - 已通过 4 项底部余量／设置测试、2 项图标层序像素回归、2 项既有端帽测试、两配置的组合高亮与角色声明检查、release 构建、格式和 release all-targets clippy；独立开发 App 已实际查看浅深主题。预览在 `target/glow-bottom-glass-qa/Bottom Glass Preview.app`，自有 GUI／Neovim 由同目录 `start.py` 持有；创建 `stop` 文件或关闭预览可清理。未替换安装或推送。
 - 用户当前已安装窗口仅热加载底栏配套配置；底部余量与端帽层序需新构建，当前可在独立预览查看。`St_gitIcons` 前景改为跟随 NeoTreeFileName（为空则跟随 Normal），保留加粗／材质；本机、portable 与当前会话已同步。用户手调的编辑区高亮、material_blend／格式及 platform/neovide 设置保留，未纳入提交；快照 `bottom-glass-20261019T153908`。
@@ -232,7 +244,7 @@ macOS 26 及以后使用系统 `NSGlassEffectView`，作为整个 winit／Metal 
 | 浮窗附加模糊（0～100） | `:GlowGlass blur 24` |
 | 恢复配置默认／查看状态 | `:GlowGlass reset`／`status` |
 
-透明度和模糊省略数字时会弹出输入框。透明度命令只淡化普通背景，文字与选中高亮保持清楚；底层仍可独立设置 `g:neovide_opacity`、`g:neovide_normal_opacity`、`g:neovide_floating_blur_amount_x/y`，材质由 `g:neovide_liquid_glass` 开关。新构建配套配置默认开启，普通编辑背景不透明度为 `.78`，Neo-tree 背景以及编辑区／Neo-tree 当前行背景为 `.60`；浮窗、菜单、补全、选择器、Avante 面板及其内部边框统一为 `.60`；Dashboard 终端动画面板在 Liquid Glass 开启时也使用该透明度，原有主题颜色不变。文字、Visual 选区、实心选中项和胶囊保留原有不透明度，浮窗模糊为 `24/24`；普通浮窗保留阴影，搜索器内部组合面板避免重复叠加子窗口阴影。空闲命令行不预留底部整行，输入命令时按需显示。所有这些 Glass 配套调整仅在 `vim.g.neovide` 前端启用，终端 Neovim 不修改高亮、透明度或字体。Neovide 普通分屏不绘制可见分隔线，分隔格仍保留原位置和鼠标调整大小区域；普通编辑窗口右侧的分隔格沿用该编辑器的 Normal 底色与背景透明度，右侧为 PDF 等不透明内容时不再引入第三种底材；紧邻 Avante 玻璃侧栏的空隙与它的内部间隔延续 Avante 自身材质，Neo-tree 自身分隔格仍沿用侧栏材质。侧栏顶栏按显示列截断和补齐，窄于标题时分隔边界仍与侧栏右缘对齐。显式高亮 `blend` 优先于 Normal 同色背景的默认透明度，避免当前行因颜色相同而退回实心。Apple 未公开玻璃模糊半径参数，`blur` 真实调整的是 Neovide 浮窗的附加模糊，系统玻璃由 macOS 管理。[Apple NSGlassEffectView 文档](https://developer.apple.com/documentation/appkit/nsglasseffectview)。
+透明度和模糊省略数字时会弹出输入框。透明度命令只淡化普通背景，文字与选中高亮保持清楚；底层仍可独立设置 `g:neovide_opacity`、`g:neovide_normal_opacity`、`g:neovide_floating_blur_amount_x/y`，材质由 `g:neovide_liquid_glass` 开关。新构建配套配置默认开启，普通编辑背景不透明度为 `.78`，Neo-tree 背景以及编辑区／Neo-tree 当前行背景为 `.60`；工具弹窗、菜单、补全、选择器使用不透明的主题底色并取消 backdrop；Avante 侧栏及其内部边框继续使用独立材质；Dashboard 终端动画面板在 Liquid Glass 开启时也使用该透明度，原有主题颜色不变。文字、Visual 选区、实心选中项和胶囊保留原有不透明度，浮窗模糊为 `24/24`；普通浮窗保留阴影，搜索器内部组合面板避免重复叠加子窗口阴影。空闲命令行不预留底部整行，输入命令时按需显示。所有这些 Glass 配套调整仅在 `vim.g.neovide` 前端启用，终端 Neovim 不修改高亮、透明度或字体。Neovide 普通分屏不绘制可见分隔线，分隔格仍保留原位置和鼠标调整大小区域；普通编辑窗口右侧的分隔格沿用该编辑器的 Normal 底色与背景透明度，右侧为 PDF 等不透明内容时不再引入第三种底材；紧邻 Avante 玻璃侧栏的空隙与它的内部间隔延续 Avante 自身材质，Neo-tree 自身分隔格仍沿用侧栏材质。侧栏顶栏按显示列截断和补齐，窄于标题时分隔边界仍与侧栏右缘对齐。显式高亮 `blend` 优先于 Normal 同色背景的默认透明度，避免当前行因颜色相同而退回实心。Apple 未公开玻璃模糊半径参数，`blur` 真实调整的是 Neovide 浮窗的附加模糊，系统玻璃由 macOS 管理。[Apple NSGlassEffectView 文档](https://developer.apple.com/documentation/appkit/nsglasseffectview)。
 
 ### 原生 Notebook 编辑与执行
 

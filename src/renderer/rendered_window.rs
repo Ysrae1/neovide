@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, ops::Range, rc::Rc};
 
 use skia_safe::{
     BlendMode, Canvas, ClipOp, Color, Color4f, Matrix, Paint, Path, PathBuilder, Picture,
@@ -1171,8 +1171,22 @@ fn draw_line_foreground<'a>(
     let mut icons = Vec::new();
     let mut caps = Vec::new();
     let mut foreground = Vec::new();
+    let mut reference_outlines: Vec<(Range<u32>, Color4f)> = Vec::new();
     for fragment in fragments {
         let style = fragment.style.as_ref().unwrap_or(&renderer.default_style);
+        if style.reference_outline && !fragment.cells.is_empty() {
+            let color = style.special(&renderer.default_style.colors);
+            if let Some((cells, previous_color)) = reference_outlines.last_mut()
+                && cells.end == fragment.cells.start
+                && *previous_color == color
+            {
+                // Syntax and CursorLine can split one reference into several
+                // fragments. Merge by the outline color, not the text style.
+                cells.end = fragment.cells.end;
+            } else {
+                reference_outlines.push((fragment.cells.clone(), color));
+            }
+        }
         if style.avante_solid_cap && crate::renderer::box_drawing::is_box_char(fragment.text) {
             caps.push(fragment);
         } else {
@@ -1229,6 +1243,9 @@ fn draw_line_foreground<'a>(
         boxchar_drawn |= text || boxes;
     }
     boxchar_canvas.restore();
+    for (cells, color) in reference_outlines {
+        text_drawn |= renderer.draw_reference_outline(text_canvas, &cells, color);
+    }
     (text_drawn, boxchar_drawn)
 }
 

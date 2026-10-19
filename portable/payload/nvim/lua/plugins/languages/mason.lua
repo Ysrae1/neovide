@@ -7,6 +7,7 @@ return {
       registries = { "github:mason-org/mason-registry@2026-05-22-fiscal-eon" },
       ui = {
         border = "rounded",
+        backdrop = 100, -- 不另加背景遮罩。
         icons = { package_installed = "󰄬", package_pending = "󰁔", package_uninstalled = "󰅖" },
       },
     },

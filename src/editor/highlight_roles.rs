@@ -43,6 +43,7 @@ impl HighlightRoles {
                     Some("notebook_kernel") => HighlightRole::NotebookKernel,
                     Some("notebook_actions") => HighlightRole::NotebookActions,
                     Some("solid_title_cap") => HighlightRole::SolidTitleCap,
+                    Some("reference_outline") => HighlightRole::ReferenceOutline,
                     _ => return Err("Unknown highlight rendering role".into()),
                 };
                 if parsed_roles.contains(&role) {
@@ -114,7 +115,7 @@ mod tests {
     #[test]
     fn arbitrary_composite_names_rebuild_and_clear_without_crossing_routes() {
         let registry = HighlightRoles::parse(&packet(vec![
-            ("MyBase", vec!["solid_title_cap"]),
+            ("MyBase", vec!["solid_title_cap", "reference_outline"]),
             ("MyRenamedSyntax", vec!["enlarged_icon", "notebook_actions"]),
         ]))
         .unwrap();
@@ -123,7 +124,9 @@ mod tests {
         let mut styles = HashMap::from([(7, plain.clone())]);
         let replacements = registry.rebuild(&names, &mut styles);
         assert_eq!(replacements.len(), 1);
-        assert!(styles[&7].enlarged_icon && styles[&7].avante_solid_cap);
+        assert!(
+            styles[&7].enlarged_icon && styles[&7].avante_solid_cap && styles[&7].reference_outline
+        );
         assert_eq!(styles[&7].notebook_title, Some(NotebookTitleGroup::Actions));
         assert_eq!(HighlightRoles::default().apply((*plain).clone(), &names[&7]), *plain);
         let clear = HighlightRoles::parse(&packet(vec![])).unwrap();

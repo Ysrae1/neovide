@@ -1,3 +1,7 @@
+-- A capability flag lets new configurations avoid sending an unsupported role
+-- to older GUI builds, whose role snapshots reject unknown entries atomically.
+vim.g.neovide_reference_outline_supported = true
+
 -- Versioned declarations keep theme names out of the native renderer. These
 -- defaults preserve older Glow configurations; a configuration can replace the
 -- entire map, including declaring renamed or third-party groups.
@@ -6,6 +10,7 @@ local function assign(names, role)
     for _, name in ipairs(names) do defaults[name] = { role } end
 end
 assign({ "GlowNotebookLanguage", "GlowNotebookMarkdown" }, "enlarged_icon")
+assign({ "LspReferenceText", "LspReferenceRead", "LspReferenceWrite" }, "reference_outline")
 assign({ "AvanteReversedTitle", "AvanteReversedSubtitle", "AvanteReversedThirdTitle" }, "solid_title_cap")
 assign({ "St_file_sep", "St_Pos_sep", "St_cwd_sep", "St_lsp_sep", "St_sep_r" }, "solid_title_cap")
 for _, mode in ipairs({ "Normal", "Visual", "Insert", "Terminal", "NTerminal", "Replace", "Confirm", "Command", "Select" }) do
@@ -35,3 +40,4 @@ vim.api.nvim_create_autocmd({ "VimEnter", "ColorScheme" }, {
     group = group, callback = function() publish() end,
 })
 publish()
+vim.api.nvim_exec_autocmds("User", { pattern = "NeovideHighlightRolesReady", modeline = false })
