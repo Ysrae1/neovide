@@ -6,6 +6,9 @@
 
 2026-10-19，Codex；本节保存接手所需的当前事实，下面保留功能说明与历史记录。
 
+- 底部材质试用已按用户要求整理为本地提交，配套配置为 `6b257072`：仅底栏 `St_*` 底材及端帽外侧沿用 `material_blend`，胶囊主体显式 `blend=0`；公共 StatusLineNC／顶部 Tab 栏保持原状。新增可撤销的 `neovide_bottom_margin_opacity` 处理底部不足一格余量；实心端帽移到普通图标下方，其他框线次序不变，接口见 `extra/glow-protocol.md`。
+- 已通过 4 项底部余量／设置测试、2 项图标层序像素回归、2 项既有端帽测试、两配置的组合高亮与角色声明检查、release 构建、格式和 release all-targets clippy；独立开发 App 已实际查看浅深主题。预览在 `target/glow-bottom-glass-qa/Bottom Glass Preview.app`，自有 GUI／Neovim 由同目录 `start.py` 持有；创建 `stop` 文件或关闭预览可清理。未替换安装或推送。
+- 用户当前已安装窗口仅热加载底栏配套配置；底部余量与端帽层序需新构建，当前可在独立预览查看。`St_gitIcons` 前景改为跟随 NeoTreeFileName（为空则跟随 Normal），保留加粗／材质；本机、portable 与当前会话已同步。用户手调的编辑区高亮、material_blend／格式及 platform/neovide 设置保留，未纳入提交；快照 `bottom-glass-20261019T153908`。
 - 用户确认当前边缘变黑问题已解决，本轮不再改渐隐。Neo-tree 标题在侧栏后显式设置 tabline 截断点，避免拖宽时从左侧吃掉苹果标；真实当前会话已热加载，完整 NvChad 标签栏求值与截图确认苹果恢复。宽度／平台／前端定向检查通过；隔离新增 Tab 补验停住并已清理，不计通过。
 - 两个主题的普通 `Comment`／Treesitter `@comment` 统一为现有 `light_grey`（Dark `#54575D`、Light `#A0A0A0`），保留 TODO／warning／note／danger 强调色与色板。真实 Base46 编译映射检查通过，当前会话已应用并更新主题缓存；标题及两主题同步 portable，用户其他手调文件未纳入提交。
 - Neo-tree 浅色边缘渐隐改为向现有 `light_grey` 弱化前景收敛，避免透明玻璃侧栏上的末尾字变白发亮；深色算法不变。仅同步 `config/navigation/neo_tree.lua`，保留用户当前主题、光标行和材质透明度的未提交调整。

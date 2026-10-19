@@ -2,6 +2,8 @@ pub mod animation_utils;
 mod bloom;
 #[cfg(test)]
 mod bloom_tests;
+#[cfg(test)]
+mod bottom_margin_tests;
 pub mod box_drawing;
 pub mod cursor_renderer;
 pub mod fonts;
@@ -369,6 +371,7 @@ impl Renderer {
         root_canvas.clear(default_background);
         root_canvas.save();
         root_canvas.reset_matrix();
+        self.draw_bottom_margin_background(root_canvas, content_region, &window_settings);
 
         if let Some(content_region) = content_region {
             root_canvas.clip_rect(to_skia_rect(content_region), None, Some(false));
@@ -540,6 +543,42 @@ impl Renderer {
 
         #[cfg(feature = "profiling")]
         plot_skia_cache();
+    }
+
+    fn draw_bottom_margin_background(
+        &self,
+        canvas: &Canvas,
+        content_region: Option<&PixelRect<f32>>,
+        settings: &WindowSettings,
+    ) {
+        let Some(opacity) = settings.bottom_margin_opacity.0.filter(|value| value.is_finite())
+        else {
+            return;
+        };
+        if !settings.opacity.is_finite() {
+            return;
+        }
+        // Only grid 1 owns the global status line. Split and floating grids
+        // must never extend their final row into the window's bottom margin.
+        let Some(root) = self.rendered_windows.get(&1).filter(|window| !window.hidden) else {
+            return;
+        };
+        let Some(rect) = bottom_margin_rect(
+            canvas,
+            root.pixel_region(self.grid_renderer.grid_scale),
+            content_region,
+            self.grid_renderer.grid_scale.height(),
+        ) else {
+            return;
+        };
+        let mut paint = Paint::default();
+        paint.set_anti_alias(false);
+        paint.set_blend_mode(skia_safe::BlendMode::Src);
+        paint.set_color(self.grid_renderer.get_default_background_color());
+        // Match explicit highlight blend: global opacity applies, while the
+        // ordinary editing area's normal_opacity remains independent.
+        paint.set_alpha_f(opacity.clamp(0.0, 1.0) * settings.opacity.clamp(0.0, 1.0));
+        canvas.draw_rect(rect, &paint);
     }
 
     fn message_selection_window(&self) -> Option<(&MessageSelection, &RenderedWindow)> {
@@ -896,6 +935,38 @@ impl Renderer {
         } else {
             DEFAULT_GRID_SIZE
         }
+    }
+}
+
+fn bottom_margin_rect(
+    canvas: &Canvas,
+    root_region: PixelRect<f32>,
+    content_region: Option<&PixelRect<f32>>,
+    cell_height: f32,
+) -> Option<skia_safe::Rect> {
+    let size = canvas.base_layer_size();
+    let canvas_region =
+        PixelRect::from_min_max((0.0, 0.0), (size.width as f32, size.height as f32));
+    let content = content_region.unwrap_or(&canvas_region);
+    let top = root_region.max.y;
+    let bottom = content.max.y.min(canvas_region.max.y);
+    let gap = bottom - top;
+    let left = content.min.x.max(0.0);
+    let right = content.max.x.min(canvas_region.max.x);
+    if [top, bottom, gap, left, right, cell_height].into_iter().all(f32::is_finite)
+        && cell_height > 0.0
+        && gap > 0.0
+        && gap < cell_height
+        && top >= content.min.y
+        && right > left
+        && root_region.max.x > root_region.min.x
+        && root_region.max.y > root_region.min.y
+    {
+        Some(skia_safe::Rect::new(left, top, right, bottom))
+    } else {
+        // A whole missing row means the grid is stale during resize. Do not
+        // stretch the requested material across that unrendered editor area.
+        None
     }
 }
 

@@ -42,9 +42,13 @@ neovide.set_highlight_roles({
 | `GlowNotebookLanguage`、`GlowNotebookMarkdown` | `config.media.notebook_edit` | `enlarged_icon`：仅类型图标放大，端帽与正文保持原尺寸 |
 | `GlowNotebookKernel{,Cap,Value,ValueCap}` | Notebook 顶栏 | `notebook_kernel`：内核域的小数格对齐 |
 | `GlowNotebookCells*`、`Prev`、`Next`、`Menu*` | Notebook 顶栏 | `notebook_actions`：操作域对齐；名称集合在 Lua 显式声明，不将任意前缀自动当作角色 |
-| `AvanteReversedTitle`、`Subtitle`、`ThirdTitle` | Avante 与 `config.appearance.transparency` | `solid_title_cap`：实心端帽与玻璃面板衔接 |
+| `AvanteReversedTitle`、`Subtitle`、`ThirdTitle`、状态栏 `St_*ModeSep`／`St_*_sep`／`St_sep_r` | `config.appearance.render_roles` 与 `transparency` | `solid_title_cap`：端帽保持实心并位于普通图标下方，外侧沿用玻璃底材 |
 | `SnacksPickerInput/List/Preview` 及其 `Border`，`SnacksPickerBox{,Border}` | 固定版本 Snacks 的窗口局部 `winhighlight` | `lua/float_shadow.lua` 从窗口角色识别组合面板；RPC `neovide.window.shadow_exclusions` 传递窗口 ID，Rust 按窗口 ID 处理阴影 |
 
 Snacks 的链接高亮可能只留下 `NormalFloat` 等通用名字，因此其窗口角色仍在 Lua 层读取，Rust 按窗口 ID 处理。不要将这些已有适配扩展为所有同色或任意插件浮窗的隐式规则。角色声明检查见 `tests/media/highlight_roles.lua` 与 Rust `highlight_roles`、样式替换和像素回归。
+
+底部状态栏的 `St_*` 底材沿用 `config.appearance.transparency` 中的 `material_blend`，胶囊主体显式 `blend=0`，避免继承底栏透明度；不改公共 `StatusLineNC`，以免传递到链接它的顶部 Tab 栏。组合高亮回归见 `tests/media/statusline_material.py --config /path/to/nvim`（使用已有 pynvim 环境）。
+
+`g:neovide_bottom_margin_opacity` 是可选的 0～1 不透明度，仅控制全局根网格下方不足一个字格的像素余量；默认未设置或设为 `nil` 时沿用原背景。它使用 Normal 的 RGB，乘全局 `neovide_opacity`，独立于编辑区 `neovide_normal_opacity`；不延展最后一个彩色胶囊，不影响浮窗、分屏或显式 padding。配置将其设为 `(100-material_blend)/100`，旧 GUI 忽略此设置。
 
 Notebook 输入/输出框与图像滚动锚点通过各自的原生协议传递窗口和布局 epoch。主题重载应只改变颜色，不重新编号请求或启动内核。已有验证包括 Rust 组合高亮/样式/像素断言，以及 headless Notebook 高亮、胶囊检查；真实 Snacks 插件链路另见 `tests/media/picker_shadow_scope.py`，需要已安装的固定插件与 Python 依赖。

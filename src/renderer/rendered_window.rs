@@ -1169,7 +1169,45 @@ fn draw_line_foreground<'a>(
 ) -> (bool, bool) {
     let (mut text_drawn, mut boxchar_drawn) = (false, false);
     let mut icons = Vec::new();
+    let mut caps = Vec::new();
+    let mut foreground = Vec::new();
     for fragment in fragments {
+        let style = fragment.style.as_ref().unwrap_or(&renderer.default_style);
+        if style.avante_solid_cap && crate::renderer::box_drawing::is_box_char(fragment.text) {
+            caps.push(fragment);
+        } else {
+            foreground.push(fragment);
+        }
+    }
+    if let Some(last) = caps.last() {
+        let bounds = Rect::from_wh(
+            last.cells.end as f32 * renderer.grid_scale.width(),
+            renderer.grid_scale.height(),
+        );
+        let mut recorder = PictureRecorder::new();
+        let cap_canvas = recorder.begin_recording(bounds.with_offset((position.x, 0.0)), false);
+        let mut caps_drawn = false;
+        for cap in caps {
+            let (text, boxes) =
+                renderer.draw_foreground(text_canvas, cap_canvas, &cap, position, opacity);
+            text_drawn |= text;
+            caps_drawn |= boxes;
+        }
+        if caps_drawn {
+            let caps = recorder.finish_recording_as_picture(None).unwrap();
+            let mut matrix = Matrix::new_identity();
+            matrix.set_translate((-position.x, 0.0));
+            // Filled title caps are background shapes: place them below all
+            // glyphs, including ordinary statusline logos that overhang a cell.
+            // Keep other box-drawing characters in their existing upper layer.
+            text_canvas.draw_picture(&caps, Some(&matrix), None);
+            text_drawn = true;
+            // Preserve the world-X cache dependency even when caps are the
+            // only native shapes; moving the window must realign their pixels.
+            boxchar_drawn = true;
+        }
+    }
+    for fragment in foreground {
         let style = fragment.style.as_ref().unwrap_or(&renderer.default_style);
         if style.enlarged_icon && !crate::renderer::box_drawing::is_box_char(fragment.text) {
             icons.push(fragment);

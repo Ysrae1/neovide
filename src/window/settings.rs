@@ -16,6 +16,9 @@ pub struct WindowSettings {
     pub input_ime: bool,
     pub iso_layout: bool,
     pub normal_opacity: f32,
+    /// Optional opacity for the sub-cell gap below the global Neovim grid.
+    /// None preserves the ordinary window background used by older configs.
+    pub bottom_margin_opacity: BottomMarginOpacity,
     #[alias = "transparency"]
     pub opacity: f32,
     pub padding_bottom: u32,
@@ -69,6 +72,7 @@ impl Default for WindowSettings {
             input_ime: true,
             iso_layout: false,
             normal_opacity: 1.0,
+            bottom_margin_opacity: BottomMarginOpacity::default(),
             opacity: 1.0,
             padding_bottom: 0,
             padding_left: 0,
@@ -107,6 +111,45 @@ impl Default for WindowSettings {
             observed_columns: None,
             observed_lines: None,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct BottomMarginOpacity(pub Option<f32>);
+
+impl From<Option<f32>> for BottomMarginOpacity {
+    fn from(value: Option<f32>) -> Self {
+        Self(value)
+    }
+}
+
+impl ParseFromValue for BottomMarginOpacity {
+    fn parse_from_value(&mut self, value: Value) {
+        if value.is_nil() {
+            self.0 = None;
+            return;
+        }
+        let number = value
+            .as_f64()
+            .or_else(|| value.as_i64().map(|number| number as f64))
+            .or_else(|| value.as_u64().map(|number| number as f64));
+        if let Some(number) = number.filter(|number| number.is_finite()) {
+            self.0 = Some(number.clamp(0.0, 1.0) as f32);
+        } else {
+            error_msg!(
+                "Setting bottom_margin_opacity expected a finite number or nil, but received {value:?}"
+            );
+        }
+    }
+}
+
+impl From<BottomMarginOpacity> for Value {
+    fn from(value: BottomMarginOpacity) -> Self {
+        value
+            .0
+            .filter(|number| number.is_finite())
+            .map(|number| Value::from(number.clamp(0.0, 1.0)))
+            .unwrap_or(Value::Nil)
     }
 }
 

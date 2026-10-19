@@ -13,10 +13,14 @@ fn record(
     renderer: &mut GridRenderer,
     position: PixelPos<f32>,
     deferred: bool,
+    title_caps: bool,
 ) -> (Picture, Picture) {
-    let cap = Some(Arc::new(Style::new(Colors::new(Some(Color::BLUE.into()), None, None))));
+    let cap = Some(Arc::new(Style {
+        avante_solid_cap: title_caps,
+        ..Style::new(Colors::new(Some(Color::BLUE.into()), None, None))
+    }));
     let icon = Some(Arc::new(Style {
-        enlarged_icon: true,
+        enlarged_icon: !title_caps,
         ..Style::new(Colors::new(Some(Color::WHITE.into()), None, None))
     }));
     let ordinary = Some(Arc::new(Style::new(Colors::new(Some(Color::RED.into()), None, None))));
@@ -24,7 +28,8 @@ fn record(
     let fragments = line.fragments().map(|mut fragment| {
         fragment.style = match fragment.text {
             "" => &icon,
-            "" | "" | "│" => &cap,
+            "" | "" => &cap,
+            "│" => &ordinary,
             _ => &ordinary,
         };
         fragment
@@ -84,12 +89,12 @@ fn enlarged_icon_overlays_caps_without_moving_ordinary_foreground() {
     renderer.grid_scale = GridScale::new(cell);
     renderer.box_char_renderer.update_dimensions(cell, renderer.shaper.current_size());
     for position in [PixelPos::ZERO, PixelPos::new(83.5, 47.0)] {
-        let (text, boxes) = record(&mut renderer, position, false);
+        let (text, boxes) = record(&mut renderer, position, false, false);
         let old_order = raster(&text, &boxes, position, false);
         // Independent painter-order reference: the original enlarged glyph
         // picture over the original cap picture, at the original local X.
         let expected = raster(&text, &boxes, position, true);
-        let (text, boxes) = record(&mut renderer, position, true);
+        let (text, boxes) = record(&mut renderer, position, true, false);
         let actual = raster(&text, &boxes, position, false);
         assert_eq!(actual, expected, "icon overlay or world/local X mismatch at {position:?}");
         let mut recovered_edge = false;
@@ -107,11 +112,43 @@ fn enlarged_icon_overlays_caps_without_moving_ordinary_foreground() {
                         "ordinary foreground changed at ({x},{y})"
                     );
                     ordinary_text |= actual[index].r() > 0;
-                    ordinary_box |= actual[index].b() > 0;
+                    ordinary_box |= actual[index].r() > 0 && (108..126).contains(&x);
                 }
             }
         }
         assert!(recovered_edge, "test must expose the cap-over-icon clipping regression");
         assert!(ordinary_text && ordinary_box, "ordinary text and native box layer remain present");
+    }
+}
+
+#[test]
+fn solid_title_caps_render_below_ordinary_logos_without_reordering_box_lines() {
+    let settings = Arc::new(Settings::new());
+    settings.set(&RendererSettings::default());
+    settings.set(&WindowSettings::default());
+    let mut renderer = GridRenderer::new(3.0, settings);
+    let cell = PixelSize::new(18.0, 64.0);
+    renderer.grid_scale = GridScale::new(cell);
+    renderer.box_char_renderer.update_dimensions(cell, renderer.shaper.current_size());
+    for position in [PixelPos::ZERO, PixelPos::new(83.5, 47.0)] {
+        let (text, boxes) = record(&mut renderer, position, false, true);
+        let old_order = raster(&text, &boxes, position, false);
+        let expected = raster(&text, &boxes, position, true);
+        let (text, boxes) = record(&mut renderer, position, true, true);
+        let actual = raster(&text, &boxes, position, false);
+        assert_eq!(actual, expected, "ordinary logo overlay mismatch at {position:?}");
+        assert!(
+            actual[..54 * 64] != old_order[..54 * 64],
+            "test must expose a cap overlapping the ordinary logo"
+        );
+        for y in 0..64 {
+            for x in 54..144 {
+                let index = y * 144 + x;
+                assert_eq!(
+                    actual[index], old_order[index],
+                    "unrelated text or box line changed at ({x},{y})"
+                );
+            }
+        }
     }
 }
