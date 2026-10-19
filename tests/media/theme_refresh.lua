@@ -4,7 +4,7 @@
 local config = assert(vim.env.GLOW_TEST_CONFIG)
 local plugins = assert(vim.env.GLOW_TEST_PLUGIN_ROOT)
 vim.opt.rtp = { config, vim.env.VIMRUNTIME }
-for _, name in ipairs({ "base46", "plenary.nvim", "ui", "fff", "noice.nvim" }) do
+for _, name in ipairs({ "base46", "plenary.nvim", "ui", "fff", "noice.nvim", "lazy.nvim", "mason.nvim", "which-key.nvim" }) do
   assert(vim.fn.isdirectory(plugins .. "/" .. name) == 1, "missing existing test dependency: " .. name)
   vim.opt.rtp:append(plugins .. "/" .. name)
 end
@@ -16,6 +16,16 @@ local options = require("nvconfig")
 options.ui.cmp.style = "atom" -- Covers the completion integration's background branch.
 local compat = require("config.appearance.base46")
 compat.setup()
+require("lazy.view.colors").set_hl()
+require("mason.ui.colors")
+require("which-key.colors").setup()
+local bodies = {
+  LazyNormal = "NormalFloat", MasonNormal = "NormalFloat", WhichKeyNormal = "NormalFloat",
+  NoicePopup = "NormalFloat", NoiceMini = "MsgArea", SnacksInputNormal = "Normal",
+  TelescopeResultsNormal = "TelescopeNormal", TelescopePreviewNormal = "TelescopeNormal",
+  BlinkCmpMenu = "Pmenu", BlinkCmpDoc = "NormalFloat", BlinkCmpSignatureHelp = "NormalFloat",
+}
+for name, target in pairs(bodies) do vim.api.nvim_set_hl(0, name, { link = target, default = true }) end
 local function rgb(value) return tonumber(value:gsub("^#", ""), 16) end
 local function hl(name, namespace)
   local values = vim.api.nvim_get_hl(namespace or 0, {})
@@ -49,7 +59,45 @@ local function check_sources()
     "defaults cache retained old foreground or lost its background prefix")
   compat.apply() -- Final material follows the repaired cache, including namespaced floats.
 end
-local popup
+local popup, body_windows = nil, {}
+local notification, preview
+local text_groups = {
+  "LazyNormal", "LazyComment", "LazyDimmed", "LazyProp", "MasonNormal", "MasonMuted",
+  "WhichKeyNormal", "WhichKeySeparator", "WhichKeyValue", "TelescopeNormal", "TelescopeResultsComment",
+  "TelescopePromptCounter", "SnacksPickerFile", "SnacksPickerDir", "SnacksPickerDesc", "SnacksPickerTotals",
+  "SnacksNotifierInfo", "NoiceMini", "NoiceFormatEvent", "FFFFileInfoValue", "FFFFileInfoLabel",
+}
+local function window_hl(win, name)
+  local namespace = math.max(vim.api.nvim_get_hl_ns({ winid = win }), 0)
+  return hl(name, namespace)
+end
+local function check_popup_text()
+  local syntax = require("base46").get_theme_tb("base_16")
+  local colors = require("base46").get_theme_tb("base_30")
+  for _, name in ipairs(text_groups) do
+    assert(hl(name).fg == rgb(syntax.base05), name .. " does not use the active theme's neutral text")
+  end
+  assert(hl("Comment").fg == rgb(colors.light_grey), "global code comments were recolored")
+  if vim.g.neovide and notification then
+    for _, name in ipairs({ "Comment", "NonText" }) do
+      assert(window_hl(notification, name).fg == rgb(syntax.base05), "notification detail retained old theme: " .. name)
+      assert(window_hl(preview, name).fg == hl(name).fg, "picker code preview text was recolored: " .. name)
+    end
+  end
+end
+local function check_bodies()
+  if not vim.g.neovide then return end
+  local foreground = hl("Normal").fg
+  local background = require("config.appearance.popups").background()
+  for name, win in pairs(body_windows) do
+    local value = hl(name)
+    local namespace = vim.api.nvim_get_hl_ns({ winid = win })
+    local normal = hl("Normal", namespace)
+    assert(value.fg == foreground, name .. " retained a previous theme foreground: " .. vim.inspect(value))
+    assert(normal.fg == foreground and normal.bg == background and normal.blend == 0,
+      name .. " window namespace retained previous theme colors: " .. vim.inspect(normal))
+  end
+end
 local function check_copies()
   local value, score, match = hl("FFFFileInfoValue"), hl("FFFFileInfoTotalScore"), hl("FFFFileInfoMatchType")
   assert(value.fg == hl("Normal").fg and not value.bg, "FFF value text is stale or imports a background")
@@ -76,15 +124,41 @@ for index, mode in ipairs({ "light", "dark", "light" }) do
     -- Lazy-loaded providers must also refresh after their first setup.
     require("fff.highlights").setup()
     require("noice.config.highlights").setup()
+    -- Late providers register otherwise absent groups after the first theme.
+    -- Their literal defaults must be replaced by the central neutral mapping.
+    for _, name in ipairs(text_groups) do
+      if vim.fn.hlexists(name) == 0 then vim.api.nvim_set_hl(0, name, { fg = 0x123456 }) end
+    end
     local buffer = vim.api.nvim_create_buf(false, true)
     popup = vim.api.nvim_open_win(buffer, false, {
       relative = "editor", row = 1, col = 1, width = 32, height = 2, style = "minimal",
     })
     vim.wo[popup].winhighlight, vim.wo[popup].winblend = "Normal:NormalFloat", 35
+    for name in pairs(bodies) do
+      local win = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
+        relative = "editor", row = 1, col = 1, width = 32, height = 2, style = "minimal",
+      })
+      vim.wo[win].winhighlight = "Normal:" .. name
+      body_windows[name] = win
+    end
+    local function float(filetype, source)
+      local buffer = vim.api.nvim_create_buf(false, true)
+      vim.bo[buffer].filetype = filetype
+      local win = vim.api.nvim_open_win(buffer, false, {
+        relative = "editor", row = 1, col = 1, width = 32, height = 2, style = "minimal",
+      })
+      vim.wo[win].winhighlight = "Normal:" .. source
+      return win
+    end
+    -- Identical mappings must not share notification-only text overrides.
+    notification = float("snacks_notif", "NormalFloat")
+    preview = float("snacks_picker_preview", "NormalFloat")
     vim.api.nvim_exec_autocmds("User", { pattern = "LazyLoad", modeline = false })
     settle()
   end
   check_copies()
+  check_bodies()
+  check_popup_text()
   package.loaded["config.appearance.base46"], package.loaded["config.appearance.fff"] = nil, nil
   compat = require("config.appearance.base46")
   compat.setup()
@@ -95,7 +169,70 @@ for index, mode in ipairs({ "light", "dark", "light" }) do
   compat.apply()
   check_sources()
   check_copies()
+  check_bodies()
+  check_popup_text()
+  if vim.g.neovide and index == 3 then
+    -- Reproduce a pre-fix Dark session: the old material helper resolved each
+    -- default link into a concrete Dark fg. Reloading new code must repair that
+    -- already-broken state, without needing the provider to re-register links.
+    for name in pairs(bodies) do
+      vim.api.nvim_set_hl(0, name, { fg = 0xC9C7BE, bg = 0x05080E, blend = 0 })
+    end
+    package.loaded["config.appearance.transparency"] = nil
+    require("config.appearance.transparency").apply()
+    check_bodies()
+    -- The central per-group override wins over its shared body role.
+    require("config.appearance.popup_text").overrides.LazyNormal = "#345678"
+    require("config.appearance.transparency").apply()
+    assert(hl("LazyNormal").fg == 0x345678, "explicit popup foreground override lost")
+    require("config.appearance.popup_text").overrides.LazyNormal = nil
+    require("config.appearance.transparency").apply()
+    check_bodies()
+  end
 end
+
+-- All three public knobs accept literal colors without importing a background
+-- or replacing the existing font style. Full material refresh must retain the
+-- configured text, including notification-local detail overrides.
+local text = require("config.appearance.popup_text")
+local saved = vim.deepcopy(text.config)
+local global_comment, global_nontext = hl("Comment"), hl("NonText")
+local probes = {
+  { "path_prefix", "SnacksPickerDir", "#345678" },
+  { "secondary", "LazyComment", "#456789" },
+  { "notification_body", "SnacksNotifierInfo", "#56789A" },
+}
+for _, item in ipairs(probes) do
+  local before = hl(item[2])
+  before.bg, before.bold, before.italic = before.bg or 0x234567, true, true
+  vim.api.nvim_set_hl(0, item[2], before)
+  text.config[item[1]] = item[3]
+  text.apply()
+  local actual = hl(item[2])
+  assert(actual.fg == rgb(item[3]) and actual.bg == before.bg and actual.bold and actual.italic,
+    item[1] .. " changes text styling/background: " .. vim.inspect(actual))
+end
+text.config.notification_detail = "#6789AB"
+local title = hl("SnacksNotifierTitleInfo")
+require("config.appearance.transparency").apply()
+for _, item in ipairs(probes) do assert(hl(item[2]).fg == rgb(item[3]), item[1] .. " lost on material refresh") end
+assert(vim.deep_equal(hl("Comment"), global_comment) and vim.deep_equal(hl("NonText"), global_nontext),
+  "notification detail changed global code highlights")
+assert(vim.deep_equal(hl("SnacksNotifierTitleInfo"), title), "default notification title lost semantic styling")
+if vim.g.neovide then
+  for _, name in ipairs({ "Comment", "NonText" }) do
+    assert(window_hl(notification, name).fg == 0x6789AB, "custom notification detail not applied to actual window")
+    assert(window_hl(preview, name).fg == hl(name).fg, "custom notification detail leaked into code preview")
+  end
+end
+-- A late-loading plugin can write its literal color after a theme event.
+for _, name in ipairs(text_groups) do vim.api.nvim_set_hl(0, name, { fg = 0x102030 }) end
+text.config = saved
+compat.apply()
+check_popup_text()
 vim.api.nvim_win_close(popup, true)
+for _, win in pairs(body_windows) do vim.api.nvim_win_close(win, true) end
+vim.api.nvim_win_close(notification, true)
+vim.api.nvim_win_close(preview, true)
 vim.fn.delete(cache, "rf")
-print("PASS: real Light/Dark/Light theme branches, repaired caches, lazy providers, Noice/FFF copies and popup reload/material isolation")
+print("PASS: Light/Dark/Light branches/caches, lazy providers, Noice/FFF copies, popup text knobs/styles, notification-only details and late-load recovery")

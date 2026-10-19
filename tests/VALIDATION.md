@@ -50,4 +50,4 @@ Rust 套件先检查格式，再运行 release 测试；`--rust-filter` 可重�
 
 Notebook 无内核恢复和保存保护分别使用现有 venv Python 运行 `tests/notebook/saved_outputs.py`、`tests/notebook/output_dirty.py`，可用 `GLOW_TEST_CONFIG` 选择配置。前者不运行测试文件源码，另会显式启动隔离内核验证接管；后者实际执行临时流式结果／错误并写回临时文件，验证 dirty、失败退出保护、重复源码和清除输出。均只操作自有临时 Notebook／内核。已配置的 Python provider 必须在新 Neovim 会话加载更新。
 
-冻结安装的 Notebook 准备检查：`python3 tests/portable_notebook_runtime.py` 使用临时目录和假安装命令验证新建、重复运行、中断恢复及已有环境保护，不安装依赖或启动内核。`tests/media/theme_refresh.lua` 需要现有 Base46／FFF／Noice 插件源码，用隔离缓存验证模式相关颜色、缓存修复与延迟加载；按文件头运行，不属于无依赖默认套件。
+冻结安装的 Notebook 准备检查：`python3 tests/portable_notebook_runtime.py` 使用临时目录和假安装命令验证新建、重复运行、中断恢复及已有环境保护，不安装依赖或启动内核。`tests/media/theme_refresh.lua` 需要现有 Base46／FFF／Noice／Lazy／Mason／WhichKey 及其依赖源码，用隔离缓存验证模式相关颜色、缓存修复、延迟加载、集中弹窗调色和通知／代码预览 namespace 隔离；按文件头运行，不属于无依赖默认套件。

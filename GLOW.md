@@ -6,6 +6,9 @@
 
 2026-10-19，Codex；本节保存接手所需的当前事实，下面保留功能说明与历史记录。
 
+- 冻结发布后的本地增量：`appearance/popup_text.lua` 集中 Light/Dark 的弹窗正文、路径前缀、说明、计数及通知文字，覆盖 Snacks／Lazy／Mason／FFF／WhichKey／Telescope／Noice；材质刷新修复已物化别名沿用旧主题前景。通知内 Comment／NonText 仅在独立 namespace 改色，代码注释不变。
+- 两配置 24 项隔离检查及四组真实插件浅深往返／自定义文字／通知与预览隔离回归通过；当前 Light 窗口已热应用并实际查看 Recent 与 Messages，源缓冲区改动状态和内容版本未变。沿用冻结发行，增量仅本地提交，未推送或替换程序。
+- Ghostty 本机光标 shader 增加失焦清除拖尾，配置验证通过；界面工具禁止操作 Ghostty，实际长文本刷新后的残影验证按用户决定留待下次 update，不能计为 GUI 已通过。修改保留本机 shader，不纳入 Neovim／Neovide 仓库。
 - 冻结发布 `glow-stack-20261019-gm1`：配置 `0ff8d9cd`，原生二进制源码 `bf17179`；源码／portable 使用本次发布准备提交，两个仓库同名标签。保留旧 gm2 与配色标签，不替换本机安装。发布入口 https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261019-gm1 。
 - 修复 Base46 编译先于 background 切换导致 Lazy／LSP inlay／补全按旧模式计算；兼容层重算并回写三份缓存。LazyButton 跟随主题正文色，另刷新 FFF 三个复制前景及 Noice 进度复制色。两配置 × 两前端的浅深往返／延迟加载／旧缓存注入／namespace 检查通过；当前窗口已热应用，LazyButton 前景等于当前 Normal。
 - portable 同步用户最终显示值，固定 70 个插件；安装器补 Notebook 独立 Python 3.12.2、prefix 内核与远程命令，五项隔离保护回归及真实临时 XDG 注册通过，未启动内核。24 项配置检查通过。DMG 实际挂载／签名／二进制／Assets.car／许可检查通过，SHA256 `d19a4b36c57711bcd8274493a2204484739a64b132a6979ed3b517678c5fc75f`；沿用已完成的 Rust 284 项／clippy／构建与浅深 GUI，不重复全量检查。
