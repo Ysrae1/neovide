@@ -1,5 +1,5 @@
 -- nvim --headless -u NONE -l tests/media/preview_spec.lua
-vim.opt.rtp:prepend(vim.fn.getcwd()..'/portable/payload/nvim')
+vim.opt.rtp:prepend(vim.env.GLOW_TEST_CONFIG or (vim.fn.getcwd()..'/portable/payload/nvim'))
 vim.g.neovide_native_preview=true
 vim.g.neovide_channel_id=77
 local sent={}
@@ -32,6 +32,13 @@ assert(p.open('/tmp/index.html',{kind='web'})); local webid=last('open').args[1]
 p.zoom(100); assert(last('action').args[3]==5)
 p.zoom(.0001); assert(last('action').args[3]==.25)
 p.refresh_source('/tmp/index.html'); vim.wait(30); assert(last('open').args[1]~=webid)
+local shown
+vim.notify=function(message) shown=message end
+local current_web=last('open').args[1]
+p.on_status(current_web,vim.json.encode({state='ready',url='file:///tmp/index.html',read_root='/private/tmp'}))
+assert(p.info():find('/private/tmp',1,true) and shown:find('含子目录',1,true),'local read scope is visible on request')
+p.on_status(current_web,vim.json.encode({state='ready',url='https://example.invalid',read_root=''}))
+assert(p.info():find('未授权读取本地文件夹',1,true),'remote preview never inherits an implied directory grant')
 p.close()
 -- Pure title uses the real shared capsule formatter; no PDF file is read.
 local pdf={kind='pdf',title='duplicate-name.pdf',status={state='ready',page=2,pages=2,zoom=.7}}

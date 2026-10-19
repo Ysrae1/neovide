@@ -183,6 +183,7 @@ pub enum RedrawEvent {
     // Decoration snapshots share the redraw/flush queue with their viewport.
     NotebookFrames(crate::renderer::notebook::FrameSnapshot),
     FloatShadowExclusions(Vec<u64>),
+    HighlightRoles(crate::editor::HighlightRoles),
     /// Set the window title.
     SetTitle {
         title: String,
@@ -259,7 +260,7 @@ pub enum RedrawEvent {
     HighlightAttributesDefine {
         id: u64,
         style: Style,
-        name: Option<String>,
+        names: Vec<String>,
     },
     HighlightGroupSet {
         name: String,
@@ -750,7 +751,7 @@ pub(crate) fn parse_shadow_exclusions(
         .collect()
 }
 
-fn parse_hl_name(infos: Value) -> Option<String> {
+fn parse_hl_names(infos: Value) -> Vec<String> {
     fn take_names(values: Vec<(Value, Value)>, names: &mut Vec<String>) {
         let possible_keys = ["hi_name", "ui_name", "name", "link"];
         for (key, value) in values {
@@ -777,26 +778,8 @@ fn parse_hl_name(infos: Value) -> Option<String> {
         _ => {}
     }
 
-    if let Some(name) = names.iter().find(|name| name.starts_with("MatchParen")) {
-        return Some(name.clone());
-    }
-
-    // Winbar combines its UI base with the explicit syntax highlight. Keep
-    // Notebook's semantic name, rather than losing it to the leading WinBar.
-    if let Some(name) = names.iter().find(|name| name.starts_with("GlowNotebook")) {
-        return Some(name.clone());
-    }
-    // Avante's winbar endcaps also carry a UI base before their syntax group.
-    if let Some(name) = names.iter().find(|name| {
-        matches!(
-            name.as_str(),
-            "AvanteReversedTitle" | "AvanteReversedSubtitle" | "AvanteReversedThirdTitle"
-        )
-    }) {
-        return Some(name.clone());
-    }
-
-    names.into_iter().next()
+    names.dedup();
+    names
 }
 
 fn parse_hl_attr_define(hl_attr_define_arguments: Vec<Value>) -> Result<RedrawEvent> {
@@ -806,7 +789,7 @@ fn parse_hl_attr_define(hl_attr_define_arguments: Vec<Value>) -> Result<RedrawEv
     Ok(RedrawEvent::HighlightAttributesDefine {
         id: parse_u64(id)?,
         style,
-        name: parse_hl_name(infos),
+        names: parse_hl_names(infos),
     })
 }
 
@@ -1275,15 +1258,16 @@ mod tests {
         };
         assert!(!packets.is_empty());
         for packet in &packets {
-            let RedrawEvent::HighlightAttributesDefine { style, name, .. } =
+            let RedrawEvent::HighlightAttributesDefine { style, names, .. } =
                 super::parse_hl_attr_define(packet.as_array().unwrap().clone()).unwrap()
             else {
                 panic!("highlight event")
             };
             assert!(
-                style.with_highlight_name(name.as_deref()).avante_solid_cap,
-                "Avante endcap syntax name was lost behind WinBar/WinBarNC: {name:?}"
+                names.iter().any(|name| name.starts_with("AvanteReversed")),
+                "composite syntax names must survive: {names:?}"
             );
+            assert!(!style.avante_solid_cap, "parsing must not guess roles from names");
         }
         eprintln!("validated {} actual/captured composite Avante highlights", packets.len());
     }
@@ -1341,22 +1325,24 @@ mod tests {
                 })
                 .unwrap()
                 .to_string();
-            let RedrawEvent::HighlightAttributesDefine { style, name, .. } =
+            let RedrawEvent::HighlightAttributesDefine { style, names, .. } =
                 super::parse_hl_attr_define(arguments).unwrap()
             else {
                 panic!("highlight event")
             };
-            assert_eq!(
-                name.as_deref(),
-                Some(expected.as_str()),
-                "explicit syntax name lost behind WinBar"
-            );
+            assert!(names.contains(&expected), "explicit syntax name lost behind WinBar");
+            assert!(names.contains(&"WinBar".to_string()));
             let marker = if expected.starts_with("GlowNotebookKernel") {
                 NotebookTitleGroup::Kernel
             } else {
                 NotebookTitleGroup::Actions
             };
-            assert_eq!(style.with_highlight_name(name.as_deref()).notebook_title, Some(marker));
+            assert_eq!(style.notebook_title, None, "parsing must not guess roles");
+            let role = match marker {
+                NotebookTitleGroup::Kernel => crate::editor::HighlightRole::NotebookKernel,
+                NotebookTitleGroup::Actions => crate::editor::HighlightRole::NotebookActions,
+            };
+            assert_eq!(style.with_roles([role]).notebook_title, Some(marker));
         }
         eprintln!("validated {} actual/captured composite winbar highlights", packets.len());
     }

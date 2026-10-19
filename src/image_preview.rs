@@ -165,7 +165,26 @@ impl ImageView {
 /// Format detection uses the file contents, so an incorrect or missing extension
 /// is harmless. SVG, URLs and other formats are deliberately unsupported.
 pub fn decode_image(path: &str) -> Result<DecodedImage, String> {
-    let file = File::open(path).map_err(|error| format!("Cannot open image: {error}"))?;
+    // A FIFO can block in open itself, before inspecting the handle. On Unix,
+    // NONBLOCK closes that hole even if a regular path is replaced by a FIFO.
+    #[cfg(unix)]
+    let file = {
+        use rustix::fs::{Mode, OFlags, open};
+        File::from(
+            open(path, OFlags::RDONLY | OFlags::NONBLOCK | OFlags::CLOEXEC, Mode::empty())
+                .map_err(|error| format!("Cannot open image: {error}"))?,
+        )
+    };
+    #[cfg(not(unix))]
+    let file = {
+        // Reject devices and named pipes before a potentially blocking open.
+        let metadata =
+            std::fs::metadata(path).map_err(|error| format!("Cannot open image: {error}"))?;
+        if !metadata.is_file() {
+            return Err("Image preview requires a local regular file".to_owned());
+        }
+        File::open(path).map_err(|error| format!("Cannot open image: {error}"))?
+    };
     let metadata = file.metadata().map_err(|error| format!("Cannot inspect image: {error}"))?;
     if !metadata.is_file() {
         return Err("Image preview requires a local regular file".to_owned());
@@ -413,6 +432,47 @@ mod tests {
         let file = TestFile::new();
         File::create(&file.0).unwrap().set_len(MAX_INPUT_BYTES + 1).unwrap();
         assert!(decode_image(file.path()).unwrap_err().contains("64 MiB"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_fifos_and_fifo_symlinks_without_waiting_for_a_writer() {
+        use std::{os::unix::fs::symlink, process::Command, sync::mpsc, thread, time::Duration};
+
+        use rustix::fs::{Mode, OFlags, open};
+
+        let fifo = TestFile::new();
+        // rustix does not expose mkfifoat on Apple targets. The POSIX tool is
+        // available on both supported Unix CI hosts and keeps this test portable.
+        assert!(
+            Command::new("mkfifo").args(["-m", "600"]).arg(&fifo.0).status().unwrap().success()
+        );
+        let link = TestFile::new();
+        symlink(&fifo.0, &link.0).unwrap();
+        for path in [&fifo, &link] {
+            let (tx, rx) = mpsc::channel();
+            let path = path.path().to_owned();
+            let worker = thread::spawn(move || tx.send(decode_image(&path)).unwrap());
+            let result = rx.recv_timeout(Duration::from_secs(2));
+            if result.is_err() {
+                // Unblock a regressed blocking open so this test can fail cleanly.
+                let _ = open(&fifo.0, OFlags::WRONLY | OFlags::NONBLOCK, Mode::empty());
+            }
+            worker.join().unwrap();
+            assert!(result.unwrap().unwrap_err().contains("regular file"));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn accepts_symlinks_to_regular_images() {
+        let file = TestFile::new();
+        RgbaImage::from_pixel(1, 1, Rgba([20, 40, 60, 80]))
+            .save_with_format(&file.0, ImageFormat::Png)
+            .unwrap();
+        let link = TestFile::new();
+        std::os::unix::fs::symlink(&file.0, &link.0).unwrap();
+        assert_eq!(decode_image(link.path()).unwrap().pixels, [20, 40, 60, 80]);
     }
 
     #[test]

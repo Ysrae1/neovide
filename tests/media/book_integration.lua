@@ -1,5 +1,5 @@
 -- Run with a previously prepared isolated builder argv in GLOW_BOOK_BUILDER_JSON.
-vim.opt.rtp:append(vim.fs.joinpath(vim.uv.cwd(), 'portable/payload/nvim'))
+vim.opt.rtp:append(vim.env.GLOW_TEST_CONFIG or vim.fs.joinpath(vim.uv.cwd(), 'portable/payload/nvim'))
 local views, refreshes = {}, {}
 package.loaded['config.media.preview'] = {
   open = function(path,opts) views[#views+1] = {path=path,opts=opts}; return true end,

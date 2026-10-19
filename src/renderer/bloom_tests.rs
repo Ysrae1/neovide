@@ -74,7 +74,7 @@ fn bloom_preserves_base_and_dark_fills() {
     bloom.draw(surface.canvas(), &settings, BACKGROUND);
     let glowing = pixels(&mut surface);
     let mut changed = 0;
-    for (base, output) in original.chunks_exact(4).zip(glowing.chunks_exact(4)) {
+    for (base, output) in original.as_chunks::<4>().0.iter().zip(glowing.as_chunks::<4>().0) {
         for channel in 0..3 {
             assert!(output[channel] >= base[channel], "screen blend must not erode native edges");
             assert!(output[channel] <= output[3], "output must stay premultiplied");
@@ -162,7 +162,7 @@ fn metal_bloom_renders() {
     let mut bytes = vec![0u8; 1920 * 1080 * 4];
     assert!(surface.read_pixels(&info, &mut bytes, 1920 * 4, (0, 0)));
     let mut changed = 0;
-    for (base, output) in original.chunks_exact(4).zip(bytes.chunks_exact(4)) {
+    for (base, output) in original.as_chunks::<4>().0.iter().zip(bytes.as_chunks::<4>().0) {
         for channel in 0..3 {
             assert!(output[channel] >= base[channel], "GPU bloom must not erode native edges");
             assert!(output[channel] <= output[3], "GPU output must stay premultiplied");

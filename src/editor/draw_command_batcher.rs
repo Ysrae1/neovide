@@ -20,6 +20,11 @@ impl DrawCommandBatcher {
         self.batch.push(draw_command);
     }
 
+    #[cfg(test)]
+    pub fn take_commands(&mut self) -> Vec<DrawCommand> {
+        std::mem::take(&mut self.batch)
+    }
+
     pub fn set_enabled(
         &mut self,
         enabled: bool,

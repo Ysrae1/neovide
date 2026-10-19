@@ -104,6 +104,23 @@ int main(void) {
             "f.onload = () => window[id + 'Loaded'] = true;"
             "if (id === 'srcdoc') f.srcdoc=source; else f.src=source; document.body.appendChild(f); }";
         NSString *file = [directory stringByAppendingPathComponent:@"index.html"];
+        NSString *outside = [directory stringByAppendingString:@"-outside"];
+        SmokeCheck([files createDirectoryAtPath:outside withIntermediateDirectories:YES attributes:nil error:NULL],
+            "create outside-scope fixture directory");
+        NSString *outsideFile = [outside stringByAppendingPathComponent:@"outside.html"];
+        SmokeCheck([@"<p>outside folder</p>" writeToFile:outsideFile atomically:YES
+            encoding:NSUTF8StringEncoding error:NULL], "write outside-scope fixture");
+        NSString *escape = [directory stringByAppendingPathComponent:@"linked-outside.html"];
+        SmokeCheck([files createSymbolicLinkAtPath:escape withDestinationPath:outsideFile error:NULL],
+            "create symlink escape fixture");
+        NSURL *root = [NSURL fileURLWithPath:directory isDirectory:YES];
+        SmokeCheck(GlowWebFileWithinReadAccess([NSURL fileURLWithPath:file], root), "same folder permitted");
+        SmokeCheck(!GlowWebFileWithinReadAccess([NSURL fileURLWithPath:outsideFile], root),
+            "similar directory prefix is outside scope");
+        SmokeCheck(!GlowWebFileWithinReadAccess([NSURL fileURLWithPath:escape], root),
+            "symlink target outside folder is outside scope");
+        SmokeCheck(!GlowWebFileWithinReadAccess([NSURL fileURLWithPath:file], nil),
+            "remote previews have no local file grant");
         SmokeCheck([html writeToFile:file atomically:YES encoding:NSUTF8StringEncoding error:NULL]
             && [@"#styled { color: rgb(12, 34, 56) }" writeToFile:
                 [directory stringByAppendingPathComponent:@"sibling.css"] atomically:YES
@@ -138,6 +155,8 @@ int main(void) {
             NSDictionary *status = SmokeStatus(handle);
             if (![status[@"state"] isEqualToString:@"ready"]) fprintf(stderr, "%s\n", status.description.UTF8String);
             SmokeCheck([status[@"state"] isEqualToString:@"ready"], "local document reports ready");
+            SmokeCheck([status[@"read_root"] isEqualToString:root.URLByResolvingSymlinksInPath.path],
+                "status discloses canonical readable directory");
             // Page scripts and this isolated client world share the DOM, not JS globals.
             SmokeCheck([[SmokeEvaluate(preview.view, @"getComputedStyle(document.querySelector('#styled')).color", nil)
                 description] isEqualToString:@"rgb(12, 34, 56)"], "sibling CSS loads");
@@ -173,6 +192,14 @@ int main(void) {
             SmokeCheck(window.firstResponder == parent, "blur returns first responder to editor parent");
             SmokeCheck([preview handleKeyEvent:selectAll] == selectAll,
                 "editor-focused Cmd+A remains on the editor event path");
+            [preview.view loadRequest:[NSURLRequest requestWithURL:[NSURL fileURLWithPath:outsideFile]]];
+            SmokeCheck(SmokeWait(^BOOL { return [SmokeStatus(handle)[@"state"] isEqualToString:@"error"]; }, 5),
+                "actual outside-folder navigation is blocked");
+            SmokeCheck([SmokeStatus(handle)[@"error"] containsString:@"outside"],
+                "outside navigation explains how to open a separate preview");
+            [preview.view loadRequest:[NSURLRequest requestWithURL:[NSURL fileURLWithPath:file]]];
+            SmokeCheck(SmokeWait(^BOOL { return [SmokeStatus(handle)[@"state"] isEqualToString:@"ready"]; }, 15),
+                "same-folder navigation recovers without widening access");
             // Exercise the actual navigation delegate, separately from initial URL validation.
             [preview.view loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
             SmokeCheck(SmokeWait(^BOOL {
@@ -208,7 +235,8 @@ int main(void) {
         [flipped removeFromSuperview];
         [window close];
         SmokeCheck([files removeItemAtPath:directory error:NULL], "remove isolated fixture directory");
-        puts("PASS: local CSS/JS; sandboxed srcdoc/data/blank child output; main URL errors; zoom; focus/blur; native input Cmd+A; editor command passthrough; flipped geometry; cleanup");
+        SmokeCheck([files removeItemAtPath:outside error:NULL], "remove outside-scope fixture directory");
+        puts("PASS: scoped file navigation and canonical symlink boundary; local CSS/JS; sandboxed srcdoc/data/blank child output; main URL errors; zoom; focus/blur; native input Cmd+A; editor command passthrough; flipped geometry; cleanup");
     }
     return 0;
 }

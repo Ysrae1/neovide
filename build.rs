@@ -134,7 +134,7 @@ fn build_native_previews() {
                 "-Wextra",
                 "-Werror=return-type",
             ])
-            .arg(&source)
+            .arg(source)
             .arg("-o")
             .arg(&object)
             .status()

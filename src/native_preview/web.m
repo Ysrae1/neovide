@@ -34,6 +34,7 @@
 @property(nonatomic, copy) NSString *state;
 @property(nonatomic, copy) NSString *error;
 @property(nonatomic, copy) NSString *requestedURL;
+@property(nonatomic, strong) NSURL *readAccessURL;
 @property(nonatomic) BOOL destroyed;
 - (instancetype)initWithParent:(NSView *)parent url:(NSString *)url;
 - (void)fail:(NSString *)message;
@@ -57,6 +58,14 @@ static BOOL GlowWebAllowedChildURL(NSURL *url) {
     if (![scheme isEqualToString:@"about"]) return NO;
     NSURLComponents *components = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
     return [components.path isEqualToString:@"blank"] || [components.path isEqualToString:@"srcdoc"];
+}
+
+static BOOL GlowWebFileWithinReadAccess(NSURL *url, NSURL *root) {
+    if (!url.isFileURL || !root.isFileURL) return NO;
+    NSString *path = url.URLByResolvingSymlinksInPath.URLByStandardizingPath.path;
+    NSString *directory = root.URLByResolvingSymlinksInPath.URLByStandardizingPath.path;
+    NSString *prefix = [directory hasSuffix:@"/"] ? directory : [directory stringByAppendingString:@"/"];
+    return [path isEqualToString:directory] || [path hasPrefix:prefix];
 }
 
 @implementation GlowWebPreview
@@ -102,14 +111,18 @@ static BOOL GlowWebAllowedChildURL(NSURL *url) {
     }
     _requestedURL = url.absoluteString;
     if (url.isFileURL) {
+        url = url.URLByResolvingSymlinksInPath.URLByStandardizingPath;
         BOOL isDirectory = NO;
         if (![[NSFileManager defaultManager] fileExistsAtPath:url.path isDirectory:&isDirectory]
             || isDirectory || ![[NSFileManager defaultManager] isReadableFileAtPath:url.path]) {
             [self fail:@"The local web preview file is missing or unreadable."];
             return self;
         }
-        // Grant the containing directory so sibling CSS, JS and images can be loaded.
-        [_view loadFileURL:url allowingReadAccessToURL:url.URLByDeletingLastPathComponent];
+        // Sibling CSS, JS and images need this directory grant. Keep it fixed
+        // for this controller: navigation must never broaden the initial scope.
+        self.readAccessURL = url.URLByDeletingLastPathComponent;
+        _requestedURL = url.absoluteString;
+        [_view loadFileURL:url allowingReadAccessToURL:self.readAccessURL];
     } else {
         [_view loadRequest:[NSURLRequest requestWithURL:url]];
     }
@@ -224,9 +237,13 @@ static BOOL GlowWebAllowedChildURL(NSURL *url) {
     // window (nil target) and the main frame retain the file/http(s) policy.
     BOOL childFrame = action.targetFrame != nil && !action.targetFrame.mainFrame;
     BOOL allowed = GlowWebAllowedURL(url) || (childFrame && GlowWebAllowedChildURL(url));
+    BOOL outsideReadScope = url.isFileURL && !GlowWebFileWithinReadAccess(url, self.readAccessURL);
+    if (outsideReadScope) allowed = NO;
     if (self.destroyed || !allowed) {
         if (!self.destroyed && (action.targetFrame == nil || action.targetFrame.mainFrame)) {
-            [self fail:[NSString stringWithFormat:@"Unsupported web navigation: %@", url.scheme ?: @"(missing URL)"]];
+            [self fail:outsideReadScope
+                ? @"This file is outside the preview's readable folder. Open it as a separate preview."
+                : [NSString stringWithFormat:@"Unsupported web navigation: %@", url.scheme ?: @"(missing URL)"]];
         }
         decisionHandler(WKNavigationActionPolicyCancel);
         return;
@@ -350,6 +367,7 @@ const char *glow_web_status(void *handle) {
             @"state": preview.state ?: @"error",
             @"error": preview.error ?: @"",
             @"url": preview.requestedURL ?: @"",
+            @"read_root": preview.readAccessURL.path ?: @"",
             @"zoom": @(preview.view ? preview.view.pageZoom : 1),
             @"kind": @"web",
         };

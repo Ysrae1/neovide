@@ -227,6 +227,12 @@ impl Handler for NeovimHandler {
         trace!("Neovim notification: {:?}", event_name);
 
         match event_name.as_ref() {
+            "neovide.highlight_roles" => match crate::editor::HighlightRoles::parse(&arguments) {
+                Ok(roles) => {
+                    let _ = self.redraw_event_sender.send(RedrawEvent::HighlightRoles(roles));
+                }
+                Err(error) => log::warn!("Invalid highlight role snapshot: {error}"),
+            },
             "neovide.window.shadow_exclusions" => {
                 match super::events::parse_shadow_exclusions(&arguments) {
                     Ok(windows) => {

@@ -1,6 +1,6 @@
 -- No kernels: exercise actual runtime setup and both theme refresh hooks.
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h:h")
-vim.opt.rtp:prepend(root .. "/portable/payload/nvim")
+vim.opt.rtp:prepend(vim.env.GLOW_TEST_CONFIG or (root .. "/portable/payload/nvim"))
 package.preload["config.media.molten_images"] = function()
   return { setup = function() return false end }
 end

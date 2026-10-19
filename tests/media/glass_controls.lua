@@ -1,5 +1,5 @@
 -- nvim --headless -u NONE -l tests/media/glass_controls.lua
-vim.opt.rtp:prepend(vim.fn.getcwd() .. '/portable/payload/nvim')
+vim.opt.rtp:prepend(vim.env.GLOW_TEST_CONFIG or (vim.fn.getcwd() .. '/portable/payload/nvim'))
 vim.g.neovide = true
 vim.g.neovide_native_glass = true
 vim.g.neovide_opacity = 1

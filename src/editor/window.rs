@@ -533,6 +533,17 @@ impl Window {
         self.send_command(batcher, WindowDrawCommand::Clear);
     }
 
+    pub fn update_styles(
+        &mut self,
+        replacements: &HashMap<usize, Arc<Style>>,
+        batcher: &mut DrawCommandBatcher,
+    ) {
+        if !replacements.is_empty() {
+            self.grid.update_styles(replacements);
+            self.redraw(batcher);
+        }
+    }
+
     pub fn redraw(&self, batcher: &mut DrawCommandBatcher) {
         self.send_command(batcher, WindowDrawCommand::Clear);
         // Draw the lines from the bottom up so that underlines don't get overwritten by the line
@@ -566,24 +577,25 @@ mod tests {
     #[test]
     fn notebook_icon_highlights_enlarge_only_type_foreground_by_twenty_percent() {
         use crate::{
-            renderer::{GridRenderer, RendererSettings},
+            renderer::{
+                GridRenderer, RendererSettings,
+                fonts::font_options::{FontOptions, points_to_pixels},
+            },
             settings::Settings,
             units::PixelPos,
             window::WindowSettings,
         };
-        use skia_safe::{Color, FontMgr, FontStyle, surfaces};
-
-        assert!(
-            FontMgr::new()
-                .match_family_style("FiraCode Nerd Font Mono", FontStyle::normal())
-                .is_some(),
-            "this regression must exercise the installed FiraCode Nerd Font Mono"
-        );
+        use skia_safe::{Color, surfaces};
         let settings = Arc::new(Settings::new());
         settings.set(&WindowSettings::default());
         settings.set(&RendererSettings::default());
         let mut renderer = GridRenderer::new(2.0, settings);
-        renderer.update_font("FiraCode Nerd Font Mono:h16");
+        // An empty family list selects the bundled FiraCode Nerd Font. Keep
+        // this pixel regression independent of fonts installed on the host.
+        renderer.update_font_options(FontOptions {
+            size: points_to_pixels(16.0),
+            ..FontOptions::default()
+        });
         let base = Style::new(Colors::new(Some(colors::WHITE), Some(colors::BLUE), None));
         let mut render = |text: &str, style: Style| {
             let count = text.chars().count();
@@ -639,7 +651,7 @@ mod tests {
             (raster, bg_raster, ink, height)
         };
         for (group, glyph) in [("GlowNotebookLanguage", ""), ("GlowNotebookMarkdown", "")] {
-            let enlarged = base.clone().with_highlight_name(Some(group));
+            let enlarged = base.clone().with_roles([crate::editor::HighlightRole::EnlargedIcon]);
             assert!(enlarged.enlarged_icon);
             let text = format!(" {glyph} ");
             let normal = render(&text, base.clone());
@@ -673,8 +685,8 @@ mod tests {
             "GlowNotebookLanguageCap",
             "GlowNotebookMarkdownCap",
         ] {
-            let ordinary = base.clone().with_highlight_name(Some(group));
-            assert!(!ordinary.enlarged_icon, "only exact type-body groups opt in");
+            let ordinary = base.clone().with_roles([]);
+            assert!(!ordinary.enlarged_icon, "unregistered {group} does not opt in");
             assert_eq!(
                 render("abc", base.clone()).0,
                 render("abc", ordinary).0,
@@ -682,8 +694,56 @@ mod tests {
             );
         }
         let normal_cap = render("", base.clone());
-        let scaled_style_cap = render("", base.with_highlight_name(Some("GlowNotebookLanguage")));
+        let scaled_style_cap =
+            render("", base.with_roles([crate::editor::HighlightRole::EnlargedIcon]));
         assert_eq!(normal_cap.0, scaled_style_cap.0, "native powerline caps never scale");
+    }
+
+    #[test]
+    fn declared_roles_update_existing_grid_and_redraw_without_new_grid_lines() {
+        use crate::editor::{HighlightRole, HighlightRoles, NotebookTitleGroup};
+        use rmpv::Value;
+        let plain = Arc::new(Style::new(crate::editor::Colors::new(None, None, None)));
+        let mut styles = HashMap::from([(17, plain.clone())]);
+        let names = HashMap::from([(17, vec!["WinBar".to_string(), "RenamedCapsule".to_string()])]);
+        let snapshot = Value::Map(vec![
+            ("version".into(), 1.into()),
+            (
+                "groups".into(),
+                Value::Map(vec![(
+                    "RenamedCapsule".into(),
+                    Value::Array(vec!["notebook_kernel".into(), "enlarged_icon".into()]),
+                )]),
+            ),
+        ]);
+        let registry = HighlightRoles::parse(&[snapshot]).unwrap();
+        let mut batcher = DrawCommandBatcher::new();
+        let mut window = Window::new(4, WindowType::Editor, None, (0.0, 0.0), (1, 1), &mut batcher);
+        window.draw_grid_line(
+            &mut batcher,
+            0,
+            0,
+            vec![GridLineCell { text: "x".to_string(), highlight_id: Some(17), repeat: None }],
+            &styles,
+        );
+        batcher.take_commands();
+        let replacements = registry.rebuild(&names, &mut styles);
+        window.update_styles(&replacements, &mut batcher);
+        let current = window.grid.get_cell(0, 0).unwrap().1.as_ref().unwrap();
+        assert_eq!(current.notebook_title, Some(NotebookTitleGroup::Kernel));
+        assert!(current.enlarged_icon);
+        assert_eq!(
+            (*plain)
+                .clone()
+                .with_roles([HighlightRole::NotebookKernel, HighlightRole::EnlargedIcon]),
+            **current
+        );
+        assert!(batcher.take_commands().iter().any(|command| matches!(command,
+            DrawCommand::Window { command: WindowDrawCommand::DrawLine { line, .. }, .. }
+                if line.fragments().any(|fragment| fragment.style.as_ref().is_some_and(|style| style.enlarged_icon)))));
+        let replacements = HighlightRoles::default().rebuild(&names, &mut styles);
+        window.update_styles(&replacements, &mut batcher);
+        assert_eq!(window.grid.get_cell(0, 0).unwrap().1.as_ref().unwrap(), &plain);
     }
 
     fn make_style(color: Color4f) -> Arc<Style> {

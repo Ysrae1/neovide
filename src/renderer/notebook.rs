@@ -307,9 +307,7 @@ fn resolve_frame(
     let mut owner_grid = None;
     let mut owner_clip = None;
     if let Some(anchor) = frame.anchor {
-        let Some(window) = windows.iter().find(|w| w.window == anchor.window) else {
-            return None;
-        };
+        let window = windows.iter().find(|w| w.window == anchor.window)?;
         let baseline = *bindings.entry((anchor.window, anchor.epoch)).or_insert(window.scroll);
         let scroll =
             if anchor.scroll { window.scroll_pixels(baseline, scale.height()) } else { 0.0 };
@@ -722,7 +720,7 @@ mod tests {
                      surface: &mut skia_safe::Surface| {
             let owner = NotebookWindow::from_window(window, scale).unwrap();
             surface.canvas().clear(Color::WHITE);
-            renderer.draw(surface.canvas(), scale, false, &[], &[owner.clone()]);
+            renderer.draw(surface.canvas(), scale, false, &[], std::slice::from_ref(&owner));
             // Follow the same real source line through the owner's scrollback:
             // grid_row_rect supplies its foreground transform; snap as the
             // actual text picture pass does for fractional scroll pixels.

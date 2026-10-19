@@ -1,5 +1,5 @@
 -- nvim --headless -u NONE -l tests/media/open_spec.lua
-vim.opt.rtp:prepend(vim.fn.getcwd() .. '/portable/payload/nvim')
+vim.opt.rtp:prepend(vim.env.GLOW_TEST_CONFIG or (vim.fn.getcwd() .. '/portable/payload/nvim'))
 vim.g.neovide = true
 vim.g.neovide_native_image = true
 vim.g.neovide_native_preview = true

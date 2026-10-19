@@ -35,6 +35,15 @@ pub enum NotebookTitleGroup {
     Actions,
 }
 
+/// Rendering behavior declared by Lua, independent of theme group names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HighlightRole {
+    EnlargedIcon,
+    NotebookKernel,
+    NotebookActions,
+    SolidTitleCap,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Style {
     pub colors: Colors,
@@ -72,33 +81,22 @@ impl Style {
         }
     }
 
-    pub fn with_highlight_name(mut self, name: Option<&str>) -> Self {
-        self.enlarged_icon = matches!(name, Some("GlowNotebookLanguage" | "GlowNotebookMarkdown"));
-        self.avante_solid_cap = matches!(
-            name,
-            Some("AvanteReversedTitle" | "AvanteReversedSubtitle" | "AvanteReversedThirdTitle")
-        );
-        self.notebook_title = match name {
-            Some(
-                "GlowNotebookKernel"
-                | "GlowNotebookKernelCap"
-                | "GlowNotebookKernelValue"
-                | "GlowNotebookKernelValueCap",
-            ) => Some(NotebookTitleGroup::Kernel),
-            Some(
-                "GlowNotebookCells"
-                | "GlowNotebookCellsCap"
-                | "GlowNotebookCellsValue"
-                | "GlowNotebookCellsValueCap"
-                | "GlowNotebookPrev"
-                | "GlowNotebookNext"
-                | "GlowNotebookMenu"
-                | "GlowNotebookMenuCap"
-                | "GlowNotebookMenuValue"
-                | "GlowNotebookMenuValueCap",
-            ) => Some(NotebookTitleGroup::Actions),
-            _ => None,
-        };
+    pub fn with_roles(mut self, roles: impl IntoIterator<Item = HighlightRole>) -> Self {
+        self.enlarged_icon = false;
+        self.notebook_title = None;
+        self.avante_solid_cap = false;
+        for role in roles {
+            match role {
+                HighlightRole::EnlargedIcon => self.enlarged_icon = true,
+                HighlightRole::NotebookKernel => {
+                    self.notebook_title = Some(NotebookTitleGroup::Kernel)
+                }
+                HighlightRole::NotebookActions => {
+                    self.notebook_title = Some(NotebookTitleGroup::Actions)
+                }
+                HighlightRole::SolidTitleCap => self.avante_solid_cap = true,
+            }
+        }
         self
     }
 
@@ -140,34 +138,21 @@ mod tests {
     };
 
     #[test]
-    fn notebook_title_alignment_marks_only_topbar_groups() {
-        for name in [
-            "GlowNotebookKernel",
-            "GlowNotebookKernelCap",
-            "GlowNotebookKernelValue",
-            "GlowNotebookKernelValueCap",
-        ] {
-            assert_eq!(
-                Style::new(COLORS).with_highlight_name(Some(name)).notebook_title,
-                Some(NotebookTitleGroup::Kernel)
-            );
-        }
-        for name in [
-            "GlowNotebookCells",
-            "GlowNotebookPrev",
-            "GlowNotebookNext",
-            "GlowNotebookMenuValueCap",
-        ] {
-            assert_eq!(
-                Style::new(COLORS).with_highlight_name(Some(name)).notebook_title,
-                Some(NotebookTitleGroup::Actions)
-            );
-        }
-        for name in
-            ["Normal", "WinBar", "GlowNotebookBar", "GlowNotebookLanguage", "GlowNotebookRun"]
-        {
-            assert_eq!(Style::new(COLORS).with_highlight_name(Some(name)).notebook_title, None);
-        }
+    fn roles_change_only_rendering_behavior_and_can_be_cleared() {
+        let original = Style::new(COLORS);
+        let marked = original.clone().with_roles([
+            HighlightRole::EnlargedIcon,
+            HighlightRole::NotebookKernel,
+            HighlightRole::SolidTitleCap,
+        ]);
+        assert!(marked.enlarged_icon && marked.avante_solid_cap);
+        assert_eq!(marked.notebook_title, Some(NotebookTitleGroup::Kernel));
+        assert_eq!(marked.colors, original.colors);
+        assert_eq!(marked.with_roles([]), original);
+        assert_eq!(
+            original.with_roles([HighlightRole::NotebookActions]).notebook_title,
+            Some(NotebookTitleGroup::Actions)
+        );
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{editor::style::Style, utils::RingBuffer};
 
@@ -72,6 +72,18 @@ impl CharacterGrid {
 
     fn row_mut(&mut self, row_index: usize) -> Option<&mut [GridCell]> {
         self.lines.get_mut(row_index).map(|line| line.characters.as_mut_slice())
+    }
+
+    pub fn update_styles(&mut self, replacements: &HashMap<usize, Arc<Style>>) {
+        for line in &mut self.lines {
+            for (_, style) in &mut line.characters {
+                if let Some(current) = style
+                    && let Some(updated) = replacements.get(&(Arc::as_ptr(current) as usize))
+                {
+                    *style = Some(updated.clone());
+                }
+            }
+        }
     }
 
     /// Scroll the region defined by top, bottom, left, and right by rows and columns.

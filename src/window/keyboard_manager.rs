@@ -56,45 +56,6 @@ pub(super) fn notebook_selection_key_action(
     }
 }
 
-#[cfg(test)]
-mod notebook_selection_tests {
-    use super::*;
-
-    #[test]
-    fn notebook_output_selection_copy_keys_are_consumed_only_for_native_selection() {
-        let copy = Key::Character("c".into());
-        let control_shift = ModifiersState::CONTROL | ModifiersState::SHIFT;
-        assert_eq!(
-            notebook_selection_key_action(&copy, control_shift, true),
-            Some(NotebookSelectionKeyAction::Copy)
-        );
-        assert_eq!(notebook_selection_key_action(&copy, control_shift, false), None);
-        assert_eq!(notebook_selection_key_action(&copy, ModifiersState::CONTROL, true), None);
-        assert_eq!(notebook_selection_key_action(&copy, ModifiersState::empty(), true), None);
-        assert_eq!(
-            notebook_selection_key_action(
-                &Key::Named(NamedKey::Copy),
-                ModifiersState::empty(),
-                true
-            ),
-            Some(NotebookSelectionKeyAction::Copy)
-        );
-        assert_eq!(
-            notebook_selection_key_action(
-                &Key::Named(NamedKey::Escape),
-                ModifiersState::empty(),
-                true
-            ),
-            Some(NotebookSelectionKeyAction::Clear)
-        );
-        #[cfg(target_os = "macos")]
-        assert_eq!(
-            notebook_selection_key_action(&copy, ModifiersState::SUPER, true),
-            Some(NotebookSelectionKeyAction::Copy)
-        );
-    }
-}
-
 pub struct KeyboardManager {
     modifiers: Modifiers,
     ime_preedit: (String, Option<(usize, usize)>),
@@ -443,3 +404,42 @@ fn get_special_key(key_event: &KeyEvent) -> Option<&str> {
 // avoid confusing users who have a post-2017 keyboard and are not aware of this
 // history, it is probably best to refer to this physical key as the 'option'
 // key, and not as the 'alt' key.
+
+#[cfg(test)]
+mod notebook_selection_tests {
+    use super::*;
+
+    #[test]
+    fn notebook_output_selection_copy_keys_are_consumed_only_for_native_selection() {
+        let copy = Key::Character("c".into());
+        let control_shift = ModifiersState::CONTROL | ModifiersState::SHIFT;
+        assert_eq!(
+            notebook_selection_key_action(&copy, control_shift, true),
+            Some(NotebookSelectionKeyAction::Copy)
+        );
+        assert_eq!(notebook_selection_key_action(&copy, control_shift, false), None);
+        assert_eq!(notebook_selection_key_action(&copy, ModifiersState::CONTROL, true), None);
+        assert_eq!(notebook_selection_key_action(&copy, ModifiersState::empty(), true), None);
+        assert_eq!(
+            notebook_selection_key_action(
+                &Key::Named(NamedKey::Copy),
+                ModifiersState::empty(),
+                true
+            ),
+            Some(NotebookSelectionKeyAction::Copy)
+        );
+        assert_eq!(
+            notebook_selection_key_action(
+                &Key::Named(NamedKey::Escape),
+                ModifiersState::empty(),
+                true
+            ),
+            Some(NotebookSelectionKeyAction::Clear)
+        );
+        #[cfg(target_os = "macos")]
+        assert_eq!(
+            notebook_selection_key_action(&copy, ModifiersState::SUPER, true),
+            Some(NotebookSelectionKeyAction::Copy)
+        );
+    }
+}

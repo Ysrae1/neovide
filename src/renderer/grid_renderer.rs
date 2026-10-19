@@ -32,295 +32,6 @@ pub struct GridRenderer {
     settings: Arc<Settings>,
 }
 
-#[cfg(test)]
-mod tests {
-    use skia_safe::{Data, Font, FontMgr, PictureRecorder, Rect, Surface, surfaces};
-
-    use super::*;
-
-    fn powerline_frame(
-        renderer: &mut GridRenderer,
-        font: &Font,
-        cap: &str,
-        color: Color,
-        blend: u8,
-        opacity: f32,
-        draw_cap: bool,
-    ) -> Surface {
-        let bounds = Rect::from_wh(160.0, 32.0);
-        let background = Some(Arc::new(Style {
-            blend,
-            ..Style::new(Colors::new(None, Some(color.into()), None))
-        }));
-        let body = if cap == "" { 0..2 } else { 3..5 };
-        let mut recorder = PictureRecorder::new();
-        renderer.draw_background(
-            recorder.begin_recording(bounds, false),
-            &body,
-            &background,
-            opacity,
-        );
-        let background_picture = recorder.finish_recording_as_picture(None).unwrap();
-
-        let mut text_paint = Paint::default();
-        text_paint.set_color(Color::from_rgb(240, 113, 120));
-        recorder.begin_recording(bounds, false).draw_str("a", (104.0, 23.0), font, &text_paint);
-        let foreground_picture = recorder.finish_recording_as_picture(None).unwrap();
-
-        let canvas = recorder.begin_recording(bounds, false);
-        let shape_opacity = renderer.background_opacity(color, blend, opacity);
-        let cell = |column: f32| {
-            PixelRect::from_origin_and_size(
-                PixelPos::new(column * 16.0, 0.0),
-                crate::units::PixelSize::new(16.0, 32.0),
-            )
-        };
-        // Ordinary foreground box lines must remain opaque, and letters must
-        // still fall through to the normal text renderer.
-        let alpha = draw_cap.then_some(shape_opacity);
-        assert!(renderer.box_char_renderer.draw_glyph(
-            "│",
-            canvas,
-            cell(8.0),
-            Color::WHITE,
-            PixelPos::default(),
-            alpha,
-        ));
-        assert!(!renderer.box_char_renderer.draw_glyph(
-            "a",
-            canvas,
-            cell(6.0),
-            Color::WHITE,
-            PixelPos::default(),
-            alpha,
-        ));
-        if draw_cap {
-            assert!(renderer.box_char_renderer.draw_glyph(
-                cap,
-                canvas,
-                cell(2.0),
-                color,
-                PixelPos::default(),
-                Some(shape_opacity),
-            ));
-        }
-        let boxchar_picture = recorder.finish_recording_as_picture(None).unwrap();
-
-        // Replay the same separate background/text/boxchar pictures used by a
-        // rendered window, over a translucent pre-existing window background.
-        let mut surface = surfaces::raster_n32_premul((160, 32)).unwrap();
-        surface.canvas().clear(Color::from_argb(64, 11, 14, 20));
-        for picture in [&background_picture, &foreground_picture, &boxchar_picture] {
-            surface.canvas().draw_picture(picture, None, None);
-        }
-        surface
-    }
-
-    #[test]
-    fn powerline_caps_match_background_alpha_without_changing_text_or_outer_pixels() {
-        let settings = Arc::new(Settings::new());
-        let mut window_settings = WindowSettings::default();
-        window_settings.normal_opacity = 0.9;
-        settings.set(&window_settings);
-        settings.set(&RendererSettings::default());
-        let mut renderer = GridRenderer::new(1.0, settings);
-        renderer.grid_scale = GridScale::new(crate::units::PixelSize::new(16.0, 32.0));
-        renderer
-            .box_char_renderer
-            .update_dimensions(crate::units::PixelSize::new(16.0, 32.0), 32.0);
-        let typeface = FontMgr::new()
-            .new_from_data(Data::new_copy(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED), 0)
-            .unwrap();
-        let font = Font::from_typeface(typeface, 20.0);
-        let normal = renderer.get_default_background_color();
-        let capsule = Color::from_rgb(28, 31, 37);
-
-        for opacity in [1.0, 0.95, 0.5] {
-            for (color, blend) in [(capsule, 0), (normal, 0), (capsule, 35)] {
-                for cap in ["", ""] {
-                    let mut expected =
-                        powerline_frame(&mut renderer, &font, cap, color, blend, opacity, false);
-                    let mut actual =
-                        powerline_frame(&mut renderer, &font, cap, color, blend, opacity, true);
-                    let baseline = expected.peek_pixels().unwrap();
-                    let pixels = actual.peek_pixels().unwrap();
-                    let body_x = if cap == "" { 16 } else { 64 };
-                    let inner_x = if cap == "" { 33 } else { 46 };
-                    let body = pixels.get_color((body_x, 16));
-                    assert_eq!(
-                        pixels.get_color((inner_x, 16)),
-                        body,
-                        "{cap} must match its background at opacity {opacity}, blend {blend}",
-                    );
-                    let mut antialiased_edge = false;
-                    let mut text_drawn = false;
-                    for y in 0..32 {
-                        for x in 0..160 {
-                            let before = baseline.get_color((x, y));
-                            let after = pixels.get_color((x, y));
-                            if (32..48).contains(&x) {
-                                antialiased_edge |= after != before && after != body;
-                            } else {
-                                assert_eq!(after, before, "{cap} changed an outside/text pixel");
-                                text_drawn |= (100..128).contains(&x)
-                                    && after != Color::from_argb(64, 11, 14, 20);
-                            }
-                        }
-                    }
-                    assert!(antialiased_edge, "{cap} must keep its smooth contour");
-                    assert!(text_drawn, "the normal text sample must be rendered");
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn explicit_tree_and_cursorline_blend_preserves_normal_selection_and_capsule_alpha() {
-        let settings = Arc::new(Settings::new());
-        settings.set(&WindowSettings { normal_opacity: 0.78, ..WindowSettings::default() });
-        settings.set(&RendererSettings::default());
-        let mut renderer = GridRenderer::new(1.0, settings);
-        renderer.grid_scale = GridScale::new(crate::units::PixelSize::new(16.0, 24.0));
-        let normal = Color::from_rgb(250, 250, 250);
-        let foreground = Color::from_rgb(92, 97, 102);
-        renderer.default_style =
-            Arc::new(Style::new(Colors::new(Some(foreground.into()), Some(normal.into()), None)));
-        let mut surface = surfaces::raster_n32_premul((80, 24)).unwrap();
-        let base = renderer.get_default_background(0.78);
-        surface.canvas().clear(base);
-        for (index, (name, color, blend, expected_alpha)) in [
-            ("NeoTreeNormal", Color::from_rgb(243, 243, 243), 40, 153),
-            // The actual light-theme NeoTreeCursorLine is exactly Normal RGB.
-            ("NeoTreeCursorLine", normal, 40, 153),
-            ("CursorLine", Color::from_rgb(239, 239, 239), 40, 153),
-            ("Visual", Color::from_rgb(238, 238, 238), 0, 255),
-            ("GlowNotebookLanguage", Color::from_rgb(255, 214, 138), 0, 255),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let style = Style {
-                blend,
-                ..Style::new(Colors::new(Some(foreground.into()), Some(color.into()), None))
-            }
-            .with_highlight_name(Some(name));
-            assert_eq!(style.foreground(&renderer.default_style.colors).to_color(), foreground);
-            renderer.draw_background(
-                surface.canvas(),
-                &(index as u32..index as u32 + 1),
-                &Some(Arc::new(style)),
-                1.0,
-            );
-            assert_eq!(
-                surface.peek_pixels().unwrap().get_color((index as i32 * 16 + 8, 12)).a(),
-                expected_alpha,
-                "{name} must replace the base background alpha rather than stacking over it"
-            );
-        }
-        assert_eq!(base.a(), 198, "ordinary editor background remains 78% opaque");
-        assert!((renderer.background_opacity(normal, 0, 1.0) - 0.78).abs() < 0.001);
-    }
-
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn avante_solid_caps_keep_panel_corners_glass_and_match_title_body() {
-        let settings = Arc::new(Settings::new());
-        settings.set(&RendererSettings::default());
-        let mut renderer = GridRenderer::new(1.0, settings.clone());
-        let cell_size = crate::units::PixelSize::new(16.0, 32.0);
-        renderer.grid_scale = GridScale::new(cell_size);
-        renderer.box_char_renderer.update_dimensions(cell_size, 32.0);
-        let bounds = Rect::from_wh(80.0, 32.0);
-        let accent = Color::from_rgb(95, 175, 175);
-
-        for panel in [Color::from_rgb(243, 243, 243), Color::from_rgb(32, 36, 43)] {
-            for opacity in [1.0, 0.8] {
-                for liquid_glass in [false, true] {
-                    settings.set(&WindowSettings { liquid_glass, ..WindowSettings::default() });
-                    for name in [
-                        "AvanteReversedTitle",
-                        "AvanteReversedSubtitle",
-                        "AvanteReversedThirdTitle",
-                        "StatusLine",
-                    ] {
-                        let cap = Some(Arc::new(
-                            Style {
-                                blend: 40,
-                                ..Style::new(Colors::new(
-                                    Some(accent.into()),
-                                    Some(panel.into()),
-                                    None,
-                                ))
-                            }
-                            .with_highlight_name(Some(name)),
-                        ));
-                        let body = Some(Arc::new(Style::new(Colors::new(
-                            Some(Color::WHITE.into()),
-                            Some(accent.into()),
-                            None,
-                        ))));
-                        let mut background = PictureRecorder::new();
-                        let canvas = background.begin_recording(bounds, false);
-                        renderer.draw_background(canvas, &(0..5), &cap, opacity);
-                        renderer.draw_background(canvas, &(1..4), &body, opacity);
-                        let background = background.finish_recording_as_picture(None).unwrap();
-
-                        let mut text = PictureRecorder::new();
-                        let mut boxes = PictureRecorder::new();
-                        let text_canvas = text.begin_recording(bounds, false);
-                        let box_canvas = boxes.begin_recording(bounds, false);
-                        let line = crate::editor::Line::from_test_cells(&["", " ", " ", " ", ""]);
-                        let mut drawn_caps = 0;
-                        for mut fragment in line.fragments().filter(|f| matches!(f.text, "" | ""))
-                        {
-                            fragment.style = &cap;
-                            assert_eq!(
-                                renderer.draw_foreground(
-                                    text_canvas,
-                                    box_canvas,
-                                    &fragment,
-                                    PixelPos::ZERO,
-                                    opacity,
-                                ),
-                                (false, true)
-                            );
-                            drawn_caps += 1;
-                        }
-                        assert_eq!(drawn_caps, 2);
-                        let boxes = boxes.finish_recording_as_picture(None).unwrap();
-                        let mut surface = surfaces::raster_n32_premul((80, 32)).unwrap();
-                        surface.canvas().clear(Color::TRANSPARENT);
-                        surface.canvas().draw_picture(&background, None, None);
-                        surface.canvas().draw_picture(&boxes, None, None);
-                        let pixels = surface.peek_pixels().unwrap();
-                        let panel_pixel = pixels.get_color((0, 0));
-                        assert_eq!(panel_pixel, pixels.get_color((79, 0)));
-                        assert!(
-                            (panel_pixel.a() as f32 - 153.0 * opacity).abs() <= 1.0,
-                            "{name} exterior must retain the panel's glass alpha"
-                        );
-                        let left = pixels.get_color((15, 16));
-                        let right = pixels.get_color((64, 16));
-                        assert_eq!(left, right, "both ends must use the same material");
-                        if liquid_glass && name.starts_with("AvanteReversed") {
-                            assert_eq!(
-                                left,
-                                pixels.get_color((32, 16)),
-                                "{name} shape must join its solid title body at opacity {opacity}"
-                            );
-                        } else {
-                            assert!(
-                                (left.a() as f32 - 153.0 * opacity).abs() <= 1.0,
-                                "ordinary caps and non-Glass windows keep their original blend"
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 /// Struct with named fields to be returned from draw_background
 pub struct BackgroundInfo {
     pub custom_color: bool,
@@ -680,5 +391,299 @@ impl GridRenderer {
         }
 
         canvas.restore();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use skia_safe::{Data, Font, FontMgr, PictureRecorder, Rect, Surface, surfaces};
+
+    use super::*;
+
+    fn powerline_frame(
+        renderer: &mut GridRenderer,
+        font: &Font,
+        cap: &str,
+        color: Color,
+        blend: u8,
+        opacity: f32,
+        draw_cap: bool,
+    ) -> Surface {
+        let bounds = Rect::from_wh(160.0, 32.0);
+        let background = Some(Arc::new(Style {
+            blend,
+            ..Style::new(Colors::new(None, Some(color.into()), None))
+        }));
+        let body = if cap == "" { 0..2 } else { 3..5 };
+        let mut recorder = PictureRecorder::new();
+        renderer.draw_background(
+            recorder.begin_recording(bounds, false),
+            &body,
+            &background,
+            opacity,
+        );
+        let background_picture = recorder.finish_recording_as_picture(None).unwrap();
+
+        let mut text_paint = Paint::default();
+        text_paint.set_color(Color::from_rgb(240, 113, 120));
+        recorder.begin_recording(bounds, false).draw_str("a", (104.0, 23.0), font, &text_paint);
+        let foreground_picture = recorder.finish_recording_as_picture(None).unwrap();
+
+        let canvas = recorder.begin_recording(bounds, false);
+        let shape_opacity = renderer.background_opacity(color, blend, opacity);
+        let cell = |column: f32| {
+            PixelRect::from_origin_and_size(
+                PixelPos::new(column * 16.0, 0.0),
+                crate::units::PixelSize::new(16.0, 32.0),
+            )
+        };
+        // Ordinary foreground box lines must remain opaque, and letters must
+        // still fall through to the normal text renderer.
+        let alpha = draw_cap.then_some(shape_opacity);
+        assert!(renderer.box_char_renderer.draw_glyph(
+            "│",
+            canvas,
+            cell(8.0),
+            Color::WHITE,
+            PixelPos::default(),
+            alpha,
+        ));
+        assert!(!renderer.box_char_renderer.draw_glyph(
+            "a",
+            canvas,
+            cell(6.0),
+            Color::WHITE,
+            PixelPos::default(),
+            alpha,
+        ));
+        if draw_cap {
+            assert!(renderer.box_char_renderer.draw_glyph(
+                cap,
+                canvas,
+                cell(2.0),
+                color,
+                PixelPos::default(),
+                Some(shape_opacity),
+            ));
+        }
+        let boxchar_picture = recorder.finish_recording_as_picture(None).unwrap();
+
+        // Replay the same separate background/text/boxchar pictures used by a
+        // rendered window, over a translucent pre-existing window background.
+        let mut surface = surfaces::raster_n32_premul((160, 32)).unwrap();
+        surface.canvas().clear(Color::from_argb(64, 11, 14, 20));
+        for picture in [&background_picture, &foreground_picture, &boxchar_picture] {
+            surface.canvas().draw_picture(picture, None, None);
+        }
+        surface
+    }
+
+    #[test]
+    fn powerline_caps_match_background_alpha_without_changing_text_or_outer_pixels() {
+        let settings = Arc::new(Settings::new());
+        let window_settings = WindowSettings { normal_opacity: 0.9, ..WindowSettings::default() };
+        settings.set(&window_settings);
+        settings.set(&RendererSettings::default());
+        let mut renderer = GridRenderer::new(1.0, settings);
+        renderer.grid_scale = GridScale::new(crate::units::PixelSize::new(16.0, 32.0));
+        renderer
+            .box_char_renderer
+            .update_dimensions(crate::units::PixelSize::new(16.0, 32.0), 32.0);
+        let typeface = FontMgr::new()
+            .new_from_data(Data::new_copy(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED), 0)
+            .unwrap();
+        let font = Font::from_typeface(typeface, 20.0);
+        let normal = renderer.get_default_background_color();
+        let capsule = Color::from_rgb(28, 31, 37);
+
+        for opacity in [1.0, 0.95, 0.5] {
+            for (color, blend) in [(capsule, 0), (normal, 0), (capsule, 35)] {
+                for cap in ["", ""] {
+                    let mut expected =
+                        powerline_frame(&mut renderer, &font, cap, color, blend, opacity, false);
+                    let mut actual =
+                        powerline_frame(&mut renderer, &font, cap, color, blend, opacity, true);
+                    let baseline = expected.peek_pixels().unwrap();
+                    let pixels = actual.peek_pixels().unwrap();
+                    let body_x = if cap == "" { 16 } else { 64 };
+                    let inner_x = if cap == "" { 33 } else { 46 };
+                    let body = pixels.get_color((body_x, 16));
+                    assert_eq!(
+                        pixels.get_color((inner_x, 16)),
+                        body,
+                        "{cap} must match its background at opacity {opacity}, blend {blend}",
+                    );
+                    let mut antialiased_edge = false;
+                    let mut text_drawn = false;
+                    for y in 0..32 {
+                        for x in 0..160 {
+                            let before = baseline.get_color((x, y));
+                            let after = pixels.get_color((x, y));
+                            if (32..48).contains(&x) {
+                                antialiased_edge |= after != before && after != body;
+                            } else {
+                                assert_eq!(after, before, "{cap} changed an outside/text pixel");
+                                text_drawn |= (100..128).contains(&x)
+                                    && after != Color::from_argb(64, 11, 14, 20);
+                            }
+                        }
+                    }
+                    assert!(antialiased_edge, "{cap} must keep its smooth contour");
+                    assert!(text_drawn, "the normal text sample must be rendered");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_tree_and_cursorline_blend_preserves_normal_selection_and_capsule_alpha() {
+        let settings = Arc::new(Settings::new());
+        settings.set(&WindowSettings { normal_opacity: 0.78, ..WindowSettings::default() });
+        settings.set(&RendererSettings::default());
+        let mut renderer = GridRenderer::new(1.0, settings);
+        renderer.grid_scale = GridScale::new(crate::units::PixelSize::new(16.0, 24.0));
+        let normal = Color::from_rgb(250, 250, 250);
+        let foreground = Color::from_rgb(92, 97, 102);
+        renderer.default_style =
+            Arc::new(Style::new(Colors::new(Some(foreground.into()), Some(normal.into()), None)));
+        let mut surface = surfaces::raster_n32_premul((80, 24)).unwrap();
+        let base = renderer.get_default_background(0.78);
+        surface.canvas().clear(base);
+        for (index, (name, color, blend, expected_alpha)) in [
+            ("NeoTreeNormal", Color::from_rgb(243, 243, 243), 40, 153),
+            // The actual light-theme NeoTreeCursorLine is exactly Normal RGB.
+            ("NeoTreeCursorLine", normal, 40, 153),
+            ("CursorLine", Color::from_rgb(239, 239, 239), 40, 153),
+            ("Visual", Color::from_rgb(238, 238, 238), 0, 255),
+            ("GlowNotebookLanguage", Color::from_rgb(255, 214, 138), 0, 255),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let style = Style {
+                blend,
+                ..Style::new(Colors::new(Some(foreground.into()), Some(color.into()), None))
+            }
+            .with_roles(
+                (name == "GlowNotebookLanguage")
+                    .then_some(crate::editor::HighlightRole::EnlargedIcon),
+            );
+            assert_eq!(style.foreground(&renderer.default_style.colors).to_color(), foreground);
+            renderer.draw_background(
+                surface.canvas(),
+                &(index as u32..index as u32 + 1),
+                &Some(Arc::new(style)),
+                1.0,
+            );
+            assert_eq!(
+                surface.peek_pixels().unwrap().get_color((index as i32 * 16 + 8, 12)).a(),
+                expected_alpha,
+                "{name} must replace the base background alpha rather than stacking over it"
+            );
+        }
+        assert_eq!(base.a(), 198, "ordinary editor background remains 78% opaque");
+        assert!((renderer.background_opacity(normal, 0, 1.0) - 0.78).abs() < 0.001);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn avante_solid_caps_keep_panel_corners_glass_and_match_title_body() {
+        let settings = Arc::new(Settings::new());
+        settings.set(&RendererSettings::default());
+        let mut renderer = GridRenderer::new(1.0, settings.clone());
+        let cell_size = crate::units::PixelSize::new(16.0, 32.0);
+        renderer.grid_scale = GridScale::new(cell_size);
+        renderer.box_char_renderer.update_dimensions(cell_size, 32.0);
+        let bounds = Rect::from_wh(80.0, 32.0);
+        let accent = Color::from_rgb(95, 175, 175);
+
+        for panel in [Color::from_rgb(243, 243, 243), Color::from_rgb(32, 36, 43)] {
+            for opacity in [1.0, 0.8] {
+                for liquid_glass in [false, true] {
+                    settings.set(&WindowSettings { liquid_glass, ..WindowSettings::default() });
+                    for name in [
+                        "AvanteReversedTitle",
+                        "AvanteReversedSubtitle",
+                        "AvanteReversedThirdTitle",
+                        "StatusLine",
+                    ] {
+                        let cap = Some(Arc::new(
+                            Style {
+                                blend: 40,
+                                ..Style::new(Colors::new(
+                                    Some(accent.into()),
+                                    Some(panel.into()),
+                                    None,
+                                ))
+                            }
+                            .with_roles(
+                                (name != "StatusLine")
+                                    .then_some(crate::editor::HighlightRole::SolidTitleCap),
+                            ),
+                        ));
+                        let body = Some(Arc::new(Style::new(Colors::new(
+                            Some(Color::WHITE.into()),
+                            Some(accent.into()),
+                            None,
+                        ))));
+                        let mut background = PictureRecorder::new();
+                        let canvas = background.begin_recording(bounds, false);
+                        renderer.draw_background(canvas, &(0..5), &cap, opacity);
+                        renderer.draw_background(canvas, &(1..4), &body, opacity);
+                        let background = background.finish_recording_as_picture(None).unwrap();
+
+                        let mut text = PictureRecorder::new();
+                        let mut boxes = PictureRecorder::new();
+                        let text_canvas = text.begin_recording(bounds, false);
+                        let box_canvas = boxes.begin_recording(bounds, false);
+                        let line = crate::editor::Line::from_test_cells(&["", " ", " ", " ", ""]);
+                        let mut drawn_caps = 0;
+                        for mut fragment in line.fragments().filter(|f| matches!(f.text, "" | ""))
+                        {
+                            fragment.style = &cap;
+                            assert_eq!(
+                                renderer.draw_foreground(
+                                    text_canvas,
+                                    box_canvas,
+                                    &fragment,
+                                    PixelPos::ZERO,
+                                    opacity,
+                                ),
+                                (false, true)
+                            );
+                            drawn_caps += 1;
+                        }
+                        assert_eq!(drawn_caps, 2);
+                        let boxes = boxes.finish_recording_as_picture(None).unwrap();
+                        let mut surface = surfaces::raster_n32_premul((80, 32)).unwrap();
+                        surface.canvas().clear(Color::TRANSPARENT);
+                        surface.canvas().draw_picture(&background, None, None);
+                        surface.canvas().draw_picture(&boxes, None, None);
+                        let pixels = surface.peek_pixels().unwrap();
+                        let panel_pixel = pixels.get_color((0, 0));
+                        assert_eq!(panel_pixel, pixels.get_color((79, 0)));
+                        assert!(
+                            (panel_pixel.a() as f32 - 153.0 * opacity).abs() <= 1.0,
+                            "{name} exterior must retain the panel's glass alpha"
+                        );
+                        let left = pixels.get_color((15, 16));
+                        let right = pixels.get_color((64, 16));
+                        assert_eq!(left, right, "both ends must use the same material");
+                        if liquid_glass && name.starts_with("AvanteReversed") {
+                            assert_eq!(
+                                left,
+                                pixels.get_color((32, 16)),
+                                "{name} shape must join its solid title body at opacity {opacity}"
+                            );
+                        } else {
+                            assert!(
+                                (left.a() as f32 - 153.0 * opacity).abs() <= 1.0,
+                                "ordinary caps and non-Glass windows keep their original blend"
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }

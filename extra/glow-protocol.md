@@ -1,0 +1,50 @@
+# Glow 配套配置接口
+
+维护：Codex，2026-10-19。这里记录 GUI 与 Neovim 配置共同使用的长期约定；当前状态和验收记录仍只在 [GLOW.md](../GLOW.md)。
+
+## 图片传输与编号
+
+`neovide.image.load/show/hide/close` 使用同一个编辑器 route 内的正整数 ID；不同 route 独立。图片、Molten 和嵌入式 Yazi 共用该命名空间，不能各自从 1 开始计数。配套配置的 `config.media.image_transport` 是编号分配及状态分发入口：
+
+| 调用方 | 有效 ID | 状态接收模块 |
+| --- | --- | --- |
+| 普通图片预览 | 1–999999 | `config.media.image` |
+| Molten 图像 | 1000001–1999999 | `config.media.molten_images` |
+| 嵌入式 Yazi | 2000001–9007199254740991 | `config.media.yazi` |
+
+1000000 与 2000000 保留不用；上限不超过 Lua 精确整数范围。编号递增、不回绕、不重用，以免尚在队列中的旧回调击中新请求；有限范围耗尽时给出重启会话提示，不能侵入下一调用方的范围。关闭或取消后，各接收模块继续按自身活动请求表拒绝迟到结果。热替换时应保留模块状态，不能单独卸载编号分配模块。
+
+新 GUI 的异步状态回调优先调用 `image_transport.on_status(id, width, height, error)`；旧配置没有此模块时保留历史范围分发。新配置沿用历史范围，因此也能与已有 Glow 图片构建配合使用。`neovide.preview.*` 的音视频、网页与 PDF 编号属于另一套协议，不占图片范围。
+
+`load(id, path, owner)` 的第三个参数可选，值为 `image`、`molten` 或 `yazi`；配套模块经 `image_transport.load` 传入。旧配置省略时按历史 ID 范围推断，旧 GUI 忽略新增参数。全应用总上限保持八槽，Molten 在所有 route 中最多六槽，为普通图片与 Yazi 共同保留两槽；交互预览自身仍共享总上限，不能保证任意数量均成功。`hide` 只隐藏，`close` 才撤销并释放请求。Molten 保留超额输出及暂缓占位，先回收旧候选，再加载当前候选；释放事件安排重试并以 750ms 退避限制频率，不轮询。取消、失败、同 ID 重载及 route 销毁均归还配额。回归见 `tests/media/{image_transport,preview_fairness}.lua`、真实 GUI 入口及图片 Rust 单元测试。
+
+## 高亮语义与插件适配
+
+颜色始终来自 Neovim 主题；Rust 不提供另一份 Ayu 调色板，也不再按 Notebook／Avante 的高亮名称猜渲染行为。配置通过 `neovide.highlight_roles` 发送版本化完整快照：
+
+```lua
+neovide.set_highlight_roles({
+  MyTypeIcon = { "enlarged_icon" },
+  MyKernelTitle = { "notebook_kernel" },
+  MyActionTitle = { "notebook_actions" },
+  MySolidCap = { "solid_title_cap" },
+})
+```
+
+原生 RPC 参数为 `{version=1, groups={...}}`，每个编辑器 route 独立。合法空映射清除角色；非法版本、未知角色或冲突快照整包拒绝并保留原映射。声明改变会更新已经缓存的网格／光标样式并重绘。组合高亮保留完整名称列表，由声明匹配；更具体的后项决定顶栏对齐角色。
+
+本机与 portable 的 `config.appearance.render_roles` 集中声明现有主题组。新 GUI 的 `lua/highlight_roles.lua` 为旧配置提供兼容默认声明，并在 VimEnter／ColorScheme 重发；旧 GUI 没有 setter 时，配置仅保存声明，继续使用旧渲染路径。更改主题组名时同步 Lua 声明即可，不需要修改 Rust 组名字符串。
+
+终端中的圆角端帽由字符绘制，端帽背景会填满整个矩形字格。`config.appearance.capsules` 在主题兼容层刷新时统一 minimal/round 状态栏左端帽与 Avante 的 `Reversed*Title`：端帽只保留既有前景和样式，外侧背景继承所在栏，与原本正确的右端帽一致。实心主体、文字及调色板不变。Neovide 跳过这项终端修正，继续使用自己的字形与材质处理；媒体和 Notebook 的端帽已使用透明背景，无需另设覆盖。
+
+| 名称或角色 | 配置来源 | GUI 消费者与用途 |
+| --- | --- | --- |
+| `GlowNotebookLanguage`、`GlowNotebookMarkdown` | `config.media.notebook_edit` | `enlarged_icon`：仅类型图标放大，端帽与正文保持原尺寸 |
+| `GlowNotebookKernel{,Cap,Value,ValueCap}` | Notebook 顶栏 | `notebook_kernel`：内核域的小数格对齐 |
+| `GlowNotebookCells*`、`Prev`、`Next`、`Menu*` | Notebook 顶栏 | `notebook_actions`：操作域对齐；名称集合在 Lua 显式声明，不将任意前缀自动当作角色 |
+| `AvanteReversedTitle`、`Subtitle`、`ThirdTitle` | Avante 与 `config.appearance.transparency` | `solid_title_cap`：实心端帽与玻璃面板衔接 |
+| `SnacksPickerInput/List/Preview` 及其 `Border`，`SnacksPickerBox{,Border}` | 固定版本 Snacks 的窗口局部 `winhighlight` | `lua/float_shadow.lua` 从窗口角色识别组合面板；RPC `neovide.window.shadow_exclusions` 传递窗口 ID，Rust 按窗口 ID 处理阴影 |
+
+Snacks 的链接高亮可能只留下 `NormalFloat` 等通用名字，因此其窗口角色仍在 Lua 层读取，Rust 按窗口 ID 处理。不要将这些已有适配扩展为所有同色或任意插件浮窗的隐式规则。角色声明检查见 `tests/media/highlight_roles.lua` 与 Rust `highlight_roles`、样式替换和像素回归。
+
+Notebook 输入/输出框与图像滚动锚点通过各自的原生协议传递窗口和布局 epoch。主题重载应只改变颜色，不重新编号请求或启动内核。已有验证包括 Rust 组合高亮/样式/像素断言，以及 headless Notebook 高亮、胶囊检查；真实 Snacks 插件链路另见 `tests/media/picker_shadow_scope.py`，需要已安装的固定插件与 Python 依赖。

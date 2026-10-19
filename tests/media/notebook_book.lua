@@ -1,5 +1,5 @@
 -- Run: nvim --headless -u NONE -l tests/media/notebook_book.lua
-vim.opt.rtp:append(vim.fs.joinpath(vim.uv.cwd(), 'portable/payload/nvim'))
+vim.opt.rtp:append(vim.env.GLOW_TEST_CONFIG or vim.fs.joinpath(vim.uv.cwd(), 'portable/payload/nvim'))
 local checks, notifications, views, refreshes = 0, {}, {}, {}
 vim.notify = function(message) notifications[#notifications + 1] = message end
 package.loaded['config.media.preview'] = {
@@ -64,7 +64,7 @@ local root = vim.fs.joinpath(temporary,'book with spaces $()')
 vim.fn.mkdir(vim.fs.joinpath(root,'chapter'),'p')
 write(vim.fs.joinpath(root,'_config.yml'),'title: Test')
 check(book.find_root(vim.fs.joinpath(root,'chapter','part.md')) == root, 'project root discovered from child file')
-local opts = {builder={vim.fs.joinpath(vim.uv.cwd(),'tests/media/fake-book.py')}}
+local opts = {builder={vim.env.GLOW_TEST_PYTHON or 'python3', vim.fs.joinpath(vim.uv.cwd(),'tests/media/fake-book.py')}}
 local before = #views
 check(book.open(root,opts), 'start argv-based build')
 local book_origin = vim.api.nvim_get_current_tabpage()

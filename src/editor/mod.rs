@@ -1,6 +1,7 @@
 mod cursor;
 mod draw_command_batcher;
 mod grid;
+mod highlight_roles;
 mod intro;
 mod notebook_viewport;
 mod style;
@@ -36,7 +37,8 @@ use crate::{
 
 pub use cursor::{Cursor, CursorMode, CursorShape};
 pub use draw_command_batcher::DrawCommandBatcher;
-pub use style::{Colors, NotebookTitleGroup, Style, UnderlineStyle};
+pub use highlight_roles::HighlightRoles;
+pub use style::{Colors, HighlightRole, NotebookTitleGroup, Style, UnderlineStyle};
 pub use window::*;
 
 use intro::{IntroMessageExtender, IntroProcessing};
@@ -140,6 +142,8 @@ pub struct Editor {
     pub windows: HashMap<u64, Window>,
     pub cursor: Cursor,
     pub defined_styles: HashMap<u64, Arc<Style>>,
+    highlight_names: HashMap<u64, Vec<String>>,
+    highlight_roles: HighlightRoles,
     pub mode_list: Vec<CursorMode>,
     pub draw_command_batcher: DrawCommandBatcher,
     pub current_mode_index: Option<u64>,
@@ -176,6 +180,8 @@ impl Editor {
             windows: HashMap::new(),
             cursor: Cursor::new(),
             defined_styles: HashMap::new(),
+            highlight_names: HashMap::new(),
+            highlight_roles: HighlightRoles::default(),
             #[cfg(target_os = "macos")]
             match_paren_highlight_ids: HashSet::new(),
             #[cfg(target_os = "macos")]
@@ -217,6 +223,26 @@ impl Editor {
 
     pub fn handle_redraw_event(&mut self, event: RedrawEvent) {
         match event {
+            RedrawEvent::HighlightRoles(roles) => {
+                if self.highlight_roles != roles {
+                    self.highlight_roles = roles;
+                    let replacements = self
+                        .highlight_roles
+                        .rebuild(&self.highlight_names, &mut self.defined_styles);
+                    if !replacements.is_empty() {
+                        for window in self.windows.values_mut() {
+                            window.update_styles(&replacements, &mut self.draw_command_batcher);
+                        }
+                        if let Some(style) = &self.cursor.style
+                            && let Some(updated) = replacements.get(&(Arc::as_ptr(style) as usize))
+                        {
+                            self.cursor.style = Some(updated.clone());
+                        }
+                        self.send_cursor_info();
+                        self.draw_command_batcher.send_batch(self.route_id, &self.event_loop_proxy);
+                    }
+                }
+            }
             RedrawEvent::FloatShadowExclusions(windows) => {
                 self.draw_command_batcher.queue(DrawCommand::FloatShadowExclusions(windows));
             }
@@ -305,16 +331,20 @@ impl Editor {
                 self.redraw_screen();
                 self.draw_command_batcher.send_batch(self.route_id, &self.event_loop_proxy);
             }
-            RedrawEvent::HighlightAttributesDefine { id, style, name } => {
+            RedrawEvent::HighlightAttributesDefine { id, style, names } => {
                 tracy_zone!("EditorHighlightAttributesDefine");
-                self.defined_styles
-                    .insert(id, Arc::new(style.with_highlight_name(name.as_deref())));
+                self.defined_styles.insert(id, Arc::new(self.highlight_roles.apply(style, &names)));
 
                 #[cfg(target_os = "macos")]
-                self.update_match_paren_highlight(id, name.as_deref());
-
-                #[cfg(not(target_os = "macos"))]
-                let _ = name;
+                self.update_match_paren_highlight(
+                    id,
+                    names
+                        .iter()
+                        .find(|name| name.starts_with("MatchParen"))
+                        .or_else(|| names.first())
+                        .map(String::as_str),
+                );
+                self.highlight_names.insert(id, names);
             }
             RedrawEvent::HighlightGroupSet { name, id } => {
                 tracy_zone!("EditorHighlightGroupSet");

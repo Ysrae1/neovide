@@ -108,6 +108,10 @@ pub async fn setup_neovide_specific_state(
     .await
     .context("Error when running Neovide init.lua")?;
 
+    nvim.exec_lua(include_str!("../../lua/highlight_roles.lua"), call_args![])
+        .await
+        .context("Error when declaring highlight rendering roles")?;
+
     nvim.exec_lua(include_str!("../../lua/float_shadow.lua"), call_args![])
         .await
         .context("Error when configuring composed floating-window shadows")?;
