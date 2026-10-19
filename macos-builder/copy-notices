@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+[ "$#" -eq 1 ] || {
+  echo "Usage: $0 APP_BUNDLE" >&2
+  exit 2
+}
+
+source_dir="$(cd "$(dirname "$0")/.." && pwd)"
+resources_dir="$1/Contents/Resources"
+dependency_notice="$(mktemp)"
+trap 'rm -f "$dependency_notice"' EXIT
+notice_files=(
+  LICENSE
+  assets/fonts/LICENSE
+  assets/Icon-LICENSE.txt
+  assets/Icon-Attribution.txt
+)
+
+# Require the reviewed sources before writing the generated notice. Rebuild it
+# on every packaging run so copied custom artwork retains its current credits.
+for notice in "${notice_files[@]}"; do
+  [ -s "$source_dir/$notice" ] || {
+    echo "Missing packaged license or attribution: $source_dir/$notice" >&2
+    exit 1
+  }
+done
+
+# Verify the lockfile and pinned original texts before changing the app. The
+# generated document carries any recorded upstream gaps explicitly; release
+# automation can additionally require a complete corpus with the strict check.
+python3 "$source_dir/scripts/generate-third-party-notices.py" \
+  --output "$dependency_notice"
+
+mkdir -p "$resources_dir"
+{
+  printf 'Neovide Glow — licenses and attribution\n'
+  printf 'This file reproduces the following notices from the source checkout.\n'
+  for notice in "${notice_files[@]}"; do
+    printf '\n===== %s =====\n\n' "$notice"
+    cat "$source_dir/$notice"
+    printf '\n'
+  done
+  printf '\n===== Rust and native Skia dependency notices =====\n\n'
+  cat "$dependency_notice"
+} > "$resources_dir/THIRD-PARTY-NOTICES.txt"
+cp "$source_dir/licenses/third-party/manifest.json" \
+  "$resources_dir/THIRD-PARTY-NOTICES.json"

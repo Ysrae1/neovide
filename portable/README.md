@@ -4,6 +4,10 @@
 
 不需要预先安装 Neovim、Yazi 或字母雨程序。安装器会下载并校验清单锁定的 Neovim 与运行库，再安装配置和插件；已有系统 Neovim 也不会被替换。全新电脑仍需先按部署说明准备系统编译工具与启动安装器的 Python；Windows 还需完成 WSL2／Ubuntu 首次设置。
 
+当前源码安装方案已直接附带 FiraCode Nerd Font Mono（Nerd Fonts 3.3.0，六个字重）及 Noto Sans Mono CJK SC（2.004，常规／粗体），来源、SHA256 和许可见 `payload/fonts/`。安装字体不再需要另行下载。Mac 默认 Fira＋系统苹方，Windows／WSL 默认 Fira＋Noto；苹方文件不随包复制。字体仅装入当前用户目录，遇到不同内容的同名文件会停止并保留原文件。Neovide 的默认字体由随包配置指定；终端应用自身的字体仍由终端设置控制。
+
+此改动属于下一版源码方案；已发布的 `glow-stack-20261017-gm2` 文件及校验值保持原样。Windows 字体安装与界面仍待 Windows 实机验收。
+
 先阅读 [部署说明](DEPLOY.md) 和 [冻结版本记录](CHANGELOG.md)。把整个安装包解压到一处，保留 `install.sh`、`install.ps1`、`scripts`、`payload` 和 `manifest.json` 的相对位置。
 
 ```sh

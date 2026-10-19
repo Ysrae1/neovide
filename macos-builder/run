@@ -66,6 +66,10 @@ if [ "$GENERATE_BUNDLE_APP" == "true" ]; then
     ./macos-builder/make-native-icon "${APP_DIR}/${APP_NAME}" "${ASSETS_DIR}/Neovide.icon"
   fi
 
+  # Carry the existing licenses and artwork credits inside the app in the DMG.
+  # Generate the aggregate before signing, including the legacy-icon path.
+  bash ./macos-builder/copy-notices "${APP_DIR}/${APP_NAME}"
+
   # Useful to use `codesign` for local signing using local keychain certificates
   # In case our pipeline fails, we are still able to sign the app manually
   if [ -n "$DEVELOPER_ID" ]; then

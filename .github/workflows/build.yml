@@ -24,7 +24,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  MACOSX_DEPLOYMENT_TARGET: 10.11
+  MACOSX_DEPLOYMENT_TARGET: 11.0
 
 defaults:
   run:
@@ -33,6 +33,27 @@ defaults:
 jobs:
   lint:
     uses: ./.github/workflows/lint-app.yml
+
+  configuration:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: v0.12.3
+      - name: Check portable configuration and bundled fonts
+        run: |
+          python tests/validate.py --config portable
+          python tests/portable_fonts.py
+          python scripts/generate-third-party-notices.py --check
 
   test:
     strategy:

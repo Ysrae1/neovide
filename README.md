@@ -61,12 +61,49 @@ There are tiers for individuals and teams, and one-time contributions are welcom
 
 [Read more about sponsoring Neovide](https://neovide.dev/sponsor.html).
 
-## Icon credits
+## Glow maintenance
 
-The custom icon family is based on [Neovide-macOS-Icon](https://github.com/marc2o/Neovide-macOS-Icon)
-by Marc Oliver Orth (marc2o). Ysrae1 adapted it for Liquid Glass, including color compensation and
-installer artwork. See the [asset notes](assets/README.md) and the original icon's
-[MIT license](assets/Icon-LICENSE.txt).
+Run `python3 tests/validate.py` for isolated headless checks of the portable configuration.
+See [validation commands and platform limits](tests/VALIDATION.md),
+[the GUI/configuration interface](extra/glow-protocol.md), and [current Glow status](GLOW.md).
+
+## Credits
+
+Neovide Glow is a personal fork that combines and adapts the work of many open-source projects.
+Each component keeps its own license.
+
+- **Neovide** — the upstream editor this fork is based on, under the [MIT license](./LICENSE).
+- **Icon** — based on [Neovide-macOS-Icon](https://github.com/marc2o/Neovide-macOS-Icon) by Marc
+  Oliver Orth (marc2o), [MIT](assets/Icon-LICENSE.txt). That icon carries the upstream Neovide logo
+  by [Chris Bouchard](https://github.com/chrisbouchard)
+  ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), which contains a modified Rust logo
+  (© Mozilla, CC BY 4.0, used according to the
+  [Rust media guide](https://www.rust-lang.org/policies/media-guide)) and a modified Neovim logo
+  (© Jason Long, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)). Ysrae1 adapted it for
+  Liquid Glass, including color compensation and installer artwork. See the
+  [asset notes](assets/README.md).
+- **Color scheme** — the Ayu Light/Dark palettes start from [ayu](https://github.com/dempfi/ayu) by
+  Ike Ku (MIT), through the ayu themes of [NvChad Base46](https://github.com/NvChad/base46) (MIT).
+  Every color was then retuned by hand.
+- **Neovim configuration** — built on the [LazyVim starter](https://github.com/LazyVim/starter)
+  (Apache-2.0) and [NvChad ui](https://github.com/NvChad/ui) (GPL-3.0). Plugins are installed from
+  their own repositories at the commits pinned in
+  [`lazy-lock.json`](portable/payload/nvim/lazy-lock.json) and keep their own licenses.
+- **Notebook** — editing and execution use [Molten](https://github.com/benlubas/molten-nvim)
+  (GPL-3.0) and [jupytext.nvim](https://github.com/GCBallesteros/jupytext.nvim). The static preview
+  bundles [KaTeX](https://github.com/KaTeX/KaTeX) and
+  [markdown-it](https://github.com/markdown-it/markdown-it), both MIT; see the
+  [third-party notices](portable/payload/nvim/lua/config/media/assets/THIRD-PARTY-NOTICES.md).
+- **Matrix rain** — [`cmatrix-gm`](https://github.com/Ysrae1/cmatrix-gm) adapts
+  [CMatrix](https://github.com/abishekvashok/cmatrix) (GPL-3.0), with an
+  [Unimatrix](https://github.com/will8211/unimatrix)-style mode and
+  [Gomatrix](https://github.com/GeertJohan/gomatrix)-style streams (BSD-2-Clause). License texts
+  are in [`portable/licenses`](portable/licenses).
+- **File manager** — [Yazi](https://github.com/sxyazi/yazi), with the bundled ayu-dark flavor
+  (MIT, © Kamal Chandra Upreti; tmTheme © Ike Ku).
+- **Native image preview** — informed by fredizzimo's
+  [img-support work (PR #3039)](https://github.com/neovide/neovide/pull/3039); no code was merged
+  wholesale.
 
 ## License
 

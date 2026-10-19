@@ -9,6 +9,7 @@ Before running the script, ensure you have the following dependencies installed:
 - [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html)
 - [create-dmg](https://github.com/create-dmg/create-dmg)
 - [codesign](https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution)
+- Python 3.11 or later, for the offline dependency-notice check (`tomllib`)
 
 **Run the Script**:
 
@@ -97,6 +98,33 @@ without a separate dark-background variation. Marc Oliver Orth's original MIT
 license and the adaptation attribution are copied into the app's Resources;
 see [the asset documentation](../assets/README.md) for the original logo notices
 and editable artwork.
+
+Every generated app also contains `Contents/Resources/THIRD-PARTY-NOTICES.txt`,
+assembled by `copy-notices` from the existing Neovide license, bundled-font
+license, icon license and icon attribution, plus the reviewed Rust and native
+Skia dependency notices. `THIRD-PARTY-NOTICES.json` records source revisions,
+archive checksums and the hashes of the original texts. This runs before
+signing, including when only the legacy icon is used, so the notices travel
+with the app in the DMG. A changed lockfile or missing/modified notice stops
+packaging before signing. The corpus scope and the remaining upstream notice
+gap are documented in [licenses/third-party/README.md](../licenses/third-party/README.md).
+
+Verify the corpus or render it independently without building/installing:
+
+```sh
+python3 scripts/generate-third-party-notices.py --check
+python3 scripts/generate-third-party-notices.py --output target/dependency-notices.txt
+# Strict release gate: currently reports the upstream dispatch 0.2.0 gap.
+python3 scripts/generate-third-party-notices.py --check --require-complete
+```
+
+The ordinary check preserves the explicit gap so development bundles remain
+reviewable; it does not claim that the missing upstream notice has been resolved.
+`--refresh` downloads the pinned originals into `target/notice-source-cache`,
+verifies the crate archives against `Cargo.lock` and each notice against its
+reviewed hash, and restores the same corpus. It neither invokes Cargo nor
+changes the dependency versions. Updating `Cargo.lock` requires reviewing and
+updating the corpus before packaging again.
 
 When changing the static icon, run `macos-builder/export-static-artwork` to prepare
 compensation, export the icon, generate the shared PNG/ICO/SVG variants, replace

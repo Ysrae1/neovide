@@ -14,6 +14,7 @@
 | `install.ps1` | Windows 构建、字体及 WSL 连接入口 |
 | `manifest.json` | 固定版本、源码提交、下载地址及 SHA256 |
 | `payload/nvim` | 经整理的 Neovim 配置，保留外观、侧栏与快捷键 |
+| `payload/fonts` | 随包 Fira 与 Noto 字体、固定来源／校验清单和许可；Mac 中文调用系统苹方 |
 | `payload/plugins.json` | 插件的精确来源、提交和构建方式 |
 | `payload/mason.json` | 语言工具顶层版本及固定 registry |
 | `payload/patches` | 必须保留的 LuaSnip、Treesitter 兼容修复及 CMatrix 原生字母雨扩展 |
@@ -22,6 +23,8 @@
 | `licenses` | Neovide、图标和字母雨上游的来源与授权说明 |
 
 请整体解压，不能只单独复制 `install.sh` 或 `install.ps1`。单文件 Mac 安装器已经将这些内容封装在内部，可以整体移动到另一台 Apple Silicon Mac。首次安装需要访问 GitHub、Node.js、Python 包源和 Rust 包源；没有把他人的登录凭据打进安装包。
+
+源码中的下一版字体方案使用 FiraCode Nerd Font Mono 3.3.0，并为 Windows／WSL 附带 Noto Sans Mono CJK SC 2.004 的常规体和粗体。Mac 保留系统 PingFang SC，不安装 Noto 或复制苹方文件。安装器先校验整套字体及已有同名文件，才写入当前用户字体目录；不会覆盖不同版本。字体资源直接包含在 ZIP 和单文件安装器中，不依赖字体下载服务。本机隔离验证不代表 Windows 字体 API 已验收；冻结 gm2 发行包不含本次增量。
 
 `*.sh` 表示所有以 `.sh` 结尾的文件。真正执行的文件名是 `install.sh`，不含星号。Windows 对应的入口是 `install.ps1`。
 
