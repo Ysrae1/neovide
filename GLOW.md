@@ -6,6 +6,9 @@
 
 2026-10-19，Codex；本节保存接手所需的当前事实，下面保留功能说明与历史记录。
 
+- 本机工具 arm64 迁移：Rustup 1.29.0、Go 1.26.3 原生入口及 28 个 Mason 包完成；Hadolint 因旧版无原生资产从 2.12.0 升至 2.13.1，其余顶层版本保留。cbfmt 0.2.0 通过 Mason Cargo 源原生编译；LTeX 16 使用无内嵌 JDK 的原版包与现有原生 Corretto 11。
+- 回滚、官方来源校验、逐包架构／版本与命令记录保存在 `~/.local/state/neovide-glow/settings-snapshots/arm64-migration-20261019/`；主要命令及 LuaLS／Texlab／Ruff 的实际 LSP 初始化、关闭已验证。debugpy 官方 universal 包保留供 Intel 目标使用的 attach_x86_64.dylib，正常运行及扩展均原生；它不是额外可执行入口。
+- 未替换已安装 Neovide、推送或改写冻结发行；保留用户当前 `chadrc.lua`／`popup_text.lua` 的未提交手调。cbfmt、LTeX 若未来由旧注册表重新安装，需要继续采用本次原生来源选择，不能回退到旧 Intel 发布包。
 - 冻结发布后的本地增量：`appearance/popup_text.lua` 集中 Light/Dark 的弹窗正文、路径前缀、说明、计数及通知文字，覆盖 Snacks／Lazy／Mason／FFF／WhichKey／Telescope／Noice；材质刷新修复已物化别名沿用旧主题前景。通知内 Comment／NonText 仅在独立 namespace 改色，代码注释不变。
 - 两配置 24 项隔离检查及四组真实插件浅深往返／自定义文字／通知与预览隔离回归通过；当前 Light 窗口已热应用并实际查看 Recent 与 Messages，源缓冲区改动状态和内容版本未变。沿用冻结发行，增量仅本地提交，未推送或替换程序。
 - Ghostty 本机光标 shader 增加失焦清除拖尾，配置验证通过；界面工具禁止操作 Ghostty，实际长文本刷新后的残影验证按用户决定留待下次 update，不能计为 GUI 已通过。修改保留本机 shader，不纳入 Neovim／Neovide 仓库。
