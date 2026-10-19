@@ -6,7 +6,9 @@
 
 2026-10-19，Codex；本节保存接手所需的当前事实，下面保留功能说明与历史记录。
 
-- 本地增量已整理为提交，包含 Claude 既有署名改动；`glow-preview` 领先远端 27 个提交，配置 `my-config` 为 `647b829f`、领先远端 21 个提交。未推送、替换已安装程序、改写冻结标签或 gm2 发行包；原有九处 portable 适配差异保留。
+- Neo-tree 浅色边缘渐隐改为向现有 `light_grey` 弱化前景收敛，避免透明玻璃侧栏上的末尾字变白发亮；深色算法不变。仅同步 `config/navigation/neo_tree.lua`，保留用户当前主题、光标行和材质透明度的未提交调整。
+- 本机隔离 GUI 已查看浅深主题；21 组深色结果与旧版完全一致，链接解析／样式与无额外背景／目标色缓存更新检查通过，记录在 `target/glow-neotree-fade-qa/checks.json`。自有测试窗口已退出；无需重编 Neovide，当前会话重新加载模块或重开后生效。
+- 本地增量已整理为提交，包含 Claude 既有署名改动；图标／高亮控制上一轮提交为源码 `7b61b59`、配置 `647b829f`，本次仅增量提交 Neo-tree 渐隐修复，用户其他未提交调整保留。未推送、替换已安装程序、改写冻结标签或 gm2 发行包；原有九处 portable 适配差异保留。
 - 图标：修复 macOS 启动时静态 ICNS 覆盖原生分层图标；保留显式自定义图标和独立 CLI 回退。静态资源改由同一原生编译／系统渲染路径生成，按用户认可设置 `staticBrightnessGain=1.025`；未改原始材质。模板／自定义源的 PNG、ICO、SVG、ICNS、Sketch 和 TIFF 已同步。
 - 已通过新增 NSBundle 定向测试、release 构建与 all-targets clippy；隔离真实 App 验证旧版启动覆盖 1 次、新版 0 次、自定义覆盖仍有效。实际 Finder 测试盘 `target/glow-icon-qa/Neovide-Icon-Preview.dmg` 已打开供用户查看，当前挂载 `/Volumes/Neovide Glow Icon Preview`；其他自有 GUI 均已退出。用户决定跳过上下静态／原生图标描边逐像素一致性的比较，不再扩展该点。
 - 编辑区三类高亮集中在本机及 portable 的 `lua/config/appearance/editor_highlights.lua`，保留原默认效果并附中文调节说明；八组前端／主题默认比对及参数重载检查通过。颜色／样式可调用模块 `reload()`；行为参数完整生效需新会话。
