@@ -12,6 +12,9 @@ pub struct NotebookSelectionId {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NotebookOutputRegion {
     pub grid_id: u64,
+    /// Complete output frame, clipped to its owning window's visible content.
+    pub hit_bounds: PixelRect<f32>,
+    /// Text-cell bounds used for copying; frame seams and padding stay excluded.
     pub bounds: PixelRect<f32>,
     pub cells: GridRect<u32>,
     pub origin: PixelPos<f32>,
@@ -27,7 +30,7 @@ impl NotebookOutputRegion {
     }
 
     pub fn hit(&self, point: PixelPos<f32>, topmost_grid: u64) -> bool {
-        self.grid_id == topmost_grid && self.bounds.contains(&point)
+        self.grid_id == topmost_grid && self.hit_bounds.contains(&point)
     }
 }
 
@@ -75,6 +78,7 @@ mod tests {
         let region = NotebookOutputRegion {
             grid_id: 2,
             cells,
+            hit_bounds: PixelRect::from_min_max((38.0, 30.0), (123.0, 110.0)),
             bounds: PixelRect::from_origin_and_size(
                 (40.0, 40.0).into(),
                 PixelSize::new(80.0, 60.0),
@@ -87,5 +91,12 @@ mod tests {
         assert!(region.hit((50.0, 50.0).into(), 2));
         assert!(!region.hit((50.0, 50.0).into(), 7), "topmost float retains the click");
         assert!(!region.hit((30.0, 50.0).into(), 2), "gutter is not output");
+        for point in [(38.5, 60.0), (122.5, 60.0), (60.0, 30.5), (60.0, 109.5)] {
+            assert!(region.hit(point.into(), 2), "frame edge belongs to its output: {point:?}");
+            assert!(!region.hit(point.into(), 7), "an overlapping float owns the frame edge");
+        }
+        assert!(region.hit((90.0, 80.0).into(), 2), "image or blank content remains clickable");
+        assert_eq!(region.position((38.5, 30.5).into(), scale), GridPos::new(4, 2));
+        assert_eq!(region.position((122.5, 109.5).into(), scale), GridPos::new(11, 4));
     }
 }

@@ -683,6 +683,8 @@ impl RenderedWindow {
         if !bounds.intersect(self.inner_region(pixel_region, scale)) {
             return None;
         }
+        let hit_bounds =
+            PixelRect::from_min_max((bounds.left, bounds.top), (bounds.right, bounds.bottom));
         let first_col = (((bounds.left - pixel_region.min.x) / scale.width()).ceil().max(0.0)
             as u32)
             .min(self.grid_size.width);
@@ -706,6 +708,7 @@ impl RenderedWindow {
         let (last_row, last_rect) = rows.last()?;
         Some(super::selection::NotebookOutputRegion {
             grid_id: self.id,
+            hit_bounds,
             cells: GridRect::from_min_max((first_col, *first_row), (end_col, last_row + 1)),
             bounds: PixelRect::from_min_max(
                 (first_rect.left.max(bounds.left), first_rect.top.max(bounds.top)),
@@ -1342,6 +1345,41 @@ mod tests {
 
     fn grid_scale() -> GridScale {
         GridScale::new(PixelSize::new(8.0, 16.0))
+    }
+
+    #[test]
+    fn notebook_output_hit_bounds_keep_complete_frame_and_owner_clip_without_copying_seam() {
+        let scale = grid_scale();
+        let mut window = RenderedWindow::new(2);
+        window.handle_window_draw_command(WindowDrawCommand::Position {
+            grid_position: (3.0, 2.0),
+            grid_size: (20, 10),
+            anchor_info: None,
+            window_type: WindowType::Editor,
+        });
+        window.grid_current_position = GridPos::new(3.0, 2.0);
+        window.viewport_margins = ViewportMargins { top: 1, bottom: 1 };
+
+        // No text lines are installed: image and blank output must still hit.
+        let region =
+            window.notebook_output_region(Rect::new(26.4, 56.0, 200.0, 190.0), scale).unwrap();
+        assert_eq!(region.hit_bounds, PixelRect::from_min_max((26.4, 56.0), (184.0, 176.0)));
+        assert_eq!(region.bounds, PixelRect::from_min_max((32.0, 64.0), (184.0, 176.0)));
+        assert_eq!(region.cells, GridRect::from_min_max((1, 2), (20, 9)));
+        assert!(
+            region.hit(PixelPos::new(27.0, 56.5), 2),
+            "side and seam padding remains clickable"
+        );
+        assert!(region.hit(PixelPos::new(100.0, 100.0), 2), "blank or image interior is clickable");
+        assert!(!region.hit(PixelPos::new(27.0, 56.5), 7), "a covering float retains the click");
+        assert_eq!(region.position(PixelPos::new(27.0, 56.5), scale), GridPos::new(1, 2));
+
+        let clipped =
+            window.notebook_output_region(Rect::new(20.0, 40.0, 200.0, 190.0), scale).unwrap();
+        assert_eq!(clipped.hit_bounds, PixelRect::from_min_max((24.0, 48.0), (184.0, 176.0)));
+        for point in [(23.0, 80.0), (30.0, 47.0), (185.0, 80.0), (30.0, 177.0)] {
+            assert!(!clipped.hit(point.into(), 2), "outside the owner clip: {point:?}");
+        }
     }
 
     #[test]

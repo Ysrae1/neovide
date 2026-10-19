@@ -6,11 +6,15 @@
 
 2026-10-19，Codex；本节保存接手所需的当前事实，下面保留功能说明与历史记录。
 
+- Codex，本次原生点击修复：Neovide 原生输出拖选此前消费了鼠标事件，旧 Neovim API 点击检查绕过此层；现于未拖动的释放后串行转发一对点击，拖选复制保持独立。完整输出框命中与文字复制区域分开，覆盖图片、空白和边框，保留浮窗遮挡。
+- 已通过 7 项相关 Rust release 回归、release all-targets clippy 与 release 构建；独立新 GUI 的真实鼠标点击已确认 Cell 2 切至 Out[1] 所属源码格。后续 GUI 按键未打开展开窗，整条操作尚未验收；按用户要求停止新增验证并提交，不作完整通过声明。自有 `target/glow-output-click-qa/start.py` 预览已发出 stop 清理。
+- 配置增量已提交 `133d6ea6`，配套输出功能的源码提交为用户创建的 `1ec0754`；本次 Rust 修复与本记录同次本地提交。保留用户 `chadrc.lua`／`popup_text.lua` 手调，未推送或替换已安装 Neovide。
+
 - Notebook 输出新增原位向下展开、横纵滚动、同语义高亮与复制；点击内联输出选中所属格，n/i/Visual 均可接 `空格 jo`，`q/Esc`、框外点击／滚动收起。仅折叠／实际长行裁切时显示底边胶囊，普通字号展开图标与边框共用 RGB；新 `footer_gaps` 能力嵌入底边，旧前端安全回退。
 - `appearance/popup_materials.lua` 逐类独立设置 opaque/editor/custom、blend 与可选背景，默认只有 Notebook 输出继承主编辑区；reload 同时更新旧会话的弹窗策略，不重载用户文字配置。修复浮窗 namespace 将全局 St_*／StatusLine／WinBar／TabLine 材质实心化，底栏原 blend 保留。
 - 本轮两配置 26 项隔离检查、footer／真实 multigrid+winbar 鼠标 n/i/Visual、滚动／复制／关闭／重载定向检查通过；真实独立 Matplotlib 检查覆盖三次 MoltenTick、短窗图片适配及释放，测试内核已清理。Rust 27 项 Notebook 定向测试、格式、release all-targets clippy 与 release 构建通过。
 - 独立新构建 GUI 实际查看浅深配色、底边端点及原位文字／蓝边；其真实 grid 2 输入验证插入／Visual 点击后分别展开 Out[8]/Out[7]、框外滚动收起、Normal 同色材质及底栏 blend=80，记录在 `target/glow-output-scroll-qa/`。预览由该目录 `start.py` 持有（状态见 state.json）；关闭预览或创建 stop 文件会清理自己的 GUI/Neovim，临时编辑副本已保留。
-- 本轮代码／配置未提交或推送，未替换安装；用户 `chadrc.lua`／`popup_text.lua` 手调保持。实际字体、图标及已发布冻结产物不变；本轮不修改共同规则，不唤醒 Claude。
+- 上述输出／材质功能已整理为用户源码提交 `1ec0754` 与配置提交 `133d6ea6`；未推送或替换安装，用户 `chadrc.lua`／`popup_text.lua` 手调保持。实际字体、图标及已发布冻结产物不变；本轮不修改共同规则，不唤醒 Claude。
 
 - 本机工具 arm64 迁移：Rustup 1.29.0、Go 1.26.3 原生入口及 28 个 Mason 包完成；Hadolint 因旧版无原生资产从 2.12.0 升至 2.13.1，其余顶层版本保留。cbfmt 0.2.0 通过 Mason Cargo 源原生编译；LTeX 16 使用无内嵌 JDK 的原版包与现有原生 Corretto 11。
 - 回滚、官方来源校验、逐包架构／版本与命令记录保存在 `~/.local/state/neovide-glow/settings-snapshots/arm64-migration-20261019/`；主要命令及 LuaLS／Texlab／Ruff 的实际 LSP 初始化、关闭已验证。debugpy 官方 universal 包保留供 Intel 目标使用的 attach_x86_64.dylib，正常运行及扩展均原生；它不是额外可执行入口。

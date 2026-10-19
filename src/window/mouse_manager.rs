@@ -59,9 +59,22 @@ struct MessageSelectionState {
     start: GridPos<u32>,
     end: GridPos<u32>,
     notebook: Option<(NotebookSelectionId, NotebookOutputRegion)>,
+    press_position: PixelPos<f32>,
+    dragged: bool,
 }
 
 impl MessageSelectionState {
+    fn record_pointer(&mut self, point: PixelPos<f32>) {
+        let delta = point - self.press_position;
+        // Ignore pointer jitter, but remember a drag even when it returns to
+        // the original cell. A drag must only copy, never move the source cursor.
+        self.dragged |= delta.x * delta.x + delta.y * delta.y > 16.0;
+    }
+
+    fn is_notebook_click(&self) -> bool {
+        self.notebook.is_some() && !self.dragged && self.start == self.end
+    }
+
     fn valid(&self, state: &EditorState) -> bool {
         self.notebook.is_none_or(|(id, region)| {
             id.generation == state.notebook_selection_generation
@@ -335,9 +348,10 @@ impl MouseManager {
             return MessageSelectionEvent::Cancel;
         }
         if self.selection_release_pending
-            && let Some(selection) = &self.message_selection
+            && let Some(selection) = &mut self.message_selection
         {
             let window_position = self.window_position;
+            selection.record_pointer(window_position);
             let end = selection.position(window_position, editor_state);
             self.grid_position = end;
             if let Some(selection) = self.update_drag_selection_end(end) {
@@ -429,6 +443,8 @@ impl MouseManager {
                 self.selection_release_pending = false;
                 return Some(MessageSelectionEvent::Cancel);
             }
+            self.message_selection.as_mut().unwrap().record_pointer(self.window_position);
+            let selection = self.message_selection.as_ref().unwrap();
             let end = selection.position(self.window_position, editor_state);
             return self.finish_message_selection(end).map(MessageSelectionEvent::Finish);
         }
@@ -481,6 +497,8 @@ impl MouseManager {
                     start: position,
                     end: position,
                     notebook,
+                    press_position: self.window_position,
+                    dragged: false,
                 });
                 self.selection_release_pending = true;
                 self.drag_details = None;
@@ -577,6 +595,11 @@ impl MouseManager {
         let consume_mouse_input =
             message_selection_event.as_ref().is_some_and(MessageSelectionEvent::consumes_input);
 
+        if matches!(message_selection_event, Some(MessageSelectionEvent::Finish(_)))
+            && self.message_selection.as_ref().is_some_and(|s| s.is_notebook_click())
+        {
+            self.send_notebook_click(editor_state, neovim_handler);
+        }
         if !consume_mouse_input {
             self.send_nvim_mouse_button(mouse_button, down, editor_state, neovim_handler);
         }
@@ -585,6 +608,39 @@ impl MouseManager {
             overlay_event: message_selection_event
                 .map(OverlayEvent::MessageSelection)
                 .unwrap_or_default(),
+        }
+    }
+
+    fn send_notebook_click(&self, state: &EditorState, neovim_handler: &NeovimHandler) {
+        let Some(selection) = &self.message_selection else { return };
+        let Some((_, region)) = selection.notebook else { return };
+        let Some(topmost) = self.get_window_details_under_mouse_raw(state) else { return };
+        if !self.enabled || !region.hit(self.window_position, topmost.id) {
+            return;
+        }
+        let Some(details) = self.get_window_details_under_mouse(state) else { return };
+        // Forward one complete click after release, ahead of subsequent keys.
+        // Forwarding down immediately can scroll a long output back to its
+        // source cell and invalidate an in-progress native drag selection.
+        // Clamp border/footer clicks into the same output's interior grid cell.
+        let cell = region.position(self.window_position, *state.grid_scale);
+        let interior = region.origin
+            + PixelVec::new(
+                (cell.x as f32 + 0.5) * state.grid_scale.width(),
+                (cell.y as f32 + 0.5) * state.grid_scale.height(),
+            );
+        let position = Self::get_relative_position_at(interior, details, state).to_tuple();
+        for action in ["press", "release"] {
+            send_ui(
+                SerialCommand::MouseButton {
+                    button: "left".to_owned(),
+                    action: action.to_owned(),
+                    grid_id: details.event_grid_id(&self.settings),
+                    position,
+                    modifier_string: state.keyboard_manager.format_modifier_string("", true),
+                },
+                neovim_handler,
+            );
         }
     }
 
@@ -869,6 +925,7 @@ mod selection_tests {
         let region = NotebookOutputRegion {
             grid_id: 2,
             bounds: PixelRect::from_origin_and_size(PixelPos::ZERO, PixelSize::new(80.0, 40.0)),
+            hit_bounds: PixelRect::from_origin_and_size(PixelPos::ZERO, PixelSize::new(80.0, 40.0)),
             cells: crate::units::GridRect::from_min_max((0, 0), (8, 2)),
             origin: PixelPos::ZERO,
         };
@@ -883,7 +940,31 @@ mod selection_tests {
             end: GridPos::new(6, 1),
             notebook: notebook
                 .then_some((NotebookSelectionId { generation: 1, region: 0 }, region)),
+            press_position: PixelPos::new(60.0, 20.0),
+            dragged: false,
         }
+    }
+
+    #[test]
+    fn notebook_output_click_is_distinct_from_drag_and_waits_for_release() {
+        let mut mouse = MouseManager::new(Arc::new(Settings::new()));
+        let mut selection = selection_state(true);
+        selection.record_pointer(PixelPos::new(61.0, 21.0));
+        assert!(selection.is_notebook_click(), "minor jitter is still a click");
+        mouse.message_selection = Some(selection.clone());
+        mouse.selection_release_pending = true;
+        let click = mouse.finish_message_selection(selection.start).unwrap();
+        assert!(mouse.message_selection.as_ref().unwrap().is_notebook_click());
+        assert_eq!(click.start, click.end);
+
+        selection.record_pointer(PixelPos::new(70.0, 20.0));
+        selection.record_pointer(selection.press_position);
+        assert!(!selection.is_notebook_click(), "returning a drag to its start is not a click");
+        mouse.message_selection = Some(selection);
+        mouse.selection_release_pending = true;
+        mouse.finish_message_selection(click.start);
+        assert!(!mouse.message_selection.as_ref().unwrap().is_notebook_click());
+        assert!(!selection_state(false).is_notebook_click(), "messages keep their own input path");
     }
 
     #[test]
