@@ -89,6 +89,12 @@ local following = vim.api.nvim_get_hl(0, { name = "GlowNotebookNext", link = fal
 local cells_value = vim.api.nvim_get_hl(0, { name = "GlowNotebookCellsValue", link = false })
 assert(previous.fg == following.fg and previous.fg == cells_value.fg and previous.bg == 0x252934 and following.bg == 0x252934)
 assert(previous.fg == 0xc5f760 and vim.api.nvim_get_hl(0,{name='GlowNotebookCells',link=false}).bg == 0xc5f760)
+local function output_capsule_matches_border()
+  local function hl(suffix) return vim.api.nvim_get_hl(0, { name = 'GlowNotebookExpand' .. suffix, link = false }) end
+  assert(hl('').bg == notebook.output_accent() and hl('Cap').fg == notebook.output_accent()
+    and hl('Value').fg == notebook.output_accent(), 'output capsule and border share the exact theme RGB')
+end
+output_capsule_matches_border()
 vim.g.mapleader = ","
 assert(rendered({}, 80).str:find(" ,jk", 1, true))
 vim.g.mapleader = "<Space>"
@@ -157,6 +163,8 @@ notebook.refresh_labels(buf)
 assert(#vim.api.nvim_buf_get_extmarks(buf,ns,0,-1,{})==4)
 ui.text_borders=saved_owner;ui.border_labels=saved_border_owner
 vim.o.background='light'
+notebook.refresh_title_colors()
+output_capsule_matches_border()
 vim.api.nvim_set_hl(0,'St_NormalMode',{fg=0xfafafa,bg=0x399ee6})
 notebook.refresh_title_colors()
 assert(vim.api.nvim_get_hl(0,{name='GlowNotebookKernelValue',link=false}).bg==0xffffff)

@@ -38,9 +38,13 @@ vim.api.nvim_win_close(terminal, true)
 
 vim.g.neovide, vim.g.neovide_normal_opacity = true, .85
 for _, theme in ipairs({ "dark", "light" }) do
-  local colors = require("config.appearance.themes.ayu_" .. theme .. "_customed").base_30
+  local theme_data = require("config.appearance.themes.ayu_" .. theme .. "_customed")
+  local colors = theme_data.base_30
+  vim.o.background = theme
   local normal, popup = rgb(colors.black), rgb(colors.darker_black)
-  package.loaded.base46 = { get_theme_tb = function() return colors end }
+  package.loaded.base46 = { get_theme_tb = function(kind)
+    return kind == "base_30" and colors or kind == "base_16" and theme_data.base_16 or {}
+  end }
   vim.api.nvim_set_hl(0, "Normal", { fg = rgb(colors.white), bg = normal })
   vim.api.nvim_set_hl(0, "NormalNC", {})
   vim.api.nvim_set_hl(0, "PopupSource", { fg = 0x123456, bold = true })
@@ -49,6 +53,10 @@ for _, theme in ipairs({ "dark", "light" }) do
   vim.api.nvim_set_hl(0, "CursorLine", { bg = rgb(colors.one_bg), blend = 20 })
   vim.api.nvim_set_hl(0, "Visual", { fg = 0x335577, bg = rgb(colors.visual_selection or colors.one_bg3), blend = 45 })
   vim.api.nvim_set_hl(0, "PopupNormalBackground", { fg = 0x336699, bg = normal, blend = 0 })
+  vim.api.nvim_set_hl(0, "St_EmptySpace", { fg = 0x334455, bg = rgb(colors.one_bg), blend = 80 })
+  vim.api.nvim_set_hl(0, "StatusLine", { link = "St_EmptySpace" })
+  vim.api.nvim_set_hl(0, "WinBar", { fg = 0x445566, bg = normal, blend = 70 })
+  vim.api.nvim_set_hl(0, "TabLineFill", { bg = normal, blend = 60 })
   local cursorline, visual = hl(0, "CursorLine"), hl(0, "Visual")
   local base = hl(0, "Normal")
   local ordinary_mapping = "Normal:PopupAlias,FloatBorder:PopupBorder,Search:Visual"
@@ -71,6 +79,12 @@ for _, theme in ipairs({ "dark", "light" }) do
   local helper = require(module)
   assert(helper.background() == popup and popup ~= normal, theme .. " theme popup background")
   helper.apply()
+  for _, win in ipairs({ ordinary, namespaced }) do
+    local namespace = vim.api.nvim_get_hl_ns({ winid = win })
+    assert(hl(namespace, "St_EmptySpace").blend == 80 and hl(namespace, "StatusLine").blend == 80
+      and hl(namespace, "WinBar").blend == 70 and hl(namespace, "TabLineFill").blend == 60,
+      "focused popup namespace must preserve global statusline/winbar/tabline material")
+  end
   for _, win in ipairs(backdrops) do assert(not vim.api.nvim_win_is_valid(win), "explicit backdrop survived") end
   assert(vim.o.pumblend == 0, "completion menu remains transparent")
   local mapping, namespace = vim.wo[ordinary].winhighlight, vim.api.nvim_get_hl_ns({ winid = namespaced })
@@ -115,6 +129,54 @@ for _, theme in ipairs({ "dark", "light" }) do
   assert(vim.api.nvim_get_hl_ns({ winid = clone }) == vim.api.nvim_get_hl_ns({ winid = ordinary })
     and vim.tbl_count(vim.api.nvim_get_namespaces()) == count, "same popup policy allocated another namespace")
   vim.api.nvim_win_close(clone, true)
+  local profiles = require("config.appearance.popup_materials")
+  local notebook = floating("molten_output", "Normal:PopupAlias")
+  local preview = floating("noice", "Normal:SnacksPickerPreview")
+  local manager = floating("lazy", "Normal:PopupAlias")
+  helper.apply()
+  assert(vim.w[notebook].glow_popup_material.profile == "notebook_output"
+    and window_hl(notebook, "Normal").bg == normal and window_hl(notebook, "Normal").blend == 0,
+    "Notebook output defaults to editor material")
+  assert(vim.w[preview].glow_popup_material.profile == "snacks_picker_preview"
+    and window_hl(preview, "Normal").bg == popup, "specific window role precedes reused filetype")
+  local notebook_namespace = vim.api.nvim_get_hl_ns({ winid = notebook })
+  profiles.config.notebook_output = { mode = "custom", blend = 37, bg = { light = "one_bg2", dark = "one_bg3" } }
+  helper.apply()
+  assert(window_hl(notebook, "Normal").bg == rgb(colors[theme == "light" and "one_bg2" or "one_bg3"])
+    and window_hl(notebook, "Normal").blend == 37 and window_hl(manager, "Normal").blend == 0
+    and window_hl(manager, "Normal").bg == popup, "custom profile stays independent of other popup classes")
+  assert(vim.api.nvim_get_hl_ns({ winid = notebook }) == notebook_namespace,
+    "changing material reuses the existing window namespace")
+  profiles.config.lazy = { mode = "custom", blend = 64, bg = "#456789" }
+  vim.w[preview].glow_popup_profile = "lazy"
+  helper.apply()
+  assert(vim.w[preview].glow_popup_material.profile == "lazy" and window_hl(preview, "Normal").bg == 0x456789
+    and window_hl(preview, "Normal").blend == 64, "explicit window profile precedes plugin roles")
+  profiles.config.notebook_output = { mode = "opaque" }
+  helper.apply()
+  assert(window_hl(notebook, "Normal").bg == popup and window_hl(notebook, "Normal").blend == 0,
+    "already open Notebook can return to opaque")
+  profiles.config.notebook_output = { mode = "editor" }
+  profiles.config.completion_menu = { mode = "custom", blend = 29 }
+  vim.api.nvim_set_hl(0, "Pmenu", { fg = 0x112233, bg = popup })
+  helper.apply()
+  assert(window_hl(notebook, "Normal").bg == normal and window_hl(notebook, "Normal").blend == 0
+    and hl(0, "Pmenu").bg == popup and hl(0, "Pmenu").blend == 29,
+    "editor mode and native Pmenu background policy apply without window blending")
+  local body = require("config.appearance.popup_text").config.body
+  local old_policy = package.loaded[module]
+  profiles.reload()
+  profiles = require("config.appearance.popup_materials")
+  assert(package.loaded[module] ~= old_policy, "first reload must replace a cached older popup policy")
+  assert(profiles.config.notebook_output.mode == "editor" and window_hl(notebook, "Normal").bg == normal
+    and window_hl(manager, "Normal").bg == popup and window_hl(manager, "Normal").blend == 0,
+    "saved module reload refreshes already open windows through final transparency policy")
+  assert(require("config.appearance.popup_text").config.body == body,
+    "material reload must not reload or overwrite hand-edited popup text settings")
+  local namespace_after_reload = vim.api.nvim_get_hl_ns({ winid = notebook })
+  assert(hl(namespace_after_reload, "St_EmptySpace").blend == hl(0, "St_EmptySpace").blend,
+    "theme/material reload must preserve global bottom-bar blend in a focused popup")
+  for _, win in ipairs({ notebook, preview, manager }) do vim.api.nvim_win_close(win, true) end
   for _, win in ipairs({ ordinary, namespaced, dashboard }) do vim.api.nvim_win_close(win, true) end
 end
-print("PASS: opaque popup classes, backdrop removal, light/dark focus/reload/namespace styling; terminal, Dashboard and editor isolation")
+print("PASS: per-class editor/custom/opaque popup materials, role precedence, reload and global chrome isolation; backdrop removal and terminal/Dashboard/editor preservation")

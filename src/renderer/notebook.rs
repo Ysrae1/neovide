@@ -111,6 +111,34 @@ struct LabelGap {
     col: f32,
     width: f32,
 }
+impl LabelGap {
+    fn parse_many(value: Option<&Value>, name: &str) -> Result<Vec<Self>, String> {
+        let Some(value) = value else { return Ok(Vec::new()) };
+        let gaps = value.as_array().filter(|v| v.len() <= 8).ok_or_else(|| {
+            format!("Notebook {name} must be an array with at most eight entries")
+        })?;
+        gaps.iter()
+            .map(|value| {
+                let fields =
+                    value.as_map().ok_or_else(|| format!("Notebook {name} entry must be a map"))?;
+                let number = |name| {
+                    fields
+                        .iter()
+                        .find(|(key, _)| key.as_str() == Some(name))
+                        .and_then(|(_, value)| value.as_f64())
+                        .map(|value| value as f32)
+                        .filter(|value| value.is_finite() && *value >= 0.0 && *value <= 1_000_000.0)
+                        .ok_or_else(|| format!("Notebook gap {name} must be bounded"))
+                };
+                let gap = Self { col: number("col")?, width: number("width")? };
+                if gap.width <= 0.0 {
+                    return Err("Notebook gap width must be positive".into());
+                }
+                Ok(gap)
+            })
+            .collect()
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 enum FrameJoin {
@@ -130,6 +158,7 @@ pub struct NotebookFrame {
     anchor: Option<FrameAnchor>,
     color: Option<u32>,
     label_gaps: Vec<LabelGap>,
+    footer_gaps: Vec<LabelGap>,
 }
 impl NotebookFrame {
     fn parse(value: &Value) -> Result<Self, String> {
@@ -192,37 +221,8 @@ impl NotebookFrame {
                         .ok_or_else(|| "Notebook color must be RGB".to_string())
                 })
                 .transpose()?,
-            label_gaps: field("label_gaps")
-                .map(|value| {
-                    let gaps = value
-                        .as_array()
-                        .filter(|v| v.len() <= 8)
-                        .ok_or("Notebook label gaps must be an array with at most eight entries")?;
-                    gaps.iter()
-                        .map(|value| {
-                            let fields =
-                                value.as_map().ok_or("Notebook label gap must be a map")?;
-                            let number = |name| {
-                                fields
-                                    .iter()
-                                    .find(|(k, _)| k.as_str() == Some(name))
-                                    .and_then(|(_, v)| v.as_f64())
-                                    .map(|v| v as f32)
-                                    .filter(|v| v.is_finite() && *v >= 0.0 && *v <= 1_000_000.0)
-                                    .ok_or_else(|| {
-                                        format!("Notebook label gap {name} must be bounded")
-                                    })
-                            };
-                            let gap = LabelGap { col: number("col")?, width: number("width")? };
-                            if gap.width <= 0.0 {
-                                return Err("Notebook label gap width must be positive".into());
-                            }
-                            Ok::<_, String>(gap)
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .transpose()?
-                .unwrap_or_default(),
+            label_gaps: LabelGap::parse_many(field("label_gaps"), "label_gaps")?,
+            footer_gaps: LabelGap::parse_many(field("footer_gaps"), "footer_gaps")?,
         })
     }
 }
@@ -474,6 +474,20 @@ impl NotebookRenderer {
                     false,
                 );
             }
+            for gap in &frame.footer_gaps {
+                // A footer capsule is centered on the outer bottom stroke.
+                // Keep the input/output seam and both vertical sides untouched.
+                canvas.clip_rect(
+                    Rect::from_xywh(
+                        bounds.left + gap.col * scale.width(),
+                        bounds.bottom - stroke,
+                        gap.width * scale.width(),
+                        stroke * 2.0,
+                    ),
+                    skia_safe::ClipOp::Difference,
+                    false,
+                );
+            }
             let radius =
                 (scale.height() * 0.42).min(bounds.height() / 2.0).min(bounds.width() / 2.0);
             match frame.join {
@@ -681,6 +695,58 @@ mod tests {
         assert_eq!(pixels.get_color((35, 99)), accent, "gap only clips top, never bottom");
     }
     #[test]
+    fn notebook_footer_gaps_are_optional_bounded_and_finite() {
+        let parsed = NotebookFrame::parse(&packet()).unwrap();
+        assert!(parsed.footer_gaps.is_empty(), "legacy packets keep the complete bottom edge");
+        let gap = |col: f64, width: f64| {
+            Value::Map(vec![("col".into(), col.into()), ("width".into(), width.into())])
+        };
+        for bad in [
+            Value::Array(vec![gap(1.0, 1.0); 9]),
+            Value::Array(vec![gap(f64::NAN, 1.0)]),
+            Value::Array(vec![gap(-1.0, 1.0)]),
+            Value::Array(vec![gap(1.0, f64::INFINITY)]),
+            Value::Array(vec![gap(1.0, 0.0)]),
+            Value::Array(vec![gap(1_000_001.0, 1.0)]),
+            Value::Array(vec![Value::from("invalid")]),
+        ] {
+            let Value::Map(mut fields) = packet() else { unreachable!() };
+            fields.push(("footer_gaps".into(), bad));
+            assert!(NotebookFrame::parse(&Value::Map(fields)).is_err());
+        }
+        let Value::Map(mut fields) = packet() else { unreachable!() };
+        fields.push(("footer_gaps".into(), Value::Array(vec![gap(2.25, 3.5)])));
+        let parsed = NotebookFrame::parse(&Value::Map(fields)).unwrap();
+        assert_eq!(parsed.footer_gaps, vec![LabelGap { col: 2.25, width: 3.5 }]);
+    }
+    #[test]
+    fn notebook_footer_capsule_cuts_only_bottom_stroke_and_keeps_output_seam() {
+        let Value::Map(mut fields) = packet() else { unreachable!() };
+        fields[0].1 = rect(1.0, 1.0, 8.0, 4.0);
+        fields[2].1 = "output".into();
+        fields.push(("join".into(), "bottom".into()));
+        fields.push(("color".into(), 0x22cc77_u32.into()));
+        fields.push((
+            "footer_gaps".into(),
+            Value::Array(vec![Value::Map(vec![
+                ("col".into(), 2.0.into()),
+                ("width".into(), 2.0.into()),
+            ])]),
+        ));
+        let mut renderer = NotebookRenderer::default();
+        renderer.replace(FrameSnapshot::parse(&[Value::Array(vec![Value::Map(fields)])]).unwrap());
+        let mut surface = surfaces::raster_n32_premul((110, 130)).unwrap();
+        surface.canvas().clear(Color::WHITE);
+        renderer.draw(surface.canvas(), PixelSize::new(10.0, 20.0).into(), false, &[], &[]);
+        let pixels = surface.peek_pixels().unwrap();
+        let accent = Color::from_rgb(0x22, 0xcc, 0x77);
+        assert_eq!(pixels.get_color((35, 99)), Color::WHITE, "footer cuts both stroke pixels");
+        assert_eq!(pixels.get_color((35, 100)), Color::WHITE, "footer cuts both stroke pixels");
+        assert_eq!(pixels.get_color((60, 99)), accent, "remaining bottom edge stays opaque");
+        assert_eq!(pixels.get_color((35, 20)), accent, "input/output seam remains complete");
+        assert_eq!(pixels.get_color((10, 60)), accent, "left edge remains complete");
+    }
+    #[test]
     fn notebook_frames_follow_owner_scroll_and_mid_animation_reversal() {
         use super::super::{RenderedWindow, RendererSettings, WindowDrawCommand};
         use crate::units::{GridPos, GridRect};
@@ -711,6 +777,7 @@ mod tests {
             anchor: Some(FrameAnchor { window: 1000, epoch: 1, scroll: true }),
             color: None,
             label_gaps: vec![],
+            footer_gaps: vec![],
         };
         let mut renderer = NotebookRenderer::default();
         renderer.replace(FrameSnapshot { frames: vec![frame.clone()], viewports: vec![] });
@@ -781,6 +848,7 @@ mod tests {
             anchor: None,
             color: None,
             label_gaps: vec![],
+            footer_gaps: vec![],
         };
         let mut renderer = NotebookRenderer::default();
         renderer.replace(FrameSnapshot { frames: vec![frame], viewports: vec![] });

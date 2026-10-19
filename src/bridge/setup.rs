@@ -43,6 +43,9 @@ pub async fn setup_neovide_specific_state(
     nvim.set_var("neovide_native_notebook_viewport", Value::from(true))
         .await
         .context("Could not advertise Notebook text viewport support")?;
+    nvim.set_var("neovide_native_notebook_footer", Value::from(true))
+        .await
+        .context("Could not advertise Notebook footer border gaps")?;
     nvim.set_var("neovide_native_image", Value::from(true))
         .await
         .context("Could not advertise native image preview")?;

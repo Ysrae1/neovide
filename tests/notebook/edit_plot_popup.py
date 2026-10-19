@@ -52,6 +52,7 @@ def main():
 
             assert editor.exec_lua("return require('config.media.notebook_edit').open(...)", str(notebook))
             source = editor.current.buffer.number
+            source_window = editor.current.window
             cell = editor.exec_lua("return require('config.media.notebook_edit').cells(0)[1]")
             editor.current.window.cursor = (cell["first"], 0)
             editor.command("GlowNotebookRun")
@@ -64,14 +65,25 @@ def main():
             assert editor.api.win_get_config(output_win)["relative"] != ""
             time.sleep(.3)
             assert editor.api.win_is_valid(output_win), "output float closed immediately"
-            assert editor.api.win_get_config(output_win)['border'] == 'none', 'Molten must create borderless native popups'
-            # Its normal timer must retain the configured border instead of
-            # racing a later per-window border mutation from the frame module.
-            editor.funcs.MoltenTick(0)
-            editor.command('redraw')
-            assert editor.api.win_get_config(output_win)['border'] == 'none'
+            presentation = editor.api.win_get_config(output_win)
+            assert presentation['relative'] == 'editor', 'output view stays at the measured source output position'
+            assert presentation['border'] != 'none', 'invisible top/left padding aligns the original inline text'
+            assert editor.current.window == output_win and not editor.current.buffer.options['modifiable']
+            # The focused output buffer is not a source kernel buffer. Molten's
+            # real periodic callback must leave this presentation alone rather
+            # than racing its row/width/height back to its ordinary popup model.
+            for _ in range(3):
+                editor.funcs.MoltenTick(0)
+                editor.command('redraw')
+                assert editor.api.win_get_config(output_win) == presentation, 'MoltenTick changed expanded output geometry'
             frames = editor.exec_lua("return require('config.media.notebook_ui').refresh()")
-            popup = next(frame for frame in frames if frame.get('overlay'))
+            popup = next(frame for frame in frames if frame.get('overlay') and frame['kind'] == 'output')
+            source_frame = editor.exec_lua("return require('config.media.notebook_ui').output_frame_geometry(...)",
+                                           source_window.handle, source, 1)
+            popup_origin = editor.api.win_get_position(output_win)
+            assert abs(popup_origin[1] + popup['rect']['col'] - source_frame['rect']['col']) < 1e-6
+            assert abs(popup['rect']['width'] - source_frame['rect']['width']) < 1e-6, 'green left/right outlines must align exactly'
+            assert abs(popup_origin[0] + popup['rect']['row'] - source_frame['rect']['row']) < 1e-6, 'output expands from original joint'
             def assert_owner_bounds(frame, window):
                 editor.command('redraw')
                 editor.eval('1')  # Drain the UI notifications for this geometry.
@@ -87,30 +99,45 @@ def main():
                 owner = floating[window.handle]
                 width, height = sizes[owner[0]]
                 clip = frame['clip']
-                assert (clip['row'], clip['col'], clip['width'], clip['height']) == (owner[9], owner[10], width, height), (frame, owner, sizes)
+                origin = editor.api.win_get_position(window)
+                # Native frame coordinates are owner-local; win_float_pos's
+                # screen row/column are absolute. Compare in the same space.
+                assert (origin[0] + clip['row'], origin[1] + clip['col'], clip['width'], clip['height']) == (owner[9], owner[10], width, height), (frame, owner, sizes)
             assert_owner_bounds(popup, output_win)
             # Also match an existing host's one-sided border exactly; content
             # bounds alone differ by one row and are rejected by the renderer.
             editor.api.win_set_config(output_win, {'border':['','━','','','','','','']})
             frames = editor.exec_lua("return require('config.media.notebook_ui').refresh()")
-            assert_owner_bounds(next(frame for frame in frames if frame.get('overlay')), output_win)
+            assert_owner_bounds(next(frame for frame in frames if frame.get('overlay') and frame['kind'] == 'output'), output_win)
             editor.api.win_set_config(output_win, {'border':'none'})
             calls = editor.exec_lua("return _calls")
             show = next(call for call in reversed(calls) if call[0] == "neovide.image.show")
             assert show[2]["overlay"] is True
-            # Molten near the bottom of the editor can only allocate a short
-            # float. Native padding must refit instead of hiding the whole plot.
-            editor.api.win_set_config(output_win, {"relative": "editor", "row": 35, "col": 0, "width": 110, "height": 12})
+            # Shrinking the source editor leaves only a short area below the
+            # original output seam. The viewer refits there, rather than moving
+            # away from the cell or hiding the whole plot.
+            editor.api.ui_try_resize(120, 21)
             editor.command("redraw")
             editor.exec_lua("require('config.media.molten_images').refresh()")
-            wait_until(lambda: any(call[0] == "neovide.image.show" and call[2]["height"] <= 10 for call in editor.exec_lua("return _calls")), "short float refit")
+            def latest_image():
+                return next(call for call in reversed(editor.exec_lua("return _calls")) if call[0] == "neovide.image.show")
+            wait_until(lambda: latest_image()[2]["height"] <= 10, "short float refit")
             short = next(call for call in reversed(editor.exec_lua("return _calls")) if call[0] == "neovide.image.show")
             assert short[2]["height"] <= 10
             editor.api.win_close(output_win, True)
             wait_until(lambda: any(call[0] == "neovide.image.close" for call in editor.exec_lua("return _calls")), "image release")
             editor.command("MoltenDeinit")
-            print(json.dumps({"matplotlib": "Done", "native_output_float": "remains open", "frame_matches_real_multigrid": True, "molten_border_after_tick": "none", "overlay_geometry": show[2], "12_row_float_image_height": short[2]["height"], "close_releases_image": True}))
+            print(json.dumps({"matplotlib": "Done", "native_output_float": "remains open", "frame_matches_real_multigrid": True,
+                              "three_molten_ticks_preserve_presentation": True, "source_outline_alignment": "exact",
+                              "overlay_geometry": show[2], "12_row_float_image_height": short[2]["height"], "close_releases_image": True}))
         finally:
+            # Only this isolated editor owns these kernel(s); do not address any
+            # running user editor or its kernel processes.
+            try:
+                if 'source_window' in locals() and editor.api.win_is_valid(source_window):
+                    editor.api.set_current_win(source_window)
+                    editor.command('silent! MoltenDeinit')
+            except (EOFError, OSError, pynvim.api.common.NvimError): pass
             try: editor.command("qa!")
             except (EOFError, OSError): pass
             if previous is None: os.environ.pop("NVIM_RPLUGIN_MANIFEST", None)

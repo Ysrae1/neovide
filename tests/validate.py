@@ -24,6 +24,7 @@ HEADLESS = (
     "media/preview_spec.lua",
     "media/preview_fairness.lua",
     "notebook/output_highlights.lua",
+    "notebook/output_scroll.lua",
     "notebook/title_capsules.lua",
 )
 

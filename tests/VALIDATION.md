@@ -1,6 +1,6 @@
 # Glow 维护验证
 
-统一入口为 `python3 tests/validate.py`，可以从任意目录调用脚本。默认只运行 12 个 headless Lua 检查；需要已安装的 Python 3 和 Neovim 0.12+。它不安装依赖、不联网、不打开 GUI、不启动 Notebook 内核。Book 生命周期使用仓库内的假 builder，通过当前 Python 解释器启动。
+统一入口为 `python3 tests/validate.py`，可以从任意目录调用脚本。默认只运行 13 个 headless Lua 检查；需要已安装的 Python 3 和 Neovim 0.12+。它不安装依赖、不联网、不打开 GUI、不启动 Notebook 内核。Book 生命周期使用仓库内的假 builder，通过当前 Python 解释器启动。
 
 ```sh
 # 默认检查 portable；两份配置均验证时显式选择，配置只读，不同步或覆盖文件。
@@ -19,7 +19,9 @@ python3 tests/validate.py all --config local --config portable --clippy
 
 Rust 套件先检查格式，再运行 release 测试；`--rust-filter` 可重复，适合只验证本次改动。运行前确认共享 `target/` 没有其他构建。首次构建需要预备依赖和 Skia 缓存，Cargo 离线模式不代替第三方构建脚本的联网隔离。`--clippy` 仅使用已安装的组件。Notebook 图标像素回归在 macOS 上使用仓库内嵌 FiraCode Nerd Font，不要求系统另装字体；Unix FIFO 回归使用系统的 `mkfifo` 工具。
 
-默认套件中的 `popup_materials.lua` 使用真实隔离浮窗检查浅深底色、当前行／选区不透明、namespace 样式及重复重载、明确遮罩移除，并保护主编辑区、Dashboard 和终端前端。
+默认套件中的 `popup_materials.lua` 使用真实隔离浮窗检查浅深底色、逐类 editor/custom/opaque 切换、当前行／选区、namespace 样式及重复重载、明确遮罩移除，并保护主编辑区、底栏／WinBar／TabLine、Dashboard 和终端前端。
+
+`notebook/output_scroll.lua` 检查实时与保存输出一次聚焦、原地展开、横纵滚动、语义高亮、选择复制及关闭返回，保护源码和原始内联输出。`tests/media/notebook_footer.py` 需要现有 pynvim，以隔离附加 UI 检查溢出提示的条件、端点及布局生命周期；它不证明 Neovide 像素效果。
 
 ## 需要显式准备的检查
 

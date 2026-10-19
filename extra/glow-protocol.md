@@ -56,3 +56,5 @@ Snacks 的链接高亮可能只留下 `NormalFloat` 等通用名字，因此其�
 `g:neovide_bottom_margin_opacity` 是可选的 0～1 不透明度，仅控制全局根网格下方不足一个字格的像素余量；默认未设置或设为 `nil` 时沿用原背景。它使用 Normal 的 RGB，乘全局 `neovide_opacity`，独立于编辑区 `neovide_normal_opacity`；不延展最后一个彩色胶囊，不影响浮窗、分屏或显式 padding。配置将其设为 `(100-material_blend)/100`，旧 GUI 忽略此设置。
 
 Notebook 输入/输出框与图像滚动锚点通过各自的原生协议传递窗口和布局 epoch。主题重载应只改变颜色，不重新编号请求或启动内核。已有验证包括 Rust 组合高亮/样式/像素断言，以及 headless Notebook 高亮、胶囊检查；真实 Snacks 插件链路另见 `tests/media/picker_shadow_scope.py`，需要已安装的固定插件与 Python 依赖。
+
+输出展开提示仅在实际折叠或长行超出可用宽度时显示。支持 `neovide_native_notebook_footer=true` 的前端将胶囊置于底边中心线；`neovide.notebook.frames` 的可选 `footer_gaps` 与顶边 `label_gaps` 使用相同的局部列坐标 `{ col, width }`，最多八项，数值必须有限、非负且不超过 1,000,000，宽度必须为正。底边断口只裁底部描边，保留输入／输出接缝与左右边线；旧前端将提示留在框内安全显示。查看浮窗复用原始 Molten 文本及语义高亮，按源输出框的实际边界定位，仅改变当前查看窗口的滚动方式。
