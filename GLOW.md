@@ -4,6 +4,8 @@
 
 ## 当前维护状态
 
+- 2026-10-21，Codex：候选4已在PD本地编译中，`C:\GlowDev\PackageQA\Candidate-4`、编译器PID13128，启动于20:44 UTC；任务／日志 `root-compile-candidate-4`、`root-compile-status.json`。候选3的安装卸载七阶段及最终六项健康检查均通过（`candidate-installer-1/`），但缺少随后修复的Notebook增量；其825,464,455字节安装包只留在未公开草稿，不可直接发布。下一步待候选4编译结束，执行 `root-candidate-install-checks-2.ps1` 后再决定发布。
+- Notebook整链 `windows-notebook-gui-8` 已通过62.344秒：真实修改41+1得到42、Matplotlib原生PNG、保存源码／计数／输出、关闭内核、同进程重开恢复且marker仍1／磁盘不变；自有GUI与内核均退出。修复覆盖Windows Jupytext双引号、远程桥路径、私有连接目录及sidecar斜杠身份；后者真实Windows旧失败／新通过，输出匹配保护未改。配置 `df6d66f5` 已推送；Stage与仅未改动的QA profile按SHA原子更新，第16版发布页仍仅保存。
 - 2026-10-21，用户授权睡觉期间由Codex接管PD继续环境与安装包验证；周额度剩余≤5%时停止新增工作，保存当前成果、活动任务及恢复步骤，等待用户合适时恢复。额度由主任务在阶段节点统一检查，不自动唤醒。
 - PD 的 Windows 11 ARM64 开发环境已部署至 `C:\GlowDev\Toolchain`：MSVC 14.44／SDK 26100、Rust 1.99.1 x64、LLVM 21.1.8 x64、Python 3.12.10、CMake／Ninja／Inno 6.7.1／Neovim均通过实际烟测（含 C、Rust、C# 编译运行与 x64 libclang 加载）；桌面入口“Glow 开发环境”使用私有工具路径，原 Anaconda／全局 PATH 保留。源码 `C:\GlowDev\neovide-glow` 为公开 bundle 的 `d0e714d`，21个纯换行差异已按原Git字节规范化，未复制Mac认证。
 - 当前PD命令由Codex主任务独占；13个空闲历史终端宿主已按PID和创建时间核对后清理，开发终端已实际显示文字。后台任务使用 `C:\GlowDev\Run-GlowTask.exe`，日志／回执在 `target/glow-parallels-20261021-qa/`；系统既有更新和待重启状态未改，不自动重启。

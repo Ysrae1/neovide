@@ -25,6 +25,21 @@ runtime.prepare_host()
 vim.env.GLOW_PYTHON, vim.env.NEOVIDE_GLOW_PYTHON = python, python
 vim.env.GLOW_LATEX2TEXT = root .. "/bin/latex2text.exe"
 
+-- Molten's frozen client writes connection files under data_dir/runtime even
+-- when JUPYTER_RUNTIME_DIR points elsewhere. Prepare only this private profile.
+local function prepare_jupyter_directory(declared, home, suffix)
+  if not declared or declared == "" then return end
+  assert(home and home ~= "", "The packaged Jupyter profile home is missing")
+  local directory = vim.fs.normalize(declared, { expand_env = false }):gsub("/$", "")
+  local expected = vim.fs.normalize(home .. "/jupyter", { expand_env = false }):gsub("/$", "")
+  assert(directory:lower() == expected:lower(), "Jupyter directory is outside the packaged profile")
+  directory = directory .. suffix
+  vim.fn.mkdir(directory, "p", 448)
+  assert(vim.fn.isdirectory(directory) == 1, "Cannot prepare the packaged Jupyter directory: " .. directory)
+end
+prepare_jupyter_directory(vim.env.JUPYTER_DATA_DIR, vim.env.XDG_DATA_HOME, "/runtime")
+prepare_jupyter_directory(vim.env.JUPYTER_RUNTIME_DIR, vim.env.XDG_STATE_HOME, "")
+
 local uv = vim.uv or vim.loop
 local share = runtime.directory() .. "/share/jupyter"
 local kernel = share .. "/kernels/" .. runtime.default_kernel .. "/kernel.json"
