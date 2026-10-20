@@ -50,13 +50,24 @@ canonical `GLOW.md`.
 
 Windows 11 ARM64 in Parallels can build x64 programs and run the installer and
 headless checks through Windows emulation. It is a separate graphics target
-from a Windows x64 PC. This frozen frontend uses D3D12 by default, while
+from a Windows x64 PC. Windows Neovide uses D3D12 by default, while
 [Parallels documents DirectX 11.1 support](https://kb.parallels.com/en/129497).
-On the tested PD 27.0.3 environment, both the default renderer and system
-OpenGL failed even without the Neovim configuration.
+The packaged Glow launcher selects system OpenGL for its child process only
+when both BIOS `SystemManufacturer` and `SystemProductName` explicitly identify
+Parallels. Other hardware and unavailable BIOS information retain the normal
+default. Any inherited `NEOVIDE_OPENGL` value, including `false` or an empty
+value, is preserved; command-line arguments pass through unchanged. No system
+environment, registry or driver setting is changed.
+
+The current frontend's transparent pixel-format fallback passed a dedicated
+Parallels system-OpenGL test with the actual Parallels graphics modules, native
+PNG decoding before and after resize, and process cleanup. The new ordinary
+launcher path still needs its own real Windows GUI acceptance; the selection
+regression does not establish visual layout, input or hardware compatibility.
 
 A separate, per-application Mesa llvmpipe setup with `--opengl` passed the real
 frontend's image, Notebook-image, Yazi and Matrix functional checks. That
 software renderer is a local development aid, outside this offline installer;
 it does not establish hardware GPU compatibility or performance. Full visual
-layout and manual keyboard/mouse acceptance remain separate checks.
+layout, manual keyboard/mouse and physical Windows GPU acceptance remain separate
+checks.

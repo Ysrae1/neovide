@@ -261,6 +261,9 @@ try {
     $launcherPaths = Join-Path $work 'launchers\WindowsLauncherPaths.exe'
     Invoke-Checked $compiler ($launcherArgs + @('/target:exe', '/main:WindowsLauncherPaths', '/r:System.Windows.Forms.dll', ('/out:' + $launcherPaths), (Join-Path $PSScriptRoot 'launcher\GlowLauncher.cs'), (Join-Path $repoRoot 'tests\windows_launcher_paths.cs')))
     Invoke-Bounded $launcherPaths @((Join-Path $work 'qa\launcher-paths')) @{} $work 120 'launcher-path-regression'
+    $launcherGraphics = Join-Path $work 'launchers\WindowsLauncherGraphics.exe'
+    Invoke-Checked $compiler ($launcherArgs + @('/target:exe', '/main:WindowsLauncherGraphics', '/r:System.Windows.Forms.dll', ('/out:' + $launcherGraphics), (Join-Path $PSScriptRoot 'launcher\GlowLauncher.cs'), (Join-Path $repoRoot 'tests\windows_launcher_graphics.cs')))
+    Invoke-Bounded $launcherGraphics @() @{} $work 120 'launcher-graphics-regression'
     $tool = Join-Path $work 'launchers\GlowTool.exe'
     Invoke-Checked $compiler ($launcherArgs + @('/target:exe', ('/out:' + $tool), (Join-Path $PSScriptRoot 'launcher\GlowTool.cs')))
     $runtimeConfig = '<configuration><startup><supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.8" /></startup><runtime><AppContextSwitchOverrides value="Switch.System.IO.UseLegacyPathHandling=false;Switch.System.IO.BlockLongPaths=false" /></runtime></configuration>'

@@ -12,6 +12,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 internal static class GlowLauncher
 {
@@ -272,6 +273,43 @@ internal static class GlowLauncher
         return String.Join(Path.PathSeparator.ToString(), paths.ToArray());
     }
 
+    private static string[] ReadSystemBios()
+    {
+        using (RegistryKey machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
+        using (RegistryKey bios = machine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\BIOS", false))
+        {
+            if (bios == null) return null;
+            return new string[] {
+                bios.GetValue("SystemManufacturer", null, RegistryValueOptions.DoNotExpandEnvironmentNames) as string,
+                bios.GetValue("SystemProductName", null, RegistryValueOptions.DoNotExpandEnvironmentNames) as string
+            };
+        }
+    }
+
+    // Only this child's default changes. Existing values, including false or an
+    // empty value, remain authoritative; neither arguments nor parent env change.
+    // Supplying the BIOS reader keeps the real selection path directly testable
+    // without accessing hardware, starting a process or modifying the registry.
+    internal static void ApplyGraphicsDefault(ProcessStartInfo child, Func<string[]> readBios)
+    {
+        if (child.EnvironmentVariables.ContainsKey("NEOVIDE_OPENGL")) return;
+        try
+        {
+            string[] identity = readBios();
+            if (identity == null || identity.Length != 2) return;
+            foreach (string field in identity)
+            {
+                if (String.IsNullOrWhiteSpace(field) || !Regex.IsMatch(field, @"\bParallels\b",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) return;
+            }
+            child.EnvironmentVariables["NEOVIDE_OPENGL"] = "1";
+        }
+        catch (Exception)
+        {
+            // Unavailable or unreadable BIOS information keeps the normal default.
+        }
+    }
+
     [STAThread]
     private static int Main(string[] args)
     {
@@ -323,6 +361,7 @@ internal static class GlowLauncher
             start.EnvironmentVariables["JUPYTER_RUNTIME_DIR"] = Path.Combine(profile, "state", "jupyter");
             start.EnvironmentVariables["MPLCONFIGDIR"] = Path.Combine(profile, "cache", "matplotlib");
             start.EnvironmentVariables["PATH"] = ToolPath(root, bundle, profile);
+            ApplyGraphicsDefault(start, ReadSystemBios);
             using (Process process = Process.Start(start))
             {
                 if (process == null) throw new InvalidOperationException("Neovide could not be started.");
