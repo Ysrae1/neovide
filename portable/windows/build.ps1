@@ -290,6 +290,8 @@ vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = function() vim
 '@ | Set-Content -LiteralPath $qaScript -Encoding UTF8
     $qaEnvironment['GLOW_NATIVE_QA_SCRIPT'] = $qaScript
     Invoke-Bounded (Join-Path $relocated 'bin\nvim.exe') @('--headless', '-i', 'NONE', '-c', 'lua dofile(vim.env.GLOW_NATIVE_QA_SCRIPT)') $qaEnvironment $qaRoot 120 'relocated-full-profile'
+    $kernelSpec = Join-Path $profile 'data\nvim-data\glow-notebook-venv\share\jupyter\kernels\glow-python\kernel.json'
+    Invoke-Bounded $python @((Join-Path $repoRoot 'tests\windows_notebook_kernel.py'), '--kernelspec', $kernelSpec, '--expected-python', $python, '--timeout', '60') $qaEnvironment $qaRoot 90 'relocated-notebook-kernel'
 
     Invoke-Checked $isccPath @(('/DStageDir=' + $stage), ('/DOutputDir=' + $output), ('/DAppVersion=' + $Version), (Join-Path $PSScriptRoot 'installer.iss'))
     $installer = Join-Path $output ('Neovide-Glow-' + $Version + '-Windows-x64-Setup.exe')
@@ -320,7 +322,8 @@ vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = function() vim
         installer_sha256 = $checksum; crt_files = $crt;
         windows_rust_unit_tests = 'passed_release_locked_x86_64_pc_windows_msvc';
         relocation = 'passed_spaces_unicode_apostrophe_packaged_path_only'; native_health = 'passed';
-        isolated_config = 'passed'; python_host_and_notebook_metadata = 'passed_no_kernel_execution';
+        isolated_config = 'passed'; python_host_and_notebook_metadata = 'passed';
+        notebook_kernel_execution = 'passed_bundled_python_42_kernel_stopped';
         installer_smoke = $installerSmoke; real_windows_gui_acceptance = 'pending';
         signed = $false; published = $false
     }
