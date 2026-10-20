@@ -253,10 +253,28 @@ pub fn build_window(
 ) -> WindowConfig {
     let template_builder =
         ConfigTemplateBuilder::new().with_stencil_size(8).with_transparency(true);
-    let (window, config) = DisplayBuilder::new()
-        .with_window_attributes(Some(window_attributes))
-        .build(event_loop, template_builder, gen_config)
-        .expect("Failed to create Window");
+    #[cfg(target_os = "windows")]
+    let fallback = (window_attributes.clone(), template_builder.clone().with_transparency(false));
+    let result = DisplayBuilder::new().with_window_attributes(Some(window_attributes)).build(
+        event_loop,
+        template_builder,
+        gen_config,
+    );
+    #[cfg(target_os = "windows")]
+    let result = result.or_else(|transparent_error| {
+        log::warn!(
+            "OpenGL transparent pixel format failed: {transparent_error}; retrying without the transparency requirement"
+        );
+        DisplayBuilder::new()
+            .with_window_attributes(Some(fallback.0))
+            .build(event_loop, fallback.1, gen_config)
+            .map_err(|fallback_error| {
+                format!(
+                    "transparent pixel format: {transparent_error}; without transparency requirement: {fallback_error}"
+                )
+            })
+    });
+    let (window, config) = result.expect("Failed to create Window");
     let window = window.expect("Could not create Window");
     let config = WindowConfigType::OpenGL(config);
     WindowConfig { window: window.into(), config }
