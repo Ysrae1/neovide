@@ -4,6 +4,8 @@
 
 ## 当前维护状态
 
+- Windows 运行 [39458079662](https://github.com/Ysrae1/neovide/actions/runs/39458079662) 仍在 Yazi 验收失败，但63,866文件的完整组装 checkpoint 已保存（压缩约1.16GB）。诊断和隔离 Windows 程序复现确证：Yazi Lua `os.getenv` 将 `YAZI_FILE_ONE` 中的中文读成 `??`；改用 ASCII `file.exe` 并从包内 Unicode PATH 查找后，真实 bridge 的 clear／preview 恢复。启动器与 QA 环境已按此修正，待原生 Windows 缓存运行确认。
+- 同步 UTF-8 overlay 读写（配置 `5ffd624f`），并让 Yazi／完整 profile／实际 Notebook 内核三项独立检查汇总结果后再决定能否打包；原断言保留。隔离 C# 编译、PowerShell 解析与本机 Yazi 生命周期通过，复现证据 `target/glow-windows-native-assets/yazi-mime-probe/result-relocated-bridge-path.txt`；未把 Wine 结果当作实机验收。
 - 2026-10-21，Codex：Windows 运行 [39453410597](https://github.com/Ysrae1/neovide/actions/runs/39453410597) 已通过 Rust 269 项、搬迁启动／profile 初始化、Python 与6个 Mason 命令、7个原生 DLL 加载及14项隔离配置检查；Yazi 能打开但原生图片预览自定义事件未返回，Notebook 内核／安装卸载验收尚未跑到，EXE 未生成。
 - 增加 Yazi 私有测试日志与实际 file.exe MIME 诊断，生命周期断言保持；增加已封装依赖 checkpoint，保存阶段在完整编译／组装后，恢复逐文件验 SHA，刷新当前配置／运行时／启动器并重跑功能验收。checkpoint 合成10项、配置刷新／重复封印及凭据保护、Windows PowerShell 解析检查通过；待下一次 Windows 运行验证，尚无已保存完整依赖缓存。
 - 2026-10-20，Codex：按用户选择准备原生 Windows 离线安装 EXE，新增 `portable/windows/` 与独立 Windows 构建工作流；旧 Mac／WSL 冻结包不改写。原生配置路径、Yazi 私有覆盖层、Notebook 可迁移运行时、GUI／CLI 启动器及字母雨移植已实现，构建与迁移集成仍进行中；尚无完成构建的安装 EXE，不把本机隔离检查视为 Windows 实机通过。本机／portable 共 28 项既有隔离检查已通过。

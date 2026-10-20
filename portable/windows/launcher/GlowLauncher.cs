@@ -267,7 +267,9 @@ internal static class GlowLauncher
             start.EnvironmentVariables["NEOVIDE_GLOW_INIT"] = ChildPath(root, "runtime/lua/WindowsInit.lua");
             start.EnvironmentVariables["GLOW_PYTHON"] = ChildPath(root, "runtime/python/python.exe");
             start.EnvironmentVariables["JAVA_HOME"] = ChildPath(root, "runtime/java");
-            start.EnvironmentVariables["YAZI_FILE_ONE"] = ChildPath(root, "tools/git/usr/bin/file.exe");
+            // Yazi's Lua os.getenv uses the Windows ANSI CRT. Keep this value
+            // ASCII; its Rust command launcher resolves our Unicode PATH.
+            start.EnvironmentVariables["YAZI_FILE_ONE"] = "file.exe";
             start.EnvironmentVariables["PYTHONNOUSERSITE"] = "1";
             start.EnvironmentVariables["PYTHONUTF8"] = "1";
             start.EnvironmentVariables.Remove("PYTHONHOME");

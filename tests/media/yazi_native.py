@@ -2,6 +2,7 @@
 """Actual Yazi events + embedded Neovim native-preview lifecycle (RPC mocked)."""
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -58,6 +59,8 @@ def main():
             "  if file then file:write(message,'\\n');file:close() end",
             "end",
             "record('user-init-loaded')",
+            "record('env YAZI_FILE_ONE='..tostring(os.getenv('YAZI_FILE_ONE')))",
+            "record('env PATH='..tostring(os.getenv('PATH')))",
             "local publish=ps.pub_to",
             "ps.pub_to=function(receiver,kind,value)",
             "  record('pub_to receiver='..tostring(receiver)..' kind='..tostring(kind)..' action='..tostring(type(value)=='table' and value.action)..' source='..tostring(type(value)=='table' and value.source))",
@@ -93,16 +96,22 @@ def main():
                     for name, path in {"bridge": bridge_log, "dds": dds_log,
                                        "overlay_init": overlay / "init.lua", "overlay_config": overlay / "yazi.toml"}.items()
                 }
-                file_one = os.environ.get("YAZI_FILE_ONE")
-                if file_one:
+                configured_file_one = os.environ.get("YAZI_FILE_ONE")
+                if configured_file_one:
+                    file_one = shutil.which(configured_file_one) or configured_file_one
                     unicode_picture = work / "中文 MIME picture's $.png"
                     Image.new("RGB", (8, 8), (10, 20, 30)).save(unicode_picture)
                     try:
+                        # Yazi writes raw LF-delimited UTF-8 to the MSYS tool.
+                        # text=True on Windows would translate LF to CRLF,
+                        # making file.exe treat CR as part of each filename.
                         result = subprocess.run([file_one, "-bL", "--mime-type", "-f", "-"],
-                                                input=str(picture) + "\n" + str(unicode_picture) + "\n",
-                                                text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=5)
-                        details["diagnostics"]["file_one"] = {"path": file_one, "code": result.returncode,
-                                                               "stdout": result.stdout, "stderr": result.stderr}
+                                                input=(str(picture) + "\n" + str(unicode_picture) + "\n").encode("utf-8"),
+                                                capture_output=True, timeout=5)
+                        details["diagnostics"]["file_one"] = {"configured": configured_file_one,
+                                                               "path": file_one, "code": result.returncode,
+                                                               "stdout": result.stdout.decode("utf-8", errors="replace"),
+                                                               "stderr": result.stderr.decode("utf-8", errors="replace")}
                     except (OSError, subprocess.TimeoutExpired) as error:
                         details["diagnostics"]["file_one"] = str(error)
                 raise AssertionError(description + ": " + str(details) + "\n" + editor.command_output("messages"))

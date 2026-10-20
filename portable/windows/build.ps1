@@ -140,7 +140,7 @@ function New-PackagedEnvironment {
         NEOVIDE_GLOW_ROOT = $Application; NEOVIDE_GLOW_INIT = (Join-Path $Application 'runtime\lua\WindowsInit.lua');
         GLOW_PYTHON = (Join-Path $Application 'runtime\python\python.exe');
         JAVA_HOME = (Join-Path $Application 'runtime\java');
-        YAZI_FILE_ONE = (Join-Path $Application 'tools\git\usr\bin\file.exe');
+        YAZI_FILE_ONE = 'file.exe';
         NEOVIDE_GLOW_PYTHON = (Join-Path $Application 'runtime\python\python.exe');
         NEOVIDE_CONFIG = (Join-Path $Application 'config\neovide.toml');
         GLOW_LATEX2TEXT = (Join-Path $Application 'bin\latex2text.exe');
@@ -305,7 +305,11 @@ try {
     Invoke-Bounded (Join-Path $relocated 'bin\nvim.exe') @('--headless', '--noplugin', '-u', 'NONE', '-i', 'NONE', '-l', (Join-Path $PSScriptRoot 'bootstrap.lua')) $qaEnvironment $qaRoot 180 'relocated-native-health'
     Invoke-Bounded $builderPython @((Join-Path $repoRoot 'tests\validate.py'), 'headless', '--config', (Join-Path $relocated 'profile\config\nvim'), '--nvim', (Join-Path $relocated 'bin\nvim.exe')) $qaEnvironment $qaRoot 600 'isolated-config-checks'
     $qaEnvironment['GLOW_TEST_DATA'] = Join-Path $profile 'data\nvim-data'
-    Invoke-Bounded $python @((Join-Path $repoRoot 'tests\media\yazi_native.py')) $qaEnvironment $qaRoot 180 'relocated-yazi-native-preview'
+    # These independent checks must all report before packaging is blocked, so
+    # a preview failure does not hide a separate Python/Notebook regression.
+    $functionalFailures = New-Object 'Collections.Generic.List[string]'
+    try { Invoke-Bounded $python @((Join-Path $repoRoot 'tests\media\yazi_native.py')) $qaEnvironment $qaRoot 180 'relocated-yazi-native-preview' }
+    catch { $functionalFailures.Add('relocated-yazi-native-preview'); Write-Warning $_ }
 
     $qaScript = Join-Path $qaRoot 'profile-health.lua'
     @'
@@ -332,9 +336,15 @@ end
 vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = function() vim.defer_fn(finish, 100) end })
 '@ | Set-Content -LiteralPath $qaScript -Encoding UTF8
     $qaEnvironment['GLOW_NATIVE_QA_SCRIPT'] = $qaScript
-    Invoke-Bounded (Join-Path $relocated 'bin\nvim.exe') @('--headless', '-i', 'NONE', '-c', 'lua dofile(vim.env.GLOW_NATIVE_QA_SCRIPT)') $qaEnvironment $qaRoot 120 'relocated-full-profile'
+    try { Invoke-Bounded (Join-Path $relocated 'bin\nvim.exe') @('--headless', '-i', 'NONE', '-c', 'lua dofile(vim.env.GLOW_NATIVE_QA_SCRIPT)') $qaEnvironment $qaRoot 120 'relocated-full-profile' }
+    catch { $functionalFailures.Add('relocated-full-profile'); Write-Warning $_ }
     $kernelSpec = Join-Path $profile 'data\nvim-data\glow-notebook-venv\share\jupyter\kernels\glow-python\kernel.json'
-    Invoke-Bounded $python @((Join-Path $repoRoot 'tests\windows_notebook_kernel.py'), '--kernelspec', $kernelSpec, '--expected-python', $python, '--timeout', '60') $qaEnvironment $qaRoot 90 'relocated-notebook-kernel'
+    try { Invoke-Bounded $python @((Join-Path $repoRoot 'tests\windows_notebook_kernel.py'), '--kernelspec', $kernelSpec, '--expected-python', $python, '--timeout', '60') $qaEnvironment $qaRoot 90 'relocated-notebook-kernel' }
+    catch { $functionalFailures.Add('relocated-notebook-kernel'); Write-Warning $_ }
+    if ($functionalFailures.Count -gt 0) {
+        $functionalFailures.ToArray() | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $logs 'functional-failures.json') -Encoding UTF8
+        throw ('Functional checks failed; the installer was not packaged: ' + ($functionalFailures -join ', '))
+    }
 
     Invoke-Checked $isccPath @(('/DStageDir=' + $stage), ('/DOutputDir=' + $output), ('/DAppVersion=' + $Version), (Join-Path $PSScriptRoot 'installer.iss'))
     $installer = Join-Path $output ('Neovide-Glow-' + $Version + '-Windows-x64-Setup.exe')
