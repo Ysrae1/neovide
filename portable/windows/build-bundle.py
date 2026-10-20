@@ -60,7 +60,10 @@ class WindowsBundle(Installer):
         self.env.pop("VIMRUNTIME", None)
         paths = [self.stage / relative for relative in (
             "bin", "runtime/python", "runtime/python/Scripts", "runtime/node",
-            "runtime/java/bin", "tools/git/cmd", "tools/git/usr/bin")]
+            "runtime/java/bin", "tools/git/cmd")]
+        # Portable Git's usr/bin/link.exe is the POSIX hard-link utility. Keep it
+        # off the compiler PATH so MSVC finds its own linker; Yazi uses the
+        # absolute YAZI_FILE_ONE path and still gets its adjacent MSYS DLLs.
         paths.extend(self.stage / "tools" / name for name in ("yazi", "rg", "fd", "fzf", "lazygit", "uv", "tree_sitter"))
         paths.append(self.profile_data / "mason/bin")
         self.env["PATH"] = os.pathsep.join([*map(str, paths), self.env.get("PATH", "")])
