@@ -30,9 +30,12 @@ jobs:
         shell: pwsh
     env:
       CARGO_TERM_COLOR: always
-      GLOW_WORK_ROOT: ${{ runner.temp }}\glow-offline-${{ github.run_id }}-${{ github.run_attempt }}
       GLOW_INSTALLER_VERSION: ${{ inputs.version || '2026.10.20.1' }}
     steps:
+      - name: Select isolated build directory
+        run: |
+          "GLOW_WORK_ROOT=$env:RUNNER_TEMP\glow-offline-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
