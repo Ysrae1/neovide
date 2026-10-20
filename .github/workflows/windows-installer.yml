@@ -41,11 +41,25 @@ jobs:
           git config --global core.autocrlf false
           "GLOW_WORK_ROOT=$env:RUNNER_TEMP\glow-offline-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "GLOW_FRONTEND_TARGET=$env:RUNNER_TEMP\glow-frontend-target" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GLOW_PAYLOAD_CACHE=$env:RUNNER_TEMP\glow-native-dependencies" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Select assembled dependency cache key
+        run: |
+          $payloadHash = '${{ hashFiles('portable/manifest.json', 'portable/windows/assets.lock.json', 'portable/payload/plugins.json', 'portable/payload/patches/**', 'portable/payload/treesitter.json', 'portable/payload/treesitter-lock.json', 'portable/payload/mason.json', 'portable/payload/mason-registry/**', 'portable/payload/nvim/lua/config/media/runtime/requirements.txt', 'portable/payload/requirements-latex.lock', 'portable/payload/codex-acp/package*.json', 'portable/payload/fonts/**', 'portable/payload/windows-icon.ico', 'portable/windows/matrix/**', 'portable/windows/build-luasnip.ps1', 'portable/windows/bootstrap.lua', 'portable/windows/relocate-mason.py', 'portable/scripts/install.py') }}'
+          if (-not $payloadHash) { throw 'The dependency cache inputs were not found after checkout.' }
+          "GLOW_PAYLOAD_KEY=windows-2022-x64-deps-v1-rust1.99.1-$payloadHash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Restore assembled dependency checkpoint
+        id: payload_cache_restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.GLOW_PAYLOAD_CACHE }}
+          key: ${{ env.GLOW_PAYLOAD_KEY }}
 
       - name: Restore frozen frontend build cache
         id: frontend_cache_restore
@@ -84,6 +98,13 @@ jobs:
         run: |
           & ./portable/windows/build.ps1 -WorkRoot $env:GLOW_WORK_ROOT -Version $env:GLOW_INSTALLER_VERSION -InstallerSmokeTest
 
+      - name: Retain assembled dependency checkpoint after packaging failures
+        if: always() && steps.payload_cache_restore.outputs.cache-hit != 'true' && env.GLOW_PAYLOAD_KEY != ''
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.GLOW_PAYLOAD_CACHE }}
+          key: ${{ env.GLOW_PAYLOAD_KEY }}
+
       - name: Retain frozen frontend cache after packaging failures
         if: always() && steps.frontend_cache_restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
@@ -99,6 +120,8 @@ jobs:
           path: |
             ${{ env.GLOW_WORK_ROOT }}/output/**
             ${{ env.GLOW_WORK_ROOT }}/logs/**
+            ${{ env.GLOW_WORK_ROOT }}/records/**
+            ${{ env.GLOW_PAYLOAD_CACHE }}/checkpoint.json
             ${{ env.GLOW_FRONTEND_TARGET }}/x86_64-pc-windows-msvc/release/neovide.exe
           if-no-files-found: warn
           retention-days: 14

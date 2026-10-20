@@ -191,35 +191,60 @@ try {
     $env:LIBCLANG_PATH = Join-Path $env:LLVM_HOME 'bin'
     $env:PATH = $env:LIBCLANG_PATH + ';' + $env:PATH
 
-    $frontendSource = Join-Path $work 'frontend-source'
-    Invoke-Checked git @('clone', '--no-hardlinks', '--no-checkout', $repoRoot, $frontendSource)
-    Invoke-Checked git @('-C', $frontendSource, 'checkout', '--detach', $sourceCommit)
-    $actualCommit = (& git -C $frontendSource rev-parse HEAD).Trim()
-    if ($LASTEXITCODE -ne 0 -or $actualCommit -cne $sourceCommit) { throw 'The isolated frontend checkout has the wrong revision.' }
-    $icon = Join-Path $repoRoot 'portable\payload\windows-icon.ico'
-    Copy-Item -LiteralPath $icon -Destination (Join-Path $frontendSource 'assets\neovide.ico')
-    $frontendTarget = Join-Path $work 'frontend-target'
-    if ($env:GLOW_FRONTEND_TARGET) {
-        $frontendTarget = [IO.Path]::GetFullPath($env:GLOW_FRONTEND_TARGET)
-    }
-    $env:CARGO_TARGET_DIR = $frontendTarget
-    # Match the existing upstream Windows release build. Native Lua modules keep
-    # their own build settings and use the collected release CRT when required.
-    $env:RUSTFLAGS = '-Ctarget-feature=+crt-static'
-    Invoke-Checked cargo @(('+' + $toolchain), 'build', '--release', '--locked', '--target', 'x86_64-pc-windows-msvc') $frontendSource
-    $frontend = Join-Path $frontendTarget 'x86_64-pc-windows-msvc\release\neovide.exe'
-    if (-not (Test-Path -LiteralPath $frontend -PathType Leaf)) { throw 'The native frontend was not built.' }
-    $builder = Join-Path $PSScriptRoot 'build-bundle.py'
-    $common = @($builder, '--work', $work, '--frontend', $frontend, '--stack-id', $StackId)
-    Invoke-Checked $builderPython ($common + @('--phase', 'prepare'))
     $stage = Join-Path $work 'stage'
     $bin = Join-Path $stage 'bin'
-    # The settings integration test starts a real Neovim process. Use the exact
-    # locked native binary that will ship, rather than the worker's global PATH.
-    $env:PATH = $bin + ';' + $env:PATH
-    Invoke-Checked cargo @(('+' + $toolchain), 'test', '--release', '--locked', '--target', 'x86_64-pc-windows-msvc') $frontendSource
-    [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR', $savedEnvironment['CARGO_TARGET_DIR'], 'Process')
-    [Environment]::SetEnvironmentVariable('RUSTFLAGS', $savedEnvironment['RUSTFLAGS'], 'Process')
+    $icon = Join-Path $repoRoot 'portable\payload\windows-icon.ico'
+    $builder = Join-Path $PSScriptRoot 'build-bundle.py'
+    $checkpointTool = Join-Path $PSScriptRoot 'payload-checkpoint.py'
+    $checkpointArguments = @()
+    $reusedDependencies = $false
+    $rustEvidence = 'current_run'
+    if ($env:GLOW_PAYLOAD_CACHE -or $env:GLOW_PAYLOAD_KEY) {
+        if (-not $env:GLOW_PAYLOAD_CACHE -or -not $env:GLOW_PAYLOAD_KEY) {
+            throw 'Dependency checkpoint directory and key must be provided together.'
+        }
+        $checkpointArguments = @('--cache', $env:GLOW_PAYLOAD_CACHE, '--stage', $stage,
+            '--records', (Join-Path $work 'records'), '--key', $env:GLOW_PAYLOAD_KEY, '--asset-lock', $lockPath)
+        if (Test-Path -LiteralPath $env:GLOW_PAYLOAD_CACHE) {
+            Invoke-Checked $builderPython (@($checkpointTool, 'restore') + $checkpointArguments)
+            Copy-Item -LiteralPath (Join-Path $env:GLOW_PAYLOAD_CACHE 'checkpoint.json') -Destination (Join-Path $logs 'dependency-checkpoint.json')
+            $reusedDependencies = $true
+            $rustEvidence = 'verified_dependency_checkpoint_see_dependency-checkpoint.json'
+            Write-Host 'Verified and restored the frozen native dependencies; refreshing current configuration and launchers.'
+        }
+    }
+    if ($reusedDependencies) {
+        $frontend = Join-Path $bin 'neovide.exe'
+        $common = @($builder, '--work', $work, '--frontend', $frontend, '--stack-id', $StackId)
+        Invoke-Checked $builderPython ($common + @('--phase', 'refresh'))
+    }
+    else {
+        $frontendSource = Join-Path $work 'frontend-source'
+        Invoke-Checked git @('clone', '--no-hardlinks', '--no-checkout', $repoRoot, $frontendSource)
+        Invoke-Checked git @('-C', $frontendSource, 'checkout', '--detach', $sourceCommit)
+        $actualCommit = (& git -C $frontendSource rev-parse HEAD).Trim()
+        if ($LASTEXITCODE -ne 0 -or $actualCommit -cne $sourceCommit) { throw 'The isolated frontend checkout has the wrong revision.' }
+        Copy-Item -LiteralPath $icon -Destination (Join-Path $frontendSource 'assets\neovide.ico')
+        $frontendTarget = Join-Path $work 'frontend-target'
+        if ($env:GLOW_FRONTEND_TARGET) {
+            $frontendTarget = [IO.Path]::GetFullPath($env:GLOW_FRONTEND_TARGET)
+        }
+        $env:CARGO_TARGET_DIR = $frontendTarget
+        # Match the existing upstream Windows release build. Native Lua modules keep
+        # their own build settings and use the collected release CRT when required.
+        $env:RUSTFLAGS = '-Ctarget-feature=+crt-static'
+        Invoke-Checked cargo @(('+' + $toolchain), 'build', '--release', '--locked', '--target', 'x86_64-pc-windows-msvc') $frontendSource
+        $frontend = Join-Path $frontendTarget 'x86_64-pc-windows-msvc\release\neovide.exe'
+        if (-not (Test-Path -LiteralPath $frontend -PathType Leaf)) { throw 'The native frontend was not built.' }
+        $common = @($builder, '--work', $work, '--frontend', $frontend, '--stack-id', $StackId)
+        Invoke-Checked $builderPython ($common + @('--phase', 'prepare'))
+        # The settings integration test starts a real Neovim process. Use the exact
+        # locked native binary that will ship, rather than the worker's global PATH.
+        $env:PATH = $bin + ';' + $env:PATH
+        Invoke-Checked cargo @(('+' + $toolchain), 'test', '--release', '--locked', '--target', 'x86_64-pc-windows-msvc') $frontendSource
+        [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR', $savedEnvironment['CARGO_TARGET_DIR'], 'Process')
+        [Environment]::SetEnvironmentVariable('RUSTFLAGS', $savedEnvironment['RUSTFLAGS'], 'Process')
+    }
     $null = New-Item -ItemType Directory -Path (Join-Path $work 'launchers') -Force
     $applicationManifest = Join-Path $work 'launchers\application.manifest'
     @'
@@ -241,10 +266,22 @@ try {
         [IO.File]::WriteAllText((Join-Path $bin ($alias + '.exe.config')), $runtimeConfig)
     }
     $crt = @(Copy-CrtRuntime $bin)
-    Invoke-Checked powershell.exe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'matrix\build.ps1'), '-BuildDirectory', (Join-Path $work 'matrix-build'), '-OutputDirectory', $bin)
-    Invoke-Checked $builderPython ($common + @('--phase', 'native'))
-    Invoke-Checked $builderPython ($common + @('--phase', 'languages'))
-    Invoke-Checked $builderPython ($common + @('--phase', 'assemble'))
+    if ($reusedDependencies) {
+        # The restored Mason shims and native modules are already relocatable.
+        # Recompile the current launchers, then seal the refreshed template;
+        # every functional check below still runs against the new copy.
+        Invoke-Checked $builderPython ($common + @('--phase', 'reseal'))
+    }
+    else {
+        Invoke-Checked powershell.exe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'matrix\build.ps1'), '-BuildDirectory', (Join-Path $work 'matrix-build'), '-OutputDirectory', $bin)
+        Invoke-Checked $builderPython ($common + @('--phase', 'native'))
+        Invoke-Checked $builderPython ($common + @('--phase', 'languages'))
+        Invoke-Checked $builderPython ($common + @('--phase', 'assemble'))
+        if ($checkpointArguments.Count -gt 0) {
+            Invoke-Checked $builderPython (@($checkpointTool, 'save') + $checkpointArguments)
+            Copy-Item -LiteralPath (Join-Path $env:GLOW_PAYLOAD_CACHE 'checkpoint.json') -Destination (Join-Path $logs 'dependency-checkpoint.json')
+        }
+    }
 
     # Copy before QA: builder paths, global Python/Node and compiler PATH entries
     # cannot accidentally make the relocated offline application appear healthy.
@@ -327,6 +364,7 @@ vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = function() vim
         frontend_sha256 = (Get-FileHash -LiteralPath $frontend -Algorithm SHA256).Hash.ToLowerInvariant();
         installer_sha256 = $checksum; crt_files = $crt;
         windows_rust_unit_tests = 'passed_release_locked_x86_64_pc_windows_msvc';
+        windows_rust_unit_tests_evidence = $rustEvidence; dependency_checkpoint_reused = $reusedDependencies;
         relocation = 'passed_spaces_unicode_apostrophe_packaged_path_only'; native_health = 'passed';
         isolated_config = 'passed'; python_host_and_notebook_metadata = 'passed';
         notebook_kernel_execution = 'passed_bundled_python_42_kernel_stopped';

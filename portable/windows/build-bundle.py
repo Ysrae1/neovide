@@ -155,9 +155,20 @@ class WindowsBundle(Installer):
         self.copy(self.locate(self.unpack("python"), "python.exe").parent, self.stage / "runtime/python")
         self.copy(self.locate(self.unpack("node"), "node.exe").parent, self.stage / "runtime/node")
         self.copy(self.locate(self.unpack("java"), "java.exe").parent.parent, self.stage / "runtime/java")
-        self.copy(self.payload / "nvim", self.profile / "config/nvim")
-        self.copy(self.payload / "yazi", self.profile / "config/yazi")
-        init = self.profile / "config/nvim/init.lua"
+        self.configuration(self.profile)
+        for relative in ("bin/nvim.exe", "bin/neovide.exe", "runtime/python/python.exe",
+                         "runtime/node/node.exe", "runtime/java/bin/java.exe"):
+            self.need(relative)
+
+    def configuration(self, profile):
+        # Only generated build-worker templates are replaced. Installed user
+        # profiles never pass through this builder.
+        for name in ("nvim", "yazi"):
+            destination = profile / "config" / name
+            if destination.exists():
+                shutil.rmtree(destination)
+            self.copy(self.payload / name, destination)
+        init = profile / "config/nvim/init.lua"
         guard = 'if vim.env.NEOVIDE_GLOW_INIT then dofile(vim.env.NEOVIDE_GLOW_INIT) end\n'
         if not init.read_text(encoding="utf-8").startswith(guard):
             init.write_text(guard + init.read_text(encoding="utf-8"), encoding="utf-8")
@@ -181,11 +192,12 @@ class WindowsBundle(Installer):
         path = self.stage / "config/neovide.toml"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text('frame = "full"\nwsl = false\n' + "\n".join(lines) + "\n", encoding="utf-8")
-        self.need("bin/nvim.exe")
-        self.need("bin/neovide.exe")
-        self.need("runtime/python/python.exe")
-        self.need("runtime/node/node.exe")
-        self.need("runtime/java/bin/java.exe")
+
+    def refresh(self):
+        bundle = read_json(self.stage / "bundle.json")
+        if bundle["neovide_commit"] != self.lock["neovide_commit"] or bundle["stack_id"] != self.stack_id:
+            raise InstallError("The dependency checkpoint belongs to a different frozen stack.")
+        self.configuration(self.stage / "profile")
 
     def python_dependencies(self):
         python = self.stage / "runtime/python/python.exe"
@@ -294,19 +306,27 @@ class WindowsBundle(Installer):
         for language in read_json(self.payload / "treesitter.json")["parsers"]:
             self.need("profile/data/nvim/lazy/nvim-treesitter/parser/" + language + ".so")
         self.run([sys.executable, HERE / "relocate-mason.py", "--stage", self.stage])
-        for path in self.stage.rglob("*"):
-            if path.is_symlink() or path.name.casefold() in credential_names or any(
-                part.casefold() in {".git", ".codex"} for part in path.relative_to(self.stage).parts
-            ):
-                raise InstallError("Unexpected mutable/private/link content in stage: " + str(path.relative_to(self.stage)))
         write_json(self.meta / "omitted-test-fixtures.json", {"paths": sorted(omitted_fixtures),
                    "reason": "Credential-like test fixtures are not needed by installed plugins."})
         write_json(self.stage / "bundle.json", {"schema_version": 1, "stack_id": self.stack_id,
             "neovide_commit": self.lock["neovide_commit"], "native_required": sorted(set(self.required)),
             "tool_paths": ["runtime/python", "runtime/python/Scripts", "runtime/node", "runtime/java/bin", "tools/git/cmd", "tools/git/usr/bin",
                            *["tools/" + name for name in ("yazi", "rg", "fd", "fzf", "lazygit", "uv", "tree_sitter")]]})
-        checksums = {str(p.relative_to(self.stage)).replace("\\", "/"): sha(p)
-                     for p in sorted(self.stage.rglob("*")) if p.is_file()}
+        self.reseal()
+
+    def reseal(self):
+        bundle = read_json(self.stage / "bundle.json")
+        for relative in bundle["native_required"]:
+            self.need(relative)
+        credential_names = {"auth.json", "credentials.json", ".credentials.json", ".env"}
+        for path in self.stage.rglob("*"):
+            if path.is_symlink() or path.name.casefold() in credential_names or any(
+                part.casefold() in {".git", ".codex"} for part in path.relative_to(self.stage).parts
+            ):
+                raise InstallError("Unexpected mutable/private/link content in stage: " + str(path.relative_to(self.stage)))
+        checksums = {p.relative_to(self.stage).as_posix(): sha(p)
+                     for p in sorted(self.stage.rglob("*"))
+                     if p.is_file() and p != self.stage / "bundle-sha256.json"}
         write_json(self.stage / "bundle-sha256.json", checksums)
 
 
@@ -315,7 +335,7 @@ def main():
     parser.add_argument("--work", type=Path, required=True)
     parser.add_argument("--frontend", type=Path, required=True)
     parser.add_argument("--stack-id", default="glow-windows-native-20261020-preview1")
-    parser.add_argument("--phase", choices=("prepare", "native", "languages", "assemble"), required=True)
+    parser.add_argument("--phase", choices=("prepare", "native", "languages", "assemble", "refresh", "reseal"), required=True)
     args = parser.parse_args()
     if sys.platform != "win32":
         parser.error("Build this payload on the Windows release worker; there is no WSL fallback.")
@@ -331,8 +351,12 @@ def main():
     elif args.phase == "languages":
         bundle.bootstrap("parsers")
         bundle.bootstrap("mason")
-    else:
+    elif args.phase == "assemble":
         bundle.assemble()
+    elif args.phase == "refresh":
+        bundle.refresh()
+    else:
+        bundle.reseal()
     print("Windows offline build phase completed:", args.phase)
 
 

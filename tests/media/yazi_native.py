@@ -2,6 +2,7 @@
 """Actual Yazi events + embedded Neovim native-preview lifecycle (RPC mocked)."""
 import json
 import os
+import subprocess
 import tempfile
 import time
 import sys
@@ -45,18 +46,36 @@ def main():
         config_home.mkdir()
         original_config = "[mgr]\nratio=[1,4,3]\n[preview]\nimage_delay=0\n"
         (config_home / "yazi.toml").write_text(original_config)
-        (config_home / "init.lua").write_text("-- User configuration must remain untouched.\n")
+        bridge_log = work / "native-bridge.log"
+        dds_log = work / "yazi.nvim.log"
+        # This fixture runs inside the private overlay's main Lua VM. Record
+        # publication attempts before DDS can drop an event with no subscriber,
+        # without changing the publisher's return value or preview behavior.
+        (config_home / "init.lua").write_text("\n".join([
+            "-- User configuration must remain untouched.",
+            "local function record(message)",
+            "  local file=io.open(" + lua_string(bridge_log) + ",'a')",
+            "  if file then file:write(message,'\\n');file:close() end",
+            "end",
+            "record('user-init-loaded')",
+            "local publish=ps.pub_to",
+            "ps.pub_to=function(receiver,kind,value)",
+            "  record('pub_to receiver='..tostring(receiver)..' kind='..tostring(kind)..' action='..tostring(type(value)=='table' and value.action)..' source='..tostring(type(value)=='table' and value.source))",
+            "  return publish(receiver,kind,value)",
+            "end",
+        ]), encoding="utf-8")
         init = work / "init.lua"
         init.write_text("\n".join([
             "vim.opt.rtp:prepend(" + lua_string(root / "portable/payload/nvim") + ")",
             *["vim.opt.rtp:append(" + lua_string(data / "lazy" / plugin) + ")"
               for plugin in ["plenary.nvim", "yazi.nvim"]],
+            "vim.env.YAZI_NVIM_LOG_PATH=" + lua_string(dds_log),
             "vim.g.neovide_native_image=true;vim.g.neovide_channel_id=9999;_calls={};_events={}",
             "vim.env.NO_COLOR=nil;vim.env.TERM='xterm-256color';vim.env.COLORTERM='truecolor'" if navigation else "",
             "vim.rpcnotify=function(_,m,...)table.insert(_calls,{m,...});return true end",
             "vim.api.nvim_create_autocmd('User',{pattern='YaziDDSCustom',callback=function(e)table.insert(_events,e.data)end})",
             "vim.api.nvim_create_autocmd('User',{pattern='YaziDDSHover',callback=function(e)_hover=e.data.url end})" if navigation else "",
-            "_opts=require('config.media.yazi').configure({config_home=" + lua_string(config_home) + ",hooks={on_yazi_ready=function(_,_,api)_api=api end}})",
+            "_opts=require('config.media.yazi').configure({log_level=vim.log.levels.DEBUG,config_home=" + lua_string(config_home) + ",hooks={on_yazi_ready=function(_,_,api)_api=api end}})",
             "require('yazi').setup(_opts)",
         ]), encoding="utf-8")
         editor = pynvim.attach("child", argv=["nvim", "--embed", "--headless", "-i", "NONE", "-n", "-u", str(init)])
@@ -68,6 +87,24 @@ def main():
                     if predicate(): return
                     time.sleep(.1)
                 details = editor.exec_lua("return {status=require('config.media.yazi').status(),calls=_calls,events=_events,lines=vim.api.nvim_buf_get_lines(0,0,-1,false)}")
+                overlay = Path(editor.exec_lua("return _opts.config_home"))
+                details["diagnostics"] = {
+                    name: path.read_text(encoding="utf-8", errors="replace")[-16000:] if path.exists() else "missing"
+                    for name, path in {"bridge": bridge_log, "dds": dds_log,
+                                       "overlay_init": overlay / "init.lua", "overlay_config": overlay / "yazi.toml"}.items()
+                }
+                file_one = os.environ.get("YAZI_FILE_ONE")
+                if file_one:
+                    unicode_picture = work / "中文 MIME picture's $.png"
+                    Image.new("RGB", (8, 8), (10, 20, 30)).save(unicode_picture)
+                    try:
+                        result = subprocess.run([file_one, "-bL", "--mime-type", "-f", "-"],
+                                                input=str(picture) + "\n" + str(unicode_picture) + "\n",
+                                                text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=5)
+                        details["diagnostics"]["file_one"] = {"path": file_one, "code": result.returncode,
+                                                               "stdout": result.stdout, "stderr": result.stderr}
+                    except (OSError, subprocess.TimeoutExpired) as error:
+                        details["diagnostics"]["file_one"] = str(error)
                 raise AssertionError(description + ": " + str(details) + "\n" + editor.command_output("messages"))
 
             def statuses():
