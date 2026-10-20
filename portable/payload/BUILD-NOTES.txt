@@ -1,4 +1,4 @@
-Portable Neovim payload — 2026-10-19
+Portable Neovim payload — 2026-10-20
 
 Profile layout: STACK/config/nvim, STACK/data/nvim, STACK/state/nvim,
 STACK/cache/nvim, with XDG_CONFIG_HOME=STACK/config etc. NVIM_APPNAME=nvim.

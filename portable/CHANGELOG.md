@@ -1,5 +1,15 @@
 # 冻结版本记录
 
+## 2026-10-20 · glow-stack-20261020-gm1
+
+源码与当前保存的个人配置使用同名冻结标签；保留 2026-10-19 gm1、gm2、配色标签及既有下载。本版继续作为预发布。
+
+- 修复 Noice 外框／留白与内容区材质不一致、WhichKey 设置不生效及页脚重复阴影；各类浮窗独立选择 opaque／editor／custom，保留当前 editor 偏好和 Ayu 颜色。
+- Notebook 输出原位展开、横纵滚动、复制与关闭；真实点击 Out[1] 的正文、图片或留白后可从 Cell 2 正确切换并用空格 j o 展开 Out[1]。转换后的 .ipynb 读入与窗口重入保持 Python。
+- 合入官方 86227b8 的 macOS 分屏原生滚动条，默认关闭；保留 Glow、Liquid Glass、媒体预览及 Notebook 网格尺寸约定。
+- Mac DMG 原生源码 `b8b92bcc8f1e7b974e353e21f34f546dcf66bcac`，配置提交 `22d4852d5f176237b0f76aff14d1519c43879da6`；固定插件与第三方依赖沿用上一版，准确校验见 manifest.json。
+- Apple Silicon Rust 292 通过、1 项 Metal 测试按原设置忽略，格式／release clippy／构建及两配置共 28 项隔离检查通过；深浅 GUI、输出点击展开、分屏滚动条实际拖动已验收。Windows、旧 macOS、新机联网完整安装仍未实机验收；App 未公证，既有依赖锁与许可证索引限制保留。
+
 ## 2026-10-19 · glow-stack-20261019-gm1
 
 本机配置与 Neovide／portable 使用同名冻结标签。旧 gm2、配色标签及下载完整保留；本版继续作为预发布。

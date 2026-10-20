@@ -4,6 +4,10 @@
 
 ## 当前维护状态
 
+- 2026-10-20，Codex：冻结快照 `glow-stack-20261020-gm1`，源码与配置同名标签／新预发布；原生 DMG 源码 `b8b92bcc8f1e7b974e353e21f34f546dcf66bcac`，配置 `22d4852d5f176237b0f76aff14d1519c43879da6`。当前保存的逐类 editor 材质及文字配置已纳入并同步 portable；旧 gm1／gm2／配色标签与发行包保留。
+- 发布资产与核验：`target/releases/glow-stack-20261020-gm1/`；复用用户本次 update 生成的同源码 DMG，SHA256 `e269431fd8b7aa49aa2056767eedf1606efe78b42637a8dda8596690f6ac1975`，实际挂载／arm64／签名／二进制／图标许可通过；ZIP 与单文件安装器各 192 个文件及内嵌校验一致，Mac／WSL 安装计划通过，不安装依赖或启动内核。
+- 本次配置快照两仓库共 28 项隔离检查通过，沿用同一原生源码的 292 项 Rust／clippy／构建及实际 GUI 结果，不重复编译；Windows／旧 macOS／新机联网全安装与既有依赖锁限制保留。新预发布入口 https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261020-gm1 ，本轮不替换本机安装。
+
 - 2026-10-20，Codex：接续用户 `neovide-update` 停下的合并，整合官方 `86227b8`（macOS 分屏原生滚动条）；8 个冲突文件与自动合并的 `Window::position_tiled` 接口已处理，保留 Glow／Notebook／Liquid Glass 与刚修复的浮窗材质，文字网格尺寸仍仅由 grid_resize 更新。滚动条默认关闭，用户配置仓库未改。
 - 本次合并验证：Apple Silicon release Rust 292 通过、1 个 Metal 测试照常忽略；格式、release all-targets clippy、独立 release 构建通过。新 GUI 启动／Noice 材质实看正常；临时启用原生滚动条，实际拖动右侧仅滚动右分屏（topline 71），左分屏保持 1，随后恢复关闭。日志与窗口快照 `target/glow-upstream-20261020-qa/`。
 - 合并按本轮授权在本地提交，不替换已安装 App／CLI，不推送或改冻结发行；自有 QA 进程已停止。完成后可由用户重新运行 `neovide-update` 继续原有更新安装流程；跨平台及旧 macOS 未新增实机验收。
