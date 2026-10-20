@@ -35,11 +35,19 @@ jobs:
       - name: Select isolated build directory
         run: |
           "GLOW_WORK_ROOT=$env:RUNNER_TEMP\glow-offline-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GLOW_FRONTEND_TARGET=$env:RUNNER_TEMP\glow-frontend-target" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Restore frozen frontend build cache
+        id: frontend_cache_restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.GLOW_FRONTEND_TARGET }}
+          key: windows-2022-x64-neovide-b8b92bcc8f1e7b974e353e21f34f546dcf66bcac-rust1.99.1-crtstatic-${{ hashFiles('portable/payload/windows-icon.ico') }}
 
       - uses: actions/setup-python@v5
         with:
@@ -71,6 +79,13 @@ jobs:
         run: |
           & ./portable/windows/build.ps1 -WorkRoot $env:GLOW_WORK_ROOT -Version $env:GLOW_INSTALLER_VERSION -InstallerSmokeTest
 
+      - name: Retain frozen frontend cache after packaging failures
+        if: always() && steps.frontend_cache_restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.GLOW_FRONTEND_TARGET }}
+          key: ${{ steps.frontend_cache_restore.outputs.cache-primary-key }}
+
       - name: Save installer, checksums and build evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -79,5 +94,6 @@ jobs:
           path: |
             ${{ env.GLOW_WORK_ROOT }}/output/**
             ${{ env.GLOW_WORK_ROOT }}/logs/**
+            ${{ env.GLOW_FRONTEND_TARGET }}/x86_64-pc-windows-msvc/release/neovide.exe
           if-no-files-found: warn
           retention-days: 14

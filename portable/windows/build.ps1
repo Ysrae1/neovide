@@ -199,14 +199,14 @@ try {
     $icon = Join-Path $repoRoot 'portable\payload\windows-icon.ico'
     Copy-Item -LiteralPath $icon -Destination (Join-Path $frontendSource 'assets\neovide.ico')
     $frontendTarget = Join-Path $work 'frontend-target'
+    if ($env:GLOW_FRONTEND_TARGET) {
+        $frontendTarget = [IO.Path]::GetFullPath($env:GLOW_FRONTEND_TARGET)
+    }
     $env:CARGO_TARGET_DIR = $frontendTarget
     # Match the existing upstream Windows release build. Native Lua modules keep
     # their own build settings and use the collected release CRT when required.
     $env:RUSTFLAGS = '-Ctarget-feature=+crt-static'
     Invoke-Checked cargo @(('+' + $toolchain), 'build', '--release', '--locked', '--target', 'x86_64-pc-windows-msvc') $frontendSource
-    Invoke-Checked cargo @(('+' + $toolchain), 'test', '--release', '--locked', '--target', 'x86_64-pc-windows-msvc') $frontendSource
-    [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR', $savedEnvironment['CARGO_TARGET_DIR'], 'Process')
-    [Environment]::SetEnvironmentVariable('RUSTFLAGS', $savedEnvironment['RUSTFLAGS'], 'Process')
     $frontend = Join-Path $frontendTarget 'x86_64-pc-windows-msvc\release\neovide.exe'
     if (-not (Test-Path -LiteralPath $frontend -PathType Leaf)) { throw 'The native frontend was not built.' }
     $builder = Join-Path $PSScriptRoot 'build-bundle.py'
@@ -214,6 +214,12 @@ try {
     Invoke-Checked $builderPython ($common + @('--phase', 'prepare'))
     $stage = Join-Path $work 'stage'
     $bin = Join-Path $stage 'bin'
+    # The settings integration test starts a real Neovim process. Use the exact
+    # locked native binary that will ship, rather than the worker's global PATH.
+    $env:PATH = $bin + ';' + $env:PATH
+    Invoke-Checked cargo @(('+' + $toolchain), 'test', '--release', '--locked', '--target', 'x86_64-pc-windows-msvc') $frontendSource
+    [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR', $savedEnvironment['CARGO_TARGET_DIR'], 'Process')
+    [Environment]::SetEnvironmentVariable('RUSTFLAGS', $savedEnvironment['RUSTFLAGS'], 'Process')
     $null = New-Item -ItemType Directory -Path (Join-Path $work 'launchers') -Force
     $applicationManifest = Join-Path $work 'launchers\application.manifest'
     @'

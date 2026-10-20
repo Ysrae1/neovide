@@ -5,6 +5,8 @@
 ## 当前维护状态
 
 - 2026-10-20，Codex：按用户选择准备原生 Windows 离线安装 EXE，新增 `portable/windows/` 与独立 Windows 构建工作流；旧 Mac／WSL 冻结包不改写。原生配置路径、Yazi 私有覆盖层、Notebook 可迁移运行时、GUI／CLI 启动器及字母雨移植已实现，构建与迁移集成仍进行中；尚无完成构建的安装 EXE，不把本机隔离检查视为 Windows 实机通过。本机／portable 共 28 项既有隔离检查已通过。
+- 原生安装器源码 `2458c68` 与工作流修正 `5bd3a59` 已推送，配置适配 `4e14d093` 已推送 `my-config`。Windows 云端运行 [39439856567](https://github.com/Ysrae1/neovide/actions/runs/39439856567) 已完成原生 release 编译；Rust 测试 268 通过、1 项因测试 PATH 尚未准备 Neovim 而失败，安装 EXE 尚未生成。日志 `target/glow-windows-native-assets/first-worker-failed.log`；前一工作流 `runner.temp` 解析错误已修正。
+- Codex 正调整测试顺序并加入编译缓存后重跑；本地 `c60d4e4` 避免复制插件编译缓存、`19228a4` 增加搬迁 Notebook 实际内核执行检查。新增内核检查仅在本机隔离环境通过，Windows 仍待验收；不要重复启动并行构建。
 - 发布页字体修复已上线第 15 版，源码 `a5efa3ca339fbfa8836003fee4a8b8ad5a539925`；自托管 Inter 4.1／Fira Code 6.2 并补齐 Windows 字体回退。线上字体加载、桌面深浅色与 375px 无横向溢出已检查，Windows 真机字体仍待下次连接；证据 `target/glow-site-fonts-20261020-qa/`。此次未修改共同规则。
 
 - 2026-10-20，Codex：Windows 11 x64 冻结版已在实机完成安装与原生 release 构建（最后增量 54.58 秒），源码 `b8b92bcc8f1e7b974e353e21f34f546dcf66bcac`，版本 `nightly-90+gb8b92bc-dirty` 为批准的图标覆盖。测试根 `D:\GlowTest-20261020-182319`；现有启动入口 `App\neovide-b8b92bcc8f1e\Neovide Glow.cmd`／`.ps1`。用户反馈首次 GUI 已打开且显示正常；尚不能据此宣布完整 Windows 验收通过。
