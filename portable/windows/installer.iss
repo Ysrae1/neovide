@@ -63,17 +63,19 @@ Filename: "{app}\Glow.exe"; Description: "Launch Neovide Glow"; WorkingDir: "{us
 ; Fonts added to the user's shared font collection are retained on uninstall.
 [Code]
 const
-  WM_FONTCHANGE = $001D;
-  HWND_BROADCAST = $FFFF;
-  SMTO_ABORTIFHUNG = $0002;
+  GlowWmFontChange = $001D;
+  GlowHwndBroadcast = $FFFF;
+  GlowSmtoAbortIfHung = $0002;
 
-function AddFontResourceEx(FileName: String; Flags: DWORD; Reserved: Integer): Integer;
+function GlowAddFontResourceEx(FileName: String; Flags: DWORD; Reserved: Integer): Integer;
   external 'AddFontResourceExW@gdi32.dll stdcall';
-function SendMessageTimeout(Window: HWND; Message: Cardinal; WParam: WPARAM;
-  LParam: LPARAM; Flags: Cardinal; Timeout: Cardinal; var ResultValue: LRESULT): LRESULT;
+// Inno Setup 6's installer engine is 32-bit, including x64 target installs.
+// Its Pascal Script API does not define the newer WPARAM/LPARAM/LRESULT aliases.
+function GlowSendMessageTimeout(Window: HWND; Message: Cardinal; WParam: LongWord;
+  LParam: LongInt; Flags: Cardinal; Timeout: Cardinal; var ResultValue: LongWord): LongInt;
   external 'SendMessageTimeoutW@user32.dll stdcall';
 
-procedure RegisterUserFont(const Source, FontName: String);
+procedure GlowRegisterUserFont(const Source, FontName: String);
 var
   FontDirectory, Destination, RegistryName, ExistingValue: String;
 begin
@@ -107,14 +109,14 @@ begin
   if not RegWriteStringValue(HKCU,
     'Software\Microsoft\Windows NT\CurrentVersion\Fonts', RegistryName, Destination) then
     RaiseException('Unable to register the per-user font: ' + FontName);
-  AddFontResourceEx(Destination, 0, 0);
+  GlowAddFontResourceEx(Destination, 0, 0);
 end;
 
-procedure InstallUserFonts;
+procedure GlowInstallUserFonts;
 var
   Found: TFindRec;
   Directory, Extension: String;
-  MessageResult: LRESULT;
+  MessageResult: LongWord;
   FontCount: Integer;
 begin
   Directory := ExpandConstant('{app}\fonts');
@@ -130,7 +132,7 @@ begin
           Extension := Lowercase(ExtractFileExt(Found.Name));
           if (Extension = '.ttf') or (Extension = '.otf') then
           begin
-            RegisterUserFont(AddBackslash(Directory) + Found.Name, Found.Name);
+            GlowRegisterUserFont(AddBackslash(Directory) + Found.Name, Found.Name);
             FontCount := FontCount + 1;
           end;
         end;
@@ -141,11 +143,11 @@ begin
   end;
   if FontCount = 0 then
     RaiseException('The offline package does not contain its default font files.');
-  SendMessageTimeout(HWND_BROADCAST, WM_FONTCHANGE, 0, 0,
-    SMTO_ABORTIFHUNG, 1000, MessageResult);
+  GlowSendMessageTimeout(GlowHwndBroadcast, GlowWmFontChange, 0, 0,
+    GlowSmtoAbortIfHung, 1000, MessageResult);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssPostInstall then InstallUserFonts;
+  if CurStep = ssPostInstall then GlowInstallUserFonts;
 end;

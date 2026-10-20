@@ -4,6 +4,8 @@
 
 ## 当前维护状态
 
+- [39462457618](https://github.com/Ysrae1/neovide/actions/runs/39462457618) 已实际复用完整依赖缓存，5分钟完成本轮流程；原生 Windows Yazi 完整生命周期、完整配置／Python host／Molten 注册和真实 Notebook 内核42均通过，最终 Inno6.7.1 编译被常量名称及 Win32 类型别名拦截。安装脚本已统一自定义名称／32位 Setup ABI 类型；官方6.7.1在隔离瓶的完整夹具编译 exit0，记录 `target/glow-inno-671-qa/`，待云端产品包编译及安装卸载检查。
+- 用户新装本机 Parallels27，Windows11 ARM64 虚拟机已运行且可通过当前用户会话执行命令；当前 PATH 有 Git，未找到 Neovim／Rust。用户决定稍后登录桌面，GUI验收待其登录后继续；不记录账户或虚拟机网络信息。
 - Windows 运行 [39458079662](https://github.com/Ysrae1/neovide/actions/runs/39458079662) 仍在 Yazi 验收失败，但63,866文件的完整组装 checkpoint 已保存（压缩约1.16GB）。诊断和隔离 Windows 程序复现确证：Yazi Lua `os.getenv` 将 `YAZI_FILE_ONE` 中的中文读成 `??`；改用 ASCII `file.exe` 并从包内 Unicode PATH 查找后，真实 bridge 的 clear／preview 恢复。启动器与 QA 环境已按此修正，待原生 Windows 缓存运行确认。
 - 同步 UTF-8 overlay 读写（配置 `5ffd624f`），并让 Yazi／完整 profile／实际 Notebook 内核三项独立检查汇总结果后再决定能否打包；原断言保留。隔离 C# 编译、PowerShell 解析与本机 Yazi 生命周期通过，复现证据 `target/glow-windows-native-assets/yazi-mime-probe/result-relocated-bridge-path.txt`；未把 Wine 结果当作实机验收。
 - 2026-10-21，Codex：Windows 运行 [39453410597](https://github.com/Ysrae1/neovide/actions/runs/39453410597) 已通过 Rust 269 项、搬迁启动／profile 初始化、Python 与6个 Mason 命令、7个原生 DLL 加载及14项隔离配置检查；Yazi 能打开但原生图片预览自定义事件未返回，Notebook 内核／安装卸载验收尚未跑到，EXE 未生成。
