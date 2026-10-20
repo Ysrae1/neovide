@@ -4,6 +4,22 @@
 
 ## 当前维护状态
 
+- 2026-10-20，Codex：按用户选择准备原生 Windows 离线安装 EXE，新增 `portable/windows/` 与独立 Windows 构建工作流；旧 Mac／WSL 冻结包不改写。原生配置路径、Yazi 私有覆盖层、Notebook 可迁移运行时、GUI／CLI 启动器及字母雨移植已实现，构建与迁移集成仍进行中；尚无完成构建的安装 EXE，不把本机隔离检查视为 Windows 实机通过。本机／portable 共 28 项既有隔离检查已通过。
+- 发布页字体修复已上线第 15 版，源码 `a5efa3ca339fbfa8836003fee4a8b8ad5a539925`；自托管 Inter 4.1／Fira Code 6.2 并补齐 Windows 字体回退。线上字体加载、桌面深浅色与 375px 无横向溢出已检查，Windows 真机字体仍待下次连接；证据 `target/glow-site-fonts-20261020-qa/`。此次未修改共同规则。
+
+- 2026-10-20，Codex：Windows 11 x64 冻结版已在实机完成安装与原生 release 构建（最后增量 54.58 秒），源码 `b8b92bcc8f1e7b974e353e21f34f546dcf66bcac`，版本 `nightly-90+gb8b92bc-dirty` 为批准的图标覆盖。测试根 `D:\GlowTest-20261020-182319`；现有启动入口 `App\neovide-b8b92bcc8f1e\Neovide Glow.cmd`／`.ps1`。用户反馈首次 GUI 已打开且显示正常；尚不能据此宣布完整 Windows 验收通过。
+- WSL 3.0.3／Ubuntu 24.04 的 WSL2、默认发行版及非 root 检查通过，隔离 stack 为 Linux 用户目录下 `.local/share/neovide-glow/stacks/neovide-glow-20261020-gm1`。工具、插件、Notebook 包与注册、CMatrix headless、56 个冻结 parser 安装及 Mason 阶段完成。Windows BuildTools 17.14.42、Git、CMake、LLVM、Ninja、Rustup 1.29.1／Rust 1.99.1 均就绪；Cargo、Rustup、BuildTools 与输出在测试根，Ubuntu 整体在 D 盘。
+- 本次安装兼容处理：PS5.1 显式传 `-Manifest`／`-InstallRoot`；交互式 VS 安装去掉 `--norestart`；非交互 WSL 会话引入 Rustup 环境，结束恢复会话变量；JSONC 改用 Git 拉同一冻结 revision；Go 模块下载超时以本次进程下载源替代。下载缓存经 Mac 官方文件校验、微信传送后预填，既有应用／冻结发行未改动。初次失败日志保留，不运行旧 `Glow-Prepare.cmd`。
+- Skia 0.153.3 官方预编译包已在目标机使用成功：`Glow-Skia-Windows-0.153.3.tar.gz`，25,098,632 字节，官方 API SHA256 `fff3732ad7c9b9935f9cf3d91cd00c2a704e7e3356365c5472c3bc08fe8e6561`；后续 Cargo 使用本地 `file://D:/GlowTest-20261020-182319/Glow-Skia-Windows-0.153.3.tar.gz`，不要加第三个斜杠或 FORCE 下载变量。构建源码和 target 在 `App\build-b8b92bcc8f1e`，保留以续测。
+- 本地辅助文件统一在 `target/glow-windows-20261020-qa/`。用户要求双击 EXE 入口，已准备 `Install-Glow-Exe.ps1`（PS 解析与内嵌 C# 编译检查通过，真实生成尚待 Windows 执行）；它旁置原生 `Neovide Glow.exe` 并尝试创建桌面快捷方式，不覆盖主程序。`Run-Windows-Checks.ps1` 准备 Windows release Rust 测试与两份配置共 28 项隔离 Lua 检查，使用真实 vendor Neovim ELF；实机测试尚未运行。两脚本打包为 `Glow-Windows-Tools.zip`，待用户传入；真实 GPU、剪贴板、快捷键、LSP、Notebook 执行／图片与 AI 登录等仍待逐项验收。
+- 2026-10-20，Codex：用户反馈嵌入式 Yazi 仍调用 Chafa 并失败；朋友已断开远程，按用户要求停止当天调试。只读排查确认 `image_transport.lua` 将 Linux 图片路径原样传给 Windows 解码器，缺少 WSL 路径转换；Chafa 的直接原因尚待检查目标机原生能力变量及私有 Yazi 覆盖层。此次未改程序／配置／冻结包；下次连接先取这两项实际状态，再修复并验证图片预览。
+
+- 2026-10-20，Codex：发布页下载入口、版本号、首屏日期与部署说明共 14 处引用更新为 `glow-stack-20261020-gm1`；`showcase/main` 提交 `30750352b6acc01f8ca16c082b3708e8e7c5abbe`，Sites 第 14 版部署成功，保留公开访问。实际线上页面已确认新标签与 Mac／Windows ZIP 链接，Windows 仍标记待真机验收；凭据不落盘，部署与截图在 `target/glow-site-20261020-qa/`。
+
+- 2026-10-20，Codex：冻结包 `glow-stack-20261020-gm1` 已在本机 CrossOver 26.2.0 独立测试容器中运行官方 Windows x64 PowerShell 7.4.21；发行文件 SHA256 与微软校验清单一致。`install.ps1 -Plan`／`-Doctor` 均正常退出，正确报告缺失工具与 WSL／Ubuntu，记录 `target/glow-crossover-20261020-qa/`。
+- 本次只验收安装入口与只读诊断；容器不具备 WSL2／MSVC，未执行完整安装、编译或 Glow GUI，不作为 Windows 部署通过。测试命令已退出，独立容器留存；用户既有 CrossOver 容器及冻结发行未改动。
+- 后续完整验收仍需支持 WSL2 的 Windows x64 环境；[Parallels 官方限制](https://kb.parallels.com/en/129497) 当前同样列明 Apple Silicon 上 Windows Arm 虚拟机不支持 WSL2，不能直接替代该验收环境。
+
 - 2026-10-20，Codex：冻结快照 `glow-stack-20261020-gm1`，源码与配置同名标签／新预发布；原生 DMG 源码 `b8b92bcc8f1e7b974e353e21f34f546dcf66bcac`，配置 `22d4852d5f176237b0f76aff14d1519c43879da6`。当前保存的逐类 editor 材质及文字配置已纳入并同步 portable；旧 gm1／gm2／配色标签与发行包保留。
 - 发布资产与核验：`target/releases/glow-stack-20261020-gm1/`；复用用户本次 update 生成的同源码 DMG，SHA256 `e269431fd8b7aa49aa2056767eedf1606efe78b42637a8dda8596690f6ac1975`，实际挂载／arm64／签名／二进制／图标许可通过；ZIP 与单文件安装器各 192 个文件及内嵌校验一致，Mac／WSL 安装计划通过，不安装依赖或启动内核。
 - 本次配置快照两仓库共 28 项隔离检查通过，沿用同一原生源码的 292 项 Rust／clippy／构建及实际 GUI 结果，不重复编译；Windows／旧 macOS／新机联网全安装与既有依赖锁限制保留。新预发布入口 https://github.com/Ysrae1/neovide/releases/tag/glow-stack-20261020-gm1 ，本轮不替换本机安装。

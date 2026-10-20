@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "target": "windows-x64",
+  "base_release": "glow-stack-20261020-gm1",
+  "neovide_commit": "b8b92bcc8f1e7b974e353e21f34f546dcf66bcac",
+  "rust_toolchain": "1.99.1",
+  "assets": {
+    "nvim": {
+      "filename": "nvim-win64.zip",
+      "url": "https://github.com/neovim/neovim/releases/download/v0.12.3/nvim-win64.zip",
+      "sha256": "63daa0a0374f2255d2fb4c0867fcacc64a09c8d7ec1c349f781aff1b8350a8ad",
+      "format": "zip",
+      "binary": "nvim.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 12614820,
+      "version": "0.12.3"
+    },
+    "yazi": {
+      "filename": "yazi-x86_64-pc-windows-msvc.zip",
+      "url": "https://github.com/sxyazi/yazi/releases/download/v26.5.6/yazi-x86_64-pc-windows-msvc.zip",
+      "sha256": "6c6c52a4b2648e179f917bdaa7c57e793d18561b380a8bfa025f10cd1b9b2ad1",
+      "format": "zip",
+      "binary": "yazi.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 13493257,
+      "version": "26.5.6"
+    },
+    "rg": {
+      "filename": "ripgrep-15.2.0-x86_64-pc-windows-msvc.zip",
+      "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-pc-windows-msvc.zip",
+      "sha256": "71b2fef860abe467217a538ff31de02f5258807c0129f771846f87bd029aafc5",
+      "format": "zip",
+      "binary": "rg.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 1789611,
+      "version": "15.2.0"
+    },
+    "fd": {
+      "filename": "fd-v10.4.2-x86_64-pc-windows-msvc.zip",
+      "url": "https://github.com/sharkdp/fd/releases/download/v10.4.2/fd-v10.4.2-x86_64-pc-windows-msvc.zip",
+      "sha256": "b2816e506390a89941c63c9187d58a3cc10e9a55f2ef0685f9ea0eccaf7c98c8",
+      "format": "zip",
+      "binary": "fd.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 1525898,
+      "version": "10.4.2"
+    },
+    "fzf": {
+      "filename": "fzf-0.73.1-windows_amd64.zip",
+      "url": "https://github.com/junegunn/fzf/releases/download/v0.73.1/fzf-0.73.1-windows_amd64.zip",
+      "sha256": "521a974dc32e93404265e55bffaf71a59e05e80abdf8ca4afb21a6030dc76f5f",
+      "format": "zip",
+      "binary": "fzf.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 2149253,
+      "version": "0.73.1"
+    },
+    "lazygit": {
+      "filename": "lazygit_0.62.2_windows_x86_64.zip",
+      "url": "https://github.com/jesseduffield/lazygit/releases/download/v0.62.2/lazygit_0.62.2_windows_x86_64.zip",
+      "sha256": "805bfcb2445273b77a32b7758dfb5d2d8dbd7b80b7336ab868935584a2fad0ba",
+      "format": "zip",
+      "binary": "lazygit.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 7008235,
+      "version": "0.62.2"
+    },
+    "uv": {
+      "filename": "uv-x86_64-pc-windows-msvc.zip",
+      "url": "https://github.com/astral-sh/uv/releases/download/0.11.24/uv-x86_64-pc-windows-msvc.zip",
+      "sha256": "af9573a2e36f7020b18ec5fdde20117aae74bbad3f4acb3dc3fc03319f1aa083",
+      "format": "zip",
+      "binary": "uv.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 23805306,
+      "version": "0.11.24"
+    },
+    "fff": {
+      "filename": "x86_64-pc-windows-msvc.dll",
+      "url": "https://github.com/dmtrKovalenko/fff/releases/download/v0.11.0/x86_64-pc-windows-msvc.dll",
+      "sha256": "f706a44c55b9fce9c854f2dd426e64788ced848e8e1cd8538ad8d9fcdca2fe88",
+      "format": "raw",
+      "binary": "libfff_nvim.dll",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 12020736,
+      "version": "0.11.0"
+    },
+    "tree_sitter": {
+      "filename": "tree-sitter-windows-x64.gz",
+      "url": "https://github.com/tree-sitter/tree-sitter/releases/download/v0.25.3/tree-sitter-windows-x64.gz",
+      "sha256": "35d9608997fcb91842a0951ee26b269b63817af4a0ded81721895838333633f3",
+      "format": "gzip",
+      "binary": "tree-sitter.exe",
+      "checksum_source": "sha256-of-fixed-official-artifact",
+      "download_size": 5462882,
+      "version": "0.25.3"
+    },
+    "git": {
+      "filename": "PortableGit-2.55.0.5-64-bit.7z.exe",
+      "url": "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/PortableGit-2.55.0.5-64-bit.7z.exe",
+      "sha256": "5aa8a20f6e9abb2c755f0e73c91c687701a46b309ad84a0ca6509380fa4ae290",
+      "format": "7zip",
+      "binary": "git.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 58960208,
+      "version": "2.55.0.5"
+    },
+    "python": {
+      "filename": "cpython-3.12.2+20240224-x86_64-pc-windows-msvc-shared-install_only.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20240224/cpython-3.12.2%2B20240224-x86_64-pc-windows-msvc-shared-install_only.tar.gz",
+      "sha256": "1e5655a6ccb1a64a78460e4e3ee21036c70246800f176a6c91043a3fe3654a3b",
+      "format": "tar.gz",
+      "binary": "python.exe",
+      "checksum_source": "official-release-sha256",
+      "download_size": 41212623,
+      "version": "3.12.2"
+    },
+    "java": {
+      "filename": "OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip",
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip",
+      "sha256": "d35f31e712f0fcf6ac5a093edc90204fbff22f720ba3950bd09d331d5e621636",
+      "format": "zip",
+      "binary": "java.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 48999141,
+      "version": "21.0.12.1+1"
+    },
+    "node": {
+      "version": "26.3.1",
+      "filename": "node-v26.3.1-win-x64.zip",
+      "url": "https://nodejs.org/dist/v26.3.1/node-v26.3.1-win-x64.zip",
+      "sha256": "45001b289ebffe7b22260898f3750059183d8246042b88e8ffa4337e65e6763e",
+      "format": "zip",
+      "binary": "node.exe",
+      "checksum_source": "official-node-shasums256"
+    }
+  }
+}

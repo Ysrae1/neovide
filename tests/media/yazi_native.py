@@ -14,7 +14,7 @@ from PIL import Image
 
 def main():
     root = Path(__file__).resolve().parents[2]
-    data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "nvim"
+    data = Path(os.environ["GLOW_TEST_DATA"]) if os.environ.get("GLOW_TEST_DATA") else Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "nvim"
     with tempfile.TemporaryDirectory(prefix="glow-yazi-native-") as temporary:
         work = Path(temporary)
         files = work / "files"

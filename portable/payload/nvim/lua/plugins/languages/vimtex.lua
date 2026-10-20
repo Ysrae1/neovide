@@ -37,6 +37,12 @@ return {
         exe = "/Applications/Skim.app/Contents/SharedSupport/displayline",
         args = { "%line", "%pdf", "%tex" },
       }
+    elseif vim.fn.has("win32") == 1 then
+      -- These are VimTeX's native Windows defaults; Sumatra adds forward search.
+      vim.g.vimtex_view_method = "general"
+      local sumatra = vim.fn.exepath("SumatraPDF")
+      vim.g.vimtex_view_general_viewer = sumatra ~= "" and "SumatraPDF" or 'start ""'
+      vim.g.vimtex_view_general_options = sumatra ~= "" and "-reuse-instance -forward-search @tex @line @pdf" or "@pdf"
     else
       vim.g.vimtex_view_method = "general"
       vim.g.vimtex_view_general_viewer = vim.fn.executable("wslview") == 1 and "wslview" or "xdg-open"

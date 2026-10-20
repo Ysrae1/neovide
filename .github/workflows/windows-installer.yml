@@ -1,0 +1,80 @@
+name: Windows offline installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Four-part Windows installer version
+        required: true
+        default: '2026.10.20.1'
+        type: string
+  push:
+    branches: [glow-preview]
+    paths:
+      - 'portable/windows/**'
+      - '.github/workflows/windows-installer.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-offline-installer-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CARGO_TERM_COLOR: always
+      GLOW_WORK_ROOT: ${{ runner.temp }}\glow-offline-${{ github.run_id }}-${{ github.run_attempt }}
+      GLOW_INSTALLER_VERSION: ${{ inputs.version || '2026.10.20.1' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Select x64 MSVC developer tools
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Prepare locked Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.99.1'
+          targets: x86_64-pc-windows-msvc
+
+      - name: Check preinstalled release-worker tools
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($name in @('git', 'python', 'cl', 'cmake', 'ninja', '7z')) {
+            $null = Get-Command $name -ErrorAction Stop
+          }
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path -LiteralPath $iscc -PathType Leaf)) {
+            throw 'The pinned Windows worker image no longer contains Inno Setup 6.'
+          }
+
+      - name: Compile, assemble and verify offline EXE
+        run: |
+          & ./portable/windows/build.ps1 -WorkRoot $env:GLOW_WORK_ROOT -Version $env:GLOW_INSTALLER_VERSION -InstallerSmokeTest
+
+      - name: Save installer, checksums and build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Neovide-Glow-Windows-x64-offline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.GLOW_WORK_ROOT }}/output/**
+            ${{ env.GLOW_WORK_ROOT }}/logs/**
+          if-no-files-found: warn
+          retention-days: 14
