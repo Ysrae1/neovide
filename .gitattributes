@@ -1,0 +1,2 @@
+# Payload hashes include original line endings, including font notices and patches.
+/portable/payload/** -text

@@ -30,10 +30,12 @@ jobs:
         shell: pwsh
     env:
       CARGO_TERM_COLOR: always
+      PYTHONUTF8: '1'
       GLOW_INSTALLER_VERSION: ${{ inputs.version || '2026.10.20.1' }}
     steps:
       - name: Select isolated build directory
         run: |
+          git config --global core.autocrlf false
           "GLOW_WORK_ROOT=$env:RUNNER_TEMP\glow-offline-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "GLOW_FRONTEND_TARGET=$env:RUNNER_TEMP\glow-frontend-target" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
