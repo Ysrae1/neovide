@@ -100,7 +100,15 @@ internal static class GlowLauncher
         return bundle.StackId;
     }
 
-    private static void CopyTree(string source, string destination)
+    private static string PackagedSourcePath(string root, string path)
+    {
+        string prefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        string full = Path.GetFullPath(path);
+        return full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? full.Substring(prefix.Length).Replace('\\', '/') : "<outside packaged profile>";
+    }
+
+    private static void CopyTree(string source, string destination, string packageRoot)
     {
         DirectoryInfo directory = new DirectoryInfo(source);
         if ((directory.Attributes & FileAttributes.ReparsePoint) != 0)
@@ -113,7 +121,8 @@ internal static class GlowLauncher
             if (file.Name.Equals("auth.json", StringComparison.OrdinalIgnoreCase) ||
                 file.Name.Equals("credentials.json", StringComparison.OrdinalIgnoreCase) ||
                 file.Name.Equals(".env", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("User credentials must not be present in the packaged profile.");
+                throw new InvalidDataException("Credential-like files must not be present in the packaged profile: "
+                    + PackagedSourcePath(packageRoot, file.FullName));
             string target = Path.Combine(destination, file.Name);
             file.CopyTo(target, false);
             File.SetAttributes(target, File.GetAttributes(target) & ~FileAttributes.ReadOnly);
@@ -123,7 +132,7 @@ internal static class GlowLauncher
             if (child.Name.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
                 child.Name.Equals(".codex", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Private or source-control state must not be present in the packaged profile.");
-            CopyTree(child.FullName, Path.Combine(destination, child.Name));
+            CopyTree(child.FullName, Path.Combine(destination, child.Name), packageRoot);
         }
     }
 
@@ -166,8 +175,8 @@ internal static class GlowLauncher
                 Directory.CreateDirectory(parent);
                 staging = profile + ".preparing-" + Guid.NewGuid().ToString("N");
                 Directory.CreateDirectory(staging);
-                CopyTree(ChildPath(installRoot, "profile/config"), Path.Combine(staging, "config"));
-                CopyTree(ChildPath(installRoot, "profile/data"), Path.Combine(staging, "data"));
+                CopyTree(ChildPath(installRoot, "profile/config"), Path.Combine(staging, "config"), installRoot);
+                CopyTree(ChildPath(installRoot, "profile/data"), Path.Combine(staging, "data"), installRoot);
                 // Native Windows Nvim uses the nvim-data suffix for data/state/cache.
                 // The shipped snapshot keeps the shared portable data/nvim layout.
                 Directory.Move(Path.Combine(staging, "data", "nvim"), Path.Combine(staging, "data", "nvim-data"));

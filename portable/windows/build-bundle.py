@@ -251,6 +251,8 @@ class WindowsBundle(Installer):
         self.copy(self.profile / "config", self.stage / "profile/config")
         data = self.stage / "profile/data/nvim"
         data.mkdir(parents=True, exist_ok=True)
+        credential_names = {"auth.json", "credentials.json", ".credentials.json", ".env"}
+        omitted_fixtures = []
         for name in ("lazy", "codex-acp", "mason"):
             source = self.profile_data / name
             if not source.is_dir():
@@ -260,6 +262,14 @@ class WindowsBundle(Installer):
                 ignored = set(shutil.ignore_patterns(".git", "__pycache__", "*.pyc")(directory, entries))
                 if name == "lazy" and Path(directory).parent == source:
                     ignored.add("target")
+                relative = Path(directory).relative_to(source)
+                if name == "lazy" and len(relative.parts) >= 2 and relative.parts[1] in {
+                    "spec", "test", "tests", "testdata", "fixtures"
+                }:
+                    for entry in entries:
+                        if entry.casefold() in credential_names:
+                            ignored.add(entry)
+                            omitted_fixtures.append((Path("profile/data/nvim/lazy") / relative / entry).as_posix())
                 return ignored
 
             shutil.copytree(source, data / name, dirs_exist_ok=True,
@@ -285,8 +295,12 @@ class WindowsBundle(Installer):
             self.need("profile/data/nvim/lazy/nvim-treesitter/parser/" + language + ".so")
         self.run([sys.executable, HERE / "relocate-mason.py", "--stage", self.stage])
         for path in self.stage.rglob("*"):
-            if path.is_symlink() or path.name in ("auth.json", ".credentials.json") or ".git" in path.relative_to(self.stage).parts:
+            if path.is_symlink() or path.name.casefold() in credential_names or any(
+                part.casefold() in {".git", ".codex"} for part in path.relative_to(self.stage).parts
+            ):
                 raise InstallError("Unexpected mutable/private/link content in stage: " + str(path.relative_to(self.stage)))
+        write_json(self.meta / "omitted-test-fixtures.json", {"paths": sorted(omitted_fixtures),
+                   "reason": "Credential-like test fixtures are not needed by installed plugins."})
         write_json(self.stage / "bundle.json", {"schema_version": 1, "stack_id": self.stack_id,
             "neovide_commit": self.lock["neovide_commit"], "native_required": sorted(set(self.required)),
             "tool_paths": ["runtime/python", "runtime/python/Scripts", "runtime/node", "runtime/java/bin", "tools/git/cmd", "tools/git/usr/bin",
