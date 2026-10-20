@@ -61,9 +61,11 @@ environment, registry or driver setting is changed.
 
 The current frontend's transparent pixel-format fallback passed a dedicated
 Parallels system-OpenGL test with the actual Parallels graphics modules, native
-PNG decoding before and after resize, and process cleanup. The new ordinary
-launcher path still needs its own real Windows GUI acceptance; the selection
-regression does not establish visual layout, input or hardware compatibility.
+PNG decoding before and after resize, and process cleanup. The ordinary
+launcher also passed these checks without an explicit OpenGL argument or
+inherited backend environment value; 14 targeted launcher selection cases
+passed on Windows. These checks do not establish complete visual layout, input,
+physical GPU compatibility or measured frame rate.
 
 A separate, per-application Mesa llvmpipe setup with `--opengl` passed the real
 frontend's image, Notebook-image, Yazi and Matrix functional checks. That
