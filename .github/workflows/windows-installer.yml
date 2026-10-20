@@ -13,6 +13,9 @@ on:
     paths:
       - 'portable/windows/**'
       - '.github/workflows/windows-installer.yml'
+      - 'tests/windows*.py'
+      - 'tests/media/yazi_native.py'
+      - 'tests/validate.py'
 
 permissions:
   contents: read

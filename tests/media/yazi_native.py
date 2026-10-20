@@ -12,6 +12,17 @@ import pynvim
 from PIL import Image
 
 
+def lua_string(value):
+    # Lua accepts literal UTF-8, but not JSON's ASCII-only \uXXXX escapes.
+    return json.dumps(str(value), ensure_ascii=False)
+
+
+def same_path(value, expected):
+    if not isinstance(value, str):
+        return False
+    return os.path.normcase(str(Path(value).resolve())) == os.path.normcase(str(Path(expected).resolve()))
+
+
 def main():
     root = Path(__file__).resolve().parents[2]
     data = Path(os.environ["GLOW_TEST_DATA"]) if os.environ.get("GLOW_TEST_DATA") else Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "nvim"
@@ -37,17 +48,17 @@ def main():
         (config_home / "init.lua").write_text("-- User configuration must remain untouched.\n")
         init = work / "init.lua"
         init.write_text("\n".join([
-            "vim.opt.rtp:prepend(" + json.dumps(str(root / "portable/payload/nvim")) + ")",
-            *["vim.opt.rtp:append(" + json.dumps(str(data / "lazy" / plugin)) + ")"
+            "vim.opt.rtp:prepend(" + lua_string(root / "portable/payload/nvim") + ")",
+            *["vim.opt.rtp:append(" + lua_string(data / "lazy" / plugin) + ")"
               for plugin in ["plenary.nvim", "yazi.nvim"]],
             "vim.g.neovide_native_image=true;vim.g.neovide_channel_id=9999;_calls={};_events={}",
             "vim.env.NO_COLOR=nil;vim.env.TERM='xterm-256color';vim.env.COLORTERM='truecolor'" if navigation else "",
             "vim.rpcnotify=function(_,m,...)table.insert(_calls,{m,...});return true end",
             "vim.api.nvim_create_autocmd('User',{pattern='YaziDDSCustom',callback=function(e)table.insert(_events,e.data)end})",
             "vim.api.nvim_create_autocmd('User',{pattern='YaziDDSHover',callback=function(e)_hover=e.data.url end})" if navigation else "",
-            "_opts=require('config.media.yazi').configure({config_home=" + json.dumps(str(config_home)) + ",hooks={on_yazi_ready=function(_,_,api)_api=api end}})",
+            "_opts=require('config.media.yazi').configure({config_home=" + lua_string(config_home) + ",hooks={on_yazi_ready=function(_,_,api)_api=api end}})",
             "require('yazi').setup(_opts)",
-        ]))
+        ]), encoding="utf-8")
         editor = pynvim.attach("child", argv=["nvim", "--embed", "--headless", "-i", "NONE", "-n", "-u", str(init)])
         editor.ui_attach(120, 50, rgb=True)
         try:
@@ -70,19 +81,19 @@ def main():
                 owner_win = editor.current.window.handle
                 assert editor.funcs.mode() == "t", "Yazi must receive terminal input"
                 editor.input("j")
-                wait_until(lambda: editor.exec_lua("return _hover") == str(files / "b-directory"), "j next directory")
+                wait_until(lambda: same_path(editor.exec_lua("return _hover"), files / "b-directory"), "j next directory")
                 editor.input("k")
-                wait_until(lambda: editor.exec_lua("return _hover") == str(files / "a-directory"), "k previous directory")
+                wait_until(lambda: same_path(editor.exec_lua("return _hover"), files / "a-directory"), "k previous directory")
                 editor.input("l")
-                wait_until(lambda: str(files / "a-directory") in editor.current.buffer[0], "l enter directory")
+                wait_until(lambda: same_path(editor.exec_lua("return _hover"), files / "a-directory" / "inner.txt"), "l enter directory")
                 editor.input("h")
-                wait_until(lambda: editor.exec_lua("return _hover") == str(files / "a-directory"), "h parent directory")
+                wait_until(lambda: same_path(editor.exec_lua("return _hover"), files / "a-directory"), "h parent directory")
                 overlay = Path(editor.exec_lua("return _opts.config_home"))
                 rules = tomllib.loads((overlay / "yazi.toml").read_text())["plugin"]["previewers"]
                 assert next(rule for rule in rules if rule.get("url") == "*/")["run"] == "folder"
                 assert any(rule["run"].startswith("neovide-glow-native-preview.") for rule in rules if rule.get("mime") == "image/*")
                 editor.input("G")
-                wait_until(lambda: editor.exec_lua("return _hover") == str(text), "G final text file")
+                wait_until(lambda: same_path(editor.exec_lua("return _hover"), text), "G final text file")
                 editor.input("\r")
                 wait_until(lambda: not editor.api.win_is_valid(owner_win) and Path(editor.current.buffer.name).resolve() == text.resolve(), "Enter opens chosen file")
                 assert editor.current.buffer[:] == ["normal text preview"]
@@ -99,7 +110,7 @@ def main():
             first_id = show[1]
             assert first_id >= 2000000 and show[2]["overlay"]
             status = statuses()[0]
-            assert status["source"] == str(picture)
+            assert same_path(status["source"], picture)
             assert status["region"]["w"] == show[2]["width"]
             # Real Yazi popup layer: rename opens its own dialog inside the
             # terminal, rather than a Neovim floating window.
@@ -108,7 +119,7 @@ def main():
             editor.exec_lua("vim.api.nvim_chan_send(vim.bo[...].channel, string.char(3))", terminal)
             wait_until(lambda: any(call[0] == "neovide.image.load" and call[1] != first_id for call in editor.exec_lua("return _calls")), "popup dismiss restoration")
             editor.exec_lua("_api:reveal(...)", str(second))
-            wait_until(lambda: any(value.get("source") == str(second) and "id" in value for value in statuses()), "second image selection")
+            wait_until(lambda: any(same_path(value.get("source"), second) and "id" in value for value in statuses()), "second image selection")
             editor.exec_lua("_api:reveal(...)", str(text))
             wait_until(lambda: all("id" not in value for value in statuses()), "non-image release")
             assert (config_home / "yazi.toml").read_text() == original_config
