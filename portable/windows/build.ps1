@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <# Build-worker only. Installed users run the resulting offline installer. #>
 [CmdletBinding()]
 param(
@@ -256,7 +256,7 @@ try {
   <application xmlns="urn:schemas-microsoft-com:asm.v3"><windowsSettings><longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware></windowsSettings></application>
 </assembly>
 '@ | Set-Content -LiteralPath $applicationManifest -Encoding UTF8
-    $launcherArgs = @('/nologo', '/optimize+', '/platform:x64', '/r:System.Runtime.Serialization.dll', ('/win32manifest:' + $applicationManifest))
+    $launcherArgs = @('/nologo', '/codepage:65001', '/optimize+', '/platform:x64', '/r:System.Runtime.Serialization.dll', ('/win32manifest:' + $applicationManifest))
     Invoke-Checked $compiler ($launcherArgs + @('/target:winexe', '/r:System.Windows.Forms.dll', ('/win32icon:' + $icon), ('/out:' + (Join-Path $stage 'Glow.exe')), (Join-Path $PSScriptRoot 'launcher\GlowLauncher.cs')))
     $launcherPaths = Join-Path $work 'launchers\WindowsLauncherPaths.exe'
     Invoke-Checked $compiler ($launcherArgs + @('/target:exe', '/main:WindowsLauncherPaths', '/r:System.Windows.Forms.dll', ('/out:' + $launcherPaths), (Join-Path $PSScriptRoot 'launcher\GlowLauncher.cs'), (Join-Path $repoRoot 'tests\windows_launcher_paths.cs')))

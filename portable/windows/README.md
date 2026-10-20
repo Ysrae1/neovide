@@ -37,8 +37,26 @@ The immutable installed payload lives under `%LOCALAPPDATA%\Programs\Neovide Glo
 First launch copies static defaults to a separate versioned profile under
 `%LOCALAPPDATA%\NeovideGlow\profiles`; later launches preserve user changes.
 First-run Notebook registration only writes local metadata and starts no kernel.
+The installer checks its complete payload's path limit before writing files.
+If a destination is too long, choose a shorter folder; user profiles remain
+separate from the application and survive uninstall.
 
 The workflow uploads an unsigned build artifact and evidence; it does not
 automatically publish a release or claim real Windows GPU/GUI acceptance.
 Actual results and remaining acceptance work are recorded in the repository's
 canonical `GLOW.md`.
+
+## Parallels development and graphics acceptance
+
+Windows 11 ARM64 in Parallels can build x64 programs and run the installer and
+headless checks through Windows emulation. It is a separate graphics target
+from a Windows x64 PC. This frozen frontend uses D3D12 by default, while
+[Parallels documents DirectX 11.1 support](https://kb.parallels.com/en/129497).
+On the tested PD 27.0.3 environment, both the default renderer and system
+OpenGL failed even without the Neovim configuration.
+
+A separate, per-application Mesa llvmpipe setup with `--opengl` passed the real
+frontend's image, Notebook-image, Yazi and Matrix functional checks. That
+software renderer is a local development aid, outside this offline installer;
+it does not establish hardware GPU compatibility or performance. Full visual
+layout and manual keyboard/mouse acceptance remain separate checks.
