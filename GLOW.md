@@ -4,10 +4,12 @@
 
 ## 当前维护状态
 
-- 2026-10-21，Codex：候选4已在PD本地编译中，`C:\GlowDev\PackageQA\Candidate-4`、编译器PID13128，启动于20:44 UTC；任务／日志 `root-compile-candidate-4`、`root-compile-status.json`。候选3的安装卸载七阶段及最终六项健康检查均通过（`candidate-installer-1/`），但缺少随后修复的Notebook增量；其825,464,455字节安装包只留在未公开草稿，不可直接发布。下一步待候选4编译结束，执行 `root-candidate-install-checks-2.ps1` 后再决定发布。
+- 2026-10-21，Codex：完整候选4已在PD本地编译并通过安装／卸载七阶段及最终六项运行环境检查（`candidate-installer-3/`，续用`-2`前三个已通过阶段；仅QA sentinel作用域修复）。两次卸载均保留配置，任务自有sentinel已清理；825,413,515字节，SHA256 `fc74b4eac13bd28ba39631b32113d36a5f2b9867a07c22128f27867af7604ed4`，已导出并核对草稿远端digest，仍未公开。用户反馈PD软件绘制帧率低，先处理硬件OpenGL再确定发布内容。
+- 系统WGL独立探针`opengl-probe-result-1`在x64/ARM64均取得Parallels/Metal硬件OpenGL4.3及Core3.3；不要求WGL透明格式可选5项，要求透明时API失败且error0。Windows-only单次不透明格式筛选回退`f4e035b178c42007e44cab412fedfe670491e64d`已推送并同步PD干净源码，保留窗口透明合成设置及默认D3D12；本机renderer检查96通过、1项Metal默认忽略。真实Windows新前端尚未编译，准备脚本`root-build-opengl-frontend-1.ps1`，必须待更新重启结束再启动。
+- 用户另授权Windows更新重启；于完整安装QA结束、新前端开编前安排，状态`windows-update-restart-journal.json`，用户确认仍在安装更新，暂无已登录会话，不能启动前端编译。Mac输入源与快捷键、PD双向同步保持；只关闭Windows额外legacy语言切换键，回执`keyboard-shortcuts-after-1.json`，重启与实际快捷键效果待核对。
 - Notebook整链 `windows-notebook-gui-8` 已通过62.344秒：真实修改41+1得到42、Matplotlib原生PNG、保存源码／计数／输出、关闭内核、同进程重开恢复且marker仍1／磁盘不变；自有GUI与内核均退出。修复覆盖Windows Jupytext双引号、远程桥路径、私有连接目录及sidecar斜杠身份；后者真实Windows旧失败／新通过，输出匹配保护未改。配置 `df6d66f5` 已推送；Stage与仅未改动的QA profile按SHA原子更新，第16版发布页仍仅保存。
 - 2026-10-21，用户授权睡觉期间由Codex接管PD继续环境与安装包验证；周额度剩余≤5%时停止新增工作，保存当前成果、活动任务及恢复步骤，等待用户合适时恢复。额度由主任务在阶段节点统一检查，不自动唤醒。
-- PD 的 Windows 11 ARM64 开发环境已部署至 `C:\GlowDev\Toolchain`：MSVC 14.44／SDK 26100、Rust 1.99.1 x64、LLVM 21.1.8 x64、Python 3.12.10、CMake／Ninja／Inno 6.7.1／Neovim均通过实际烟测（含 C、Rust、C# 编译运行与 x64 libclang 加载）；桌面入口“Glow 开发环境”使用私有工具路径，原 Anaconda／全局 PATH 保留。源码 `C:\GlowDev\neovide-glow` 为公开 bundle 的 `d0e714d`，21个纯换行差异已按原Git字节规范化，未复制Mac认证。
+- PD 的 Windows 11 ARM64 开发环境已部署至 `C:\GlowDev\Toolchain`：MSVC 14.44／SDK 26100、Rust 1.99.1 x64、LLVM 21.1.8 x64、Python 3.12.10、CMake／Ninja／Inno 6.7.1／Neovim均通过实际烟测（含 C、Rust、C# 编译运行与 x64 libclang 加载）；桌面入口“Glow 开发环境”使用私有工具路径，原 Anaconda／全局 PATH 保留。源码 `C:\GlowDev\neovide-glow` 已按公开 bundle 更新至 `f4e035b`，21个纯换行差异已按原Git字节规范化，未复制Mac认证。
 - 当前PD命令由Codex主任务独占；13个空闲历史终端宿主已按PID和创建时间核对后清理，开发终端已实际显示文字。后台任务使用 `C:\GlowDev\Run-GlowTask.exe`，日志／回执在 `target/glow-parallels-20261021-qa/`；系统既有更新和待重启状态未改，不自动重启。
 - PD 的原包短中文目录安装通过；63,866文件／2,965,344,774字节逐文件SHA一致后完整恢复至 `C:\GlowDev\PackageQA\Stage`。随后仅按原SHA核对并原子替换启动器、`lazy.lua`、`image.lua`，各有增量回执并同步manifest。真实Windows路径夹具四项通过；完整版根目录上限68字符，本机默认51字符。候选3在 `C:\GlowDev\PackageQA\Candidate-3` 本地压缩中，回执 `root-compile-candidate-3`／`root-compile-status.json`；候选1/2均因发现真实缺陷主动停止，不能当作构建器异常。
 - PD 实际复测修复：启动器显式IO长路径在系统开关仍为0时通过9项回归（两项链接因无权限跳过）；`installed-health-2` 的初始化／7个原生DLL／内核42与关闭／Yazi生命周期通过。完整配置另暴露字节码缓存273字符路径，配置仅对Windows关闭该磁盘缓存，本机验证后同步portable；`full-profile-cache-fix-receipt.json` 已原断言通过Python host／Molten注册。只更新刚创建且SHA未变的QA profile，其他用户配置不覆盖。
