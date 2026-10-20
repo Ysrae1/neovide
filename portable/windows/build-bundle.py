@@ -252,19 +252,19 @@ class WindowsBundle(Installer):
             source = self.profile_data / name
             if not source.is_dir():
                 raise InstallError("Offline profile is incomplete: " + name)
+
+            def ignore_build_artifacts(directory, entries):
+                ignored = set(shutil.ignore_patterns(".git", "__pycache__", "*.pyc")(directory, entries))
+                if name == "lazy" and Path(directory).parent == source:
+                    ignored.add("target")
+                return ignored
+
             shutil.copytree(source, data / name, dirs_exist_ok=True,
-                            ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"))
+                            ignore=ignore_build_artifacts)
         for plugin in self.plugins:
-            path = data / "lazy" / plugin["name"]
-            target = path / "target"
-            if target.exists():
-                if plugin.get("build_action") == "fff":
-                    dll = (target / "release/libfff_nvim.dll").read_bytes()
-                    shutil.rmtree(target)
-                    (target / "release").mkdir(parents=True)
-                    (target / "release/libfff_nvim.dll").write_bytes(dll)
-                else:
-                    shutil.rmtree(target)
+            if plugin.get("build_action") == "fff":
+                self.copy(self.profile_data / "lazy" / plugin["name"] / "target/release/libfff_nvim.dll",
+                          data / "lazy" / plugin["name"] / "target/release/libfff_nvim.dll")
         self.need("bin/cmatrix-gm.exe")
         self.need("bin/jupytext.exe")
         self.need("bin/latex2text.exe")
