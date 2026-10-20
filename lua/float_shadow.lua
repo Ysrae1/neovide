@@ -1,4 +1,4 @@
--- A composed picker casts one outer shadow. Window-local role mappings retain
+-- A composed popup casts one outer shadow. Window-local role mappings retain
 -- their identity even when linked theme highlights collapse to NormalFloat.
 local api = vim.api
 local previous, queued
@@ -32,6 +32,13 @@ local function refresh()
             children[win], boxes[win] = roles(win)
         end
     end
+    local which_key = package.loaded["which-key.view"]
+    local footer = which_key and which_key.footer and which_key.footer.win
+    local parent = which_key and which_key.view and which_key.view.win
+    if footer and parent and configs[footer] and configs[parent]
+        and configs[footer].relative == "win" and configs[footer].win == parent then
+        children[footer] = true
+    end
     for win, config in pairs(configs) do
         local nested_box = boxes[win] and config.relative == "win" and boxes[config.win]
         if children[win] or nested_box then windows[#windows + 1] = win end
@@ -49,5 +56,7 @@ api.nvim_create_autocmd({ "WinNew", "WinClosed", "WinEnter", "BufWinEnter", "Tab
     group = group, callback = schedule,
 })
 api.nvim_create_autocmd("OptionSet", { group = group, pattern = "winhighlight", callback = schedule })
+-- Some providers suppress window events while constructing a composed popup.
+api.nvim_create_autocmd("User", { group = group, pattern = "NeovideFloatChanged", callback = schedule })
 api.nvim_create_autocmd("TabLeave", { group = group, callback = function() publish({}, false) end })
 schedule()

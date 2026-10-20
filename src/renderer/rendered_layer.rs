@@ -99,8 +99,11 @@ impl FloatingLayer<'_> {
             root_canvas.restore();
         }
 
+        // Float backgrounds carry absolute material alpha, just like editor
+        // cells. Replace the clipped area instead of accumulating another
+        // background over the editor (85% over 85% would become 97.75%).
         let paint =
-            Paint::default().set_anti_alias(false).set_blend_mode(BlendMode::SrcOver).to_owned();
+            Paint::default().set_anti_alias(false).set_blend_mode(BlendMode::Src).to_owned();
 
         let save_layer_rec = SaveLayerRec::default().bounds(&draw_bound_rect).paint(&paint);
 
@@ -288,10 +291,15 @@ fn rect_to_round_rect_path(rect: Rect, settings: &RendererSettings, grid_scale: 
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashMap, sync::Arc};
+
     use crate::{
-        editor::WindowType,
-        renderer::WindowDrawCommand,
+        bridge::GridLineCell,
+        editor::{Colors, DrawCommandBatcher, Style, Window, WindowType},
+        renderer::{DrawCommand, GridRenderer, WindowDrawCommand},
+        settings::Settings,
         units::{GridPos, GridScale, PixelPos, PixelRect, PixelSize},
+        window::WindowSettings,
     };
 
     use super::*;
@@ -310,6 +318,231 @@ mod tests {
         });
         window.grid_current_position = GridPos::new(grid_left as f32, grid_top as f32);
         window
+    }
+
+    fn material_renderer() -> GridRenderer {
+        let settings = Arc::new(Settings::new());
+        settings.set(&RendererSettings::default());
+        settings.set(&WindowSettings { normal_opacity: 0.85, ..WindowSettings::default() });
+        let mut renderer = GridRenderer::new(1.0, settings);
+        renderer.grid_scale = grid_scale();
+        renderer.default_style = Arc::new(Style::new(Colors::new(
+            Some(Color::WHITE.into()),
+            Some(Color::BLACK.into()),
+            None,
+        )));
+        renderer
+    }
+
+    fn material_style(background: Color, blend: u8) -> Style {
+        Style {
+            blend,
+            ..Style::new(Colors::new(Some(Color::WHITE.into()), Some(background.into()), None))
+        }
+    }
+
+    fn material_window(
+        renderer: &mut GridRenderer,
+        id: u64,
+        position: (f64, f64),
+        size: (u64, u64),
+        base: Style,
+        accent: Option<Style>,
+    ) -> RenderedWindow {
+        let mut commands = DrawCommandBatcher::new();
+        let mut editor = Window::new(id, WindowType::Editor, None, position, size, &mut commands);
+        let mut styles = HashMap::from([(1, Arc::new(base))]);
+        for row in 0..size.1 {
+            editor.draw_grid_line(
+                &mut commands,
+                row,
+                0,
+                vec![GridLineCell {
+                    text: " ".into(),
+                    highlight_id: Some(1),
+                    repeat: Some(size.0),
+                }],
+                &styles,
+            );
+        }
+        if let Some(accent) = accent {
+            styles.insert(2, Arc::new(accent));
+            editor.draw_grid_line(
+                &mut commands,
+                1,
+                1,
+                vec![GridLineCell { text: " ".into(), highlight_id: Some(2), repeat: Some(1) }],
+                &styles,
+            );
+        }
+        let mut window = RenderedWindow::new(id);
+        for command in commands.take_commands() {
+            if let DrawCommand::Window { command, .. } = command {
+                window.handle_window_draw_command(command);
+            }
+        }
+        window.grid_current_position = GridPos::new(position.0 as f32, position.1 as f32);
+        window.flush(&RendererSettings::default());
+        window.prepare_lines(renderer, 1.0, true);
+        window
+    }
+
+    #[test]
+    fn floating_material_alpha_replaces_editor_and_parent_in_grouped_and_separate_layers() {
+        use skia_safe::surfaces;
+
+        let mut renderer = material_renderer();
+        let settings = RendererSettings {
+            floating_shadow: false,
+            floating_blur: false,
+            floating_blur_amount_x: 0.0,
+            floating_blur_amount_y: 0.0,
+            ..RendererSettings::default()
+        };
+        let default_background = renderer.get_default_background(0.85);
+        for blend in [100, 60, 15, 0] {
+            for (grouped, blur_amount) in [(true, 0.0), (false, 0.0), (true, 3.0), (false, 3.0)] {
+                let settings = RendererSettings {
+                    floating_blur: blur_amount > 0.0,
+                    floating_blur_amount_x: blur_amount,
+                    floating_blur_amount_y: blur_amount,
+                    ..settings.clone()
+                };
+                let style = material_style(Color::BLUE, blend);
+                let mut parent =
+                    material_window(&mut renderer, 2, (1.0, 1.0), (14, 7), style.clone(), None);
+                let mut child = material_window(&mut renderer, 3, (3.0, 3.0), (5, 2), style, None);
+                let mut surface = surfaces::raster_n32_premul((160, 160)).unwrap();
+                // A real editor already occupies the framebuffer when floats draw.
+                // Its alpha must not accumulate with either popup material.
+                surface.canvas().clear(Color::from_argb(216, 255, 0, 0));
+                if grouped {
+                    FloatingLayer { windows: vec![&mut parent, &mut child] }.draw(
+                        surface.canvas(),
+                        &settings,
+                        default_background,
+                        grid_scale(),
+                        None,
+                        &HashSet::new(),
+                    );
+                } else {
+                    for window in [&mut parent, &mut child] {
+                        FloatingLayer { windows: vec![window] }.draw(
+                            surface.canvas(),
+                            &settings,
+                            default_background,
+                            grid_scale(),
+                            None,
+                            &HashSet::new(),
+                        );
+                    }
+                }
+                let pixels = surface.peek_pixels().unwrap();
+                let expected_alpha = ((100 - blend) as f32 * 2.55).round() as u8;
+                for point in [(16, 40), (32, 56)] {
+                    let actual = pixels.get_color(point);
+                    assert!(
+                        actual.a().abs_diff(expected_alpha) <= 1,
+                        "absolute alpha: blend={blend}, grouped={grouped}, blur={blur_amount}, point={point:?}, actual={actual:?}",
+                    );
+                    if expected_alpha > 0 {
+                        assert_eq!(actual.b(), 255, "editor red must not tint the blue popup");
+                        assert_eq!(actual.r(), 0);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn floating_material_keeps_independent_child_selection_foreground_and_rounded_exterior() {
+        use skia_safe::surfaces;
+
+        let mut renderer = material_renderer();
+        let settings = RendererSettings {
+            floating_shadow: false,
+            floating_blur: false,
+            floating_blur_amount_x: 0.0,
+            floating_blur_amount_y: 0.0,
+            floating_corner_radius: 0.5,
+            ..RendererSettings::default()
+        };
+        let default_background = renderer.get_default_background(0.85);
+        for grouped in [true, false] {
+            let mut parent = material_window(
+                &mut renderer,
+                2,
+                (1.0, 1.0),
+                (14, 7),
+                material_style(Color::BLUE, 15),
+                None,
+            );
+            let accent = Style {
+                // Native reference outlines give a deterministic foreground pixel
+                // without making this compositing regression depend on a font.
+                reference_outline: true,
+                ..Style::new(Colors::new(
+                    Some(Color::GREEN.into()),
+                    Some(Color::YELLOW.into()),
+                    Some(Color::GREEN.into()),
+                ))
+            };
+            let mut child = material_window(
+                &mut renderer,
+                3,
+                (3.0, 3.0),
+                (5, 2),
+                material_style(Color::MAGENTA, 60),
+                Some(accent),
+            );
+            let mut surface = surfaces::raster_n32_premul((160, 160)).unwrap();
+            let backdrop = Color::from_argb(216, 255, 0, 0);
+            surface.canvas().clear(backdrop);
+            if grouped {
+                FloatingLayer { windows: vec![&mut parent, &mut child] }.draw(
+                    surface.canvas(),
+                    &settings,
+                    default_background,
+                    grid_scale(),
+                    None,
+                    &HashSet::new(),
+                );
+            } else {
+                for window in [&mut parent, &mut child] {
+                    FloatingLayer { windows: vec![window] }.draw(
+                        surface.canvas(),
+                        &settings,
+                        default_background,
+                        grid_scale(),
+                        None,
+                        &HashSet::new(),
+                    );
+                }
+            }
+            let pixels = surface.peek_pixels().unwrap();
+            let parent = pixels.get_color((16, 40));
+            assert!(parent.a().abs_diff(217) <= 1);
+            assert_eq!((parent.r(), parent.g(), parent.b()), (0, 0, 255));
+            let child = pixels.get_color((36, 56));
+            assert!(child.a().abs_diff(102) <= 1, "independent child retains 40% alpha");
+            assert_eq!((child.r(), child.g(), child.b()), (255, 0, 255));
+            assert_eq!(
+                pixels.get_color((36, 72)),
+                Color::YELLOW,
+                "semantic selection stays opaque"
+            );
+            assert!(
+                (64..80).any(|y| (32..40).any(|x| pixels.get_color((x, y)) == Color::GREEN)),
+                "foreground decoration must survive the material replacement",
+            );
+            for point in [(8, 16), (7, 48), (120, 128), (150, 150)] {
+                assert_eq!(
+                    pixels.get_color(point),
+                    backdrop,
+                    "rounded clip/exterior must retain the editor at {point:?}, grouped={grouped}",
+                );
+            }
+        }
     }
 
     #[test]

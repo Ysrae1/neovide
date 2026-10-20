@@ -38,6 +38,10 @@ vim.api.nvim_win_close(terminal, true)
 
 vim.g.neovide, vim.g.neovide_normal_opacity = true, .85
 for _, theme in ipairs({ "dark", "light" }) do
+  -- User defaults are editable; establish the policies exercised by this fixture.
+  local profiles = require("config.appearance.popup_materials")
+  for name in pairs(profiles.config) do profiles.config[name] = { mode = "opaque" } end
+  profiles.config.notebook_output = { mode = "editor" }
   local theme_data = require("config.appearance.themes.ayu_" .. theme .. "_customed")
   local colors = theme_data.base_30
   vim.o.background = theme
@@ -129,13 +133,12 @@ for _, theme in ipairs({ "dark", "light" }) do
   assert(vim.api.nvim_get_hl_ns({ winid = clone }) == vim.api.nvim_get_hl_ns({ winid = ordinary })
     and vim.tbl_count(vim.api.nvim_get_namespaces()) == count, "same popup policy allocated another namespace")
   vim.api.nvim_win_close(clone, true)
-  local profiles = require("config.appearance.popup_materials")
   local notebook = floating("molten_output", "Normal:PopupAlias")
   local preview = floating("noice", "Normal:SnacksPickerPreview")
   local manager = floating("lazy", "Normal:PopupAlias")
   helper.apply()
   assert(vim.w[notebook].glow_popup_material.profile == "notebook_output"
-    and window_hl(notebook, "Normal").bg == normal and window_hl(notebook, "Normal").blend == 0,
+    and window_hl(notebook, "Normal").bg == normal and window_hl(notebook, "Normal").blend == 15,
     "Notebook output defaults to editor material")
   assert(vim.w[preview].glow_popup_material.profile == "snacks_picker_preview"
     and window_hl(preview, "Normal").bg == popup, "specific window role precedes reused filetype")
@@ -160,7 +163,7 @@ for _, theme in ipairs({ "dark", "light" }) do
   profiles.config.completion_menu = { mode = "custom", blend = 29 }
   vim.api.nvim_set_hl(0, "Pmenu", { fg = 0x112233, bg = popup })
   helper.apply()
-  assert(window_hl(notebook, "Normal").bg == normal and window_hl(notebook, "Normal").blend == 0
+  assert(window_hl(notebook, "Normal").bg == normal and window_hl(notebook, "Normal").blend == 15
     and hl(0, "Pmenu").bg == popup and hl(0, "Pmenu").blend == 29,
     "editor mode and native Pmenu background policy apply without window blending")
   local body = require("config.appearance.popup_text").config.body
@@ -168,8 +171,12 @@ for _, theme in ipairs({ "dark", "light" }) do
   profiles.reload()
   profiles = require("config.appearance.popup_materials")
   assert(package.loaded[module] ~= old_policy, "first reload must replace a cached older popup policy")
-  assert(profiles.config.notebook_output.mode == "editor" and window_hl(notebook, "Normal").bg == normal
-    and window_hl(manager, "Normal").bg == popup and window_hl(manager, "Normal").blend == 0,
+  local restored_notebook = profiles.resolve("notebook_output", base, popup)
+  local restored_manager = profiles.resolve("lazy", base, popup)
+  assert(window_hl(notebook, "Normal").bg == restored_notebook.bg
+    and window_hl(notebook, "Normal").blend == restored_notebook.blend
+    and window_hl(manager, "Normal").bg == restored_manager.bg
+    and window_hl(manager, "Normal").blend == restored_manager.blend,
     "saved module reload refreshes already open windows through final transparency policy")
   assert(require("config.appearance.popup_text").config.body == body,
     "material reload must not reload or overwrite hand-edited popup text settings")

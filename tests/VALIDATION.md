@@ -23,6 +23,10 @@ Rust 套件先检查格式，再运行 release 测试；`--rust-filter` 可重�
 
 `notebook/output_scroll.lua` 检查实时与保存输出一次聚焦、原地展开、横纵滚动、语义高亮、选择复制及关闭返回，保护源码和原始内联输出。`tests/media/notebook_footer.py` 需要现有 pynvim，以隔离附加 UI 检查溢出提示的条件、端点及布局生命周期；它不证明 Neovide 像素效果。
 
+`notebook/filetype.lua` 开启真实文件类型检测，验证转换后的 Notebook 首次读入、重复读入及窗口重入保持 Python，保留源码／未保存状态／输出；原始 JSON 与普通 Python 不误标。
+
+`tests/media/popup_layers.py` 使用现有 pynvim、Noice/Nui 等插件，在隔离附加 multigrid UI 中检查 Noice／WhichKey／Snacks 各窗口保留自身材质、实际 `hl_attr_define`／`grid_line` 透明度、语义选中块及显示／重开钩子；不打开 GUI 或连接用户会话。这只能验证配置与协议；最终背景 alpha 由 Rust `floating_material_*` 像素回归检查，视觉表现需用新开发构建实际查看。
+
 ## 需要显式准备的检查
 
 胶囊检查覆盖状态栏模式／信息块、Avante 三类标题、媒体控件及 Notebook 顶栏／类型／运行胶囊的浅深主题。`capsule_backgrounds.lua` 检查终端端帽背景、主体颜色保留及 Neovide 隔离；既有 `image_title.lua` 和 `title_capsules.lua` 检查其余端帽、分段、宽度和主题重载。终端修正只去掉端帽的矩形背景，继承所在栏的底材，不改变主题调色板。

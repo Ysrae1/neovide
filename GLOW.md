@@ -4,7 +4,13 @@
 
 ## 当前维护状态
 
-2026-10-19，Codex；本节保存接手所需的当前事实，下面保留功能说明与历史记录。
+- 2026-10-20，Codex：浮窗材质已在独立开发 GUI 修复并实看。根因是 `FloatingLayer` 把浮窗 alpha 再叠到编辑区（85% 变 97.75%），而旧子窗 blend=100 清空了 Noice 父底材；现整层按绝对 alpha 替换，Lua 各窗保留自身 policy，WhichKey footer 只保留外层阴影。配置处理逻辑已同步 portable，两边原有用户材质值与 Ayu 色值未改。
+- 验证：本机／portable 共 28 项隔离检查、两配置真实 Noice／WhichKey／Snacks multigrid 与单外阴影回归、4 项 Rust 浮层像素测试、格式、release all-targets clippy 及独立 release 构建通过。新 GUI 浅深色实看 Noice 外框／留白／输入区一致、WhichKey 独立 opaque／custom／editor 切换及无页脚第二阴影；记录 `target/glow-material-20261020-qa/`。
+- Notebook 原有点击修复已补真实鼠标＋键盘整链验收：初始 Cell 2，分别点击 Out[1] 的正文、图片及留白后按空格 j o，均展开 Out[1]；q 关闭正常。本轮无需再改 Notebook 实现；`target/glow-click-20261020-qa/*-click-expanded.json` 保留窗口／键事件。首次工具残留 Command 导致的非普通点击已排除。
+- 限制／续作：材质修复需要新构建；本轮按用户要求本地提交，配套配置 `6f2ed5ae`，源码／portable／回归与本记录在本次源码提交中。未替换 `/Applications` 或已安装 CLI，未推送或改冻结发行。透明浮窗现在显示共同窗口底层材质，不再叠加被遮盖编辑区的背景；Windows／Linux 与旧 macOS 未实机验收。自有 QA 已停止后可直接打开 `target/glow-material-20261020-qa/Material QA.app` 试用。
+
+- 2026-10-20，Codex：修复 Notebook 合成 `BufReadPost` 被内建 `.ipynb → json` 检测覆盖的问题；事件结束及窗口重入后重新校验已转换的 percent 源码并恢复 Python。本机与 portable 的 `notebook_edit.lua`／`runtime/init.lua` 已同步。
+- 新 `tests/notebook/filetype.lua` 在真实文件类型检测开启时覆盖首次／重复加载、读入／窗口重入、源码及输出保留、原始 JSON 和普通 Python 隔离；两配置单项通过并纳入默认入口。当前用户窗口已恢复 Python parser／高亮，源码 changedtick、未保存状态、Molten 输出及内核保持，热补丁未重载会话。
 
 - Codex，本次原生点击修复：Neovide 原生输出拖选此前消费了鼠标事件，旧 Neovim API 点击检查绕过此层；现于未拖动的释放后串行转发一对点击，拖选复制保持独立。完整输出框命中与文字复制区域分开，覆盖图片、空白和边框，保留浮窗遮挡。
 - 已通过 7 项相关 Rust release 回归、release all-targets clippy 与 release 构建；独立新 GUI 的真实鼠标点击已确认 Cell 2 切至 Out[1] 所属源码格。后续 GUI 按键未打开展开窗，整条操作尚未验收；按用户要求停止新增验证并提交，不作完整通过声明。自有 `target/glow-output-click-qa/start.py` 预览已发出 stop 清理。
