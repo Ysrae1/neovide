@@ -14,6 +14,7 @@ on:
       - 'portable/windows/**'
       - '.github/workflows/windows-installer.yml'
       - 'tests/windows*.py'
+      - 'tests/windows*.cs'
       - 'tests/media/yazi_native.py'
       - 'tests/validate.py'
 

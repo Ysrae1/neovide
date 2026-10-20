@@ -15,6 +15,41 @@ using System.Windows.Forms;
 
 internal static class GlowLauncher
 {
+    static GlowLauncher()
+    {
+        // Application-local .NET 4.8 behavior, never a machine-wide setting.
+        AppContext.SetSwitch("Switch.System.IO.UseLegacyPathHandling", false);
+        AppContext.SetSwitch("Switch.System.IO.BlockLongPaths", false);
+    }
+
+    // Only filesystem calls receive device paths. Explicit Unicode Win32 device
+    // paths do not depend on the user's global LongPathsEnabled registry setting.
+    private static string FileSystemPath(string path)
+    {
+        if (path.StartsWith(@"\\?\", StringComparison.Ordinal)) return path;
+        if (path.StartsWith(@"\\.\", StringComparison.Ordinal))
+            throw new InvalidDataException("Device namespace paths are not permitted.");
+        if (!path.StartsWith(@"\\", StringComparison.Ordinal) &&
+            (path.Length < 3 || !Char.IsLetter(path[0]) || path[1] != ':' || path[2] != '\\'))
+            path = Path.GetFullPath(path);
+        if (path.StartsWith(@"\\", StringComparison.Ordinal)) return @"\\?\UNC\" + path.Substring(2);
+        return @"\\?\" + path;
+    }
+
+    private static string LogicalPath(string path)
+    {
+        if (path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) return @"\\" + path.Substring(8);
+        if (path.StartsWith(@"\\?\", StringComparison.Ordinal)) return path.Substring(4);
+        return path;
+    }
+
+    private static string FullLogicalPath(string path)
+    {
+        // Normalize before adding a device prefix: extended paths deliberately
+        // bypass dot-segment normalization, which ChildPath's escape guard needs.
+        return Path.GetFullPath(LogicalPath(path));
+    }
+
     [DataContract]
     private sealed class BundleMetadata
     {
@@ -51,8 +86,8 @@ internal static class GlowLauncher
     {
         if (String.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative) || relative.IndexOf(':') >= 0)
             throw new InvalidDataException("The bundle contains an invalid relative path.");
-        string full = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
-        string prefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        string full = FullLogicalPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+        string prefix = FullLogicalPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         if (!full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The bundle contains a path outside its installation directory.");
         return full;
@@ -60,7 +95,7 @@ internal static class GlowLauncher
 
     private static T ReadObject<T>(string path) where T : class
     {
-        using (FileStream stream = File.OpenRead(path))
+        using (FileStream stream = File.OpenRead(FileSystemPath(path)))
         {
             T result = new DataContractJsonSerializer(typeof(T)).ReadObject(stream) as T;
             if (result == null) throw new InvalidDataException("Invalid bundle metadata: " + Path.GetFileName(path));
@@ -70,7 +105,7 @@ internal static class GlowLauncher
 
     private static void RequireFile(string path)
     {
-        if (!File.Exists(path))
+        if (!File.Exists(FileSystemPath(path)))
             throw new FileNotFoundException("This installation is incomplete. Please reinstall the complete Neovide Glow package. Missing file: " + path);
     }
 
@@ -88,8 +123,8 @@ internal static class GlowLauncher
             "profile/config/nvim/init.lua", "profile/config/nvim/lazy-lock.json"
         };
         foreach (string relative in basic) RequireFile(ChildPath(root, relative));
-        if (!Directory.Exists(ChildPath(root, "profile/data/nvim/lazy")) ||
-            !Directory.Exists(ChildPath(root, "runtime/python/Lib/site-packages")))
+        if (!Directory.Exists(FileSystemPath(ChildPath(root, "profile/data/nvim/lazy"))) ||
+            !Directory.Exists(FileSystemPath(ChildPath(root, "runtime/python/Lib/site-packages"))))
             throw new InvalidDataException("This installation is missing its packaged plugins or Python dependencies.");
         if (bundle.NativeRequired == null || bundle.NativeRequired.Length == 0)
             throw new InvalidDataException("The bundle does not declare its prebuilt native components.");
@@ -102,18 +137,18 @@ internal static class GlowLauncher
 
     private static string PackagedSourcePath(string root, string path)
     {
-        string prefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        string full = Path.GetFullPath(path);
+        string prefix = FullLogicalPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        string full = FullLogicalPath(path);
         return full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
             ? full.Substring(prefix.Length).Replace('\\', '/') : "<outside packaged profile>";
     }
 
     private static void CopyTree(string source, string destination, string packageRoot)
     {
-        DirectoryInfo directory = new DirectoryInfo(source);
+        DirectoryInfo directory = new DirectoryInfo(FileSystemPath(source));
         if ((directory.Attributes & FileAttributes.ReparsePoint) != 0)
             throw new InvalidDataException("Links are not permitted in the packaged profile: " + directory.Name);
-        Directory.CreateDirectory(destination);
+        Directory.CreateDirectory(FileSystemPath(destination));
         foreach (FileInfo file in directory.GetFiles())
         {
             if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
@@ -122,17 +157,18 @@ internal static class GlowLauncher
                 file.Name.Equals("credentials.json", StringComparison.OrdinalIgnoreCase) ||
                 file.Name.Equals(".env", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Credential-like files must not be present in the packaged profile: "
-                    + PackagedSourcePath(packageRoot, file.FullName));
+                    + PackagedSourcePath(packageRoot, Path.Combine(source, file.Name)));
             string target = Path.Combine(destination, file.Name);
-            file.CopyTo(target, false);
-            File.SetAttributes(target, File.GetAttributes(target) & ~FileAttributes.ReadOnly);
+            file.CopyTo(FileSystemPath(target), false);
+            string targetFile = FileSystemPath(target);
+            File.SetAttributes(targetFile, File.GetAttributes(targetFile) & ~FileAttributes.ReadOnly);
         }
         foreach (DirectoryInfo child in directory.GetDirectories())
         {
             if (child.Name.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
                 child.Name.Equals(".codex", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Private or source-control state must not be present in the packaged profile.");
-            CopyTree(child.FullName, Path.Combine(destination, child.Name), packageRoot);
+            CopyTree(Path.Combine(source, child.Name), Path.Combine(destination, child.Name), packageRoot);
         }
     }
 
@@ -140,8 +176,8 @@ internal static class GlowLauncher
     {
         string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (String.IsNullOrWhiteSpace(local)) throw new InvalidOperationException("The Windows user data directory is unavailable.");
-        string root = Path.GetFullPath(Path.Combine(local, "NeovideGlow", "profiles", stack));
-        string installation = Path.GetFullPath(installRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        string root = FullLogicalPath(Path.Combine(local, "NeovideGlow", "profiles", stack));
+        string installation = FullLogicalPath(installRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         if ((root + Path.DirectorySeparatorChar).StartsWith(installation, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The writable profile cannot be inside the application installation.");
         return root;
@@ -162,37 +198,37 @@ internal static class GlowLauncher
                 catch (AbandonedMutexException) { acquired = true; }
                 if (!acquired) throw new InvalidOperationException("Another Neovide Glow window is preparing this profile. Please try again shortly.");
                 string marker = Path.Combine(profile, ".glow-profile.json");
-                if (Directory.Exists(profile))
+                if (Directory.Exists(FileSystemPath(profile)))
                 {
-                    if (!File.Exists(marker))
+                    if (!File.Exists(FileSystemPath(marker)))
                         throw new InvalidOperationException("An existing unrecognized profile was preserved: " + profile);
                     ProfileMetadata current = ReadObject<ProfileMetadata>(marker);
                     if (current.SchemaVersion != 1 || !String.Equals(current.StackId, stack, StringComparison.Ordinal))
                         throw new InvalidDataException("The existing profile belongs to a different release and was preserved.");
                     return;
                 }
-                string parent = Path.GetDirectoryName(profile);
-                Directory.CreateDirectory(parent);
+                string parent = LogicalPath(Path.GetDirectoryName(FileSystemPath(profile)));
+                Directory.CreateDirectory(FileSystemPath(parent));
                 staging = profile + ".preparing-" + Guid.NewGuid().ToString("N");
-                Directory.CreateDirectory(staging);
+                Directory.CreateDirectory(FileSystemPath(staging));
                 CopyTree(ChildPath(installRoot, "profile/config"), Path.Combine(staging, "config"), installRoot);
                 CopyTree(ChildPath(installRoot, "profile/data"), Path.Combine(staging, "data"), installRoot);
                 // Native Windows Nvim uses the nvim-data suffix for data/state/cache.
                 // The shipped snapshot keeps the shared portable data/nvim layout.
-                Directory.Move(Path.Combine(staging, "data", "nvim"), Path.Combine(staging, "data", "nvim-data"));
-                Directory.CreateDirectory(Path.Combine(staging, "state"));
-                Directory.CreateDirectory(Path.Combine(staging, "cache"));
+                Directory.Move(FileSystemPath(Path.Combine(staging, "data", "nvim")), FileSystemPath(Path.Combine(staging, "data", "nvim-data")));
+                Directory.CreateDirectory(FileSystemPath(Path.Combine(staging, "state")));
+                Directory.CreateDirectory(FileSystemPath(Path.Combine(staging, "cache")));
                 ProfileMetadata record = new ProfileMetadata();
                 record.SchemaVersion = 1;
                 record.StackId = stack;
-                using (FileStream stream = File.Create(Path.Combine(staging, ".glow-profile.json")))
+                using (FileStream stream = File.Create(FileSystemPath(Path.Combine(staging, ".glow-profile.json"))))
                     new DataContractJsonSerializer(typeof(ProfileMetadata)).WriteObject(stream, record);
-                Directory.Move(staging, profile);
+                Directory.Move(FileSystemPath(staging), FileSystemPath(profile));
                 staging = null;
             }
             finally
             {
-                if (staging != null && Directory.Exists(staging)) Directory.Delete(staging, true);
+                if (staging != null && Directory.Exists(FileSystemPath(staging))) Directory.Delete(FileSystemPath(staging), true);
                 if (acquired) mutex.ReleaseMutex();
             }
         }
@@ -211,22 +247,23 @@ internal static class GlowLauncher
             foreach (string entry in bundle.ToolPaths)
             {
                 string selectedPath = ChildPath(root, entry);
-                if (!Directory.Exists(selectedPath)) throw new DirectoryNotFoundException("A packaged tool directory is missing: " + selectedPath);
+                if (!Directory.Exists(FileSystemPath(selectedPath))) throw new DirectoryNotFoundException("A packaged tool directory is missing: " + selectedPath);
                 paths.Add(selectedPath);
             }
         }
         else
         {
             string tools = ChildPath(root, "tools");
-            if (Directory.Exists(tools))
+            if (Directory.Exists(FileSystemPath(tools)))
             {
                 paths.Add(tools);
-                string[] directories = Directory.GetDirectories(tools);
+                string[] directories = Directory.GetDirectories(FileSystemPath(tools));
                 Array.Sort(directories, StringComparer.OrdinalIgnoreCase);
-                foreach (string directory in directories)
+                foreach (string directoryPath in directories)
                 {
+                    string directory = LogicalPath(directoryPath);
                     paths.Add(directory);
-                    if (Directory.Exists(Path.Combine(directory, "bin"))) paths.Add(Path.Combine(directory, "bin"));
+                    if (Directory.Exists(FileSystemPath(Path.Combine(directory, "bin")))) paths.Add(Path.Combine(directory, "bin"));
                 }
             }
         }
@@ -241,7 +278,7 @@ internal static class GlowLauncher
         bool headless = args.Length == 1 && (args[0] == "--launcher-check" || args[0] == "--initialize-profile");
         try
         {
-            string root = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+            string root = FullLogicalPath(AppDomain.CurrentDomain.BaseDirectory);
             BundleMetadata bundle;
             string stack = ValidateBundle(root, out bundle);
             if (args.Length == 1 && args[0] == "--launcher-check") return 0;
@@ -258,7 +295,7 @@ internal static class GlowLauncher
             arguments.Add("--neovim-bin");
             arguments.Add(ChildPath(root, "bin/nvim.exe"));
             string icon = ChildPath(root, "neovide.ico");
-            if (File.Exists(icon)) { arguments.Add("--icon"); arguments.Add(icon); }
+            if (File.Exists(FileSystemPath(icon))) { arguments.Add("--icon"); arguments.Add(icon); }
             arguments.AddRange(args);
             List<string> quoted = arguments.ConvertAll<string>(Quote);
             start.Arguments = String.Join(" ", quoted.ToArray());

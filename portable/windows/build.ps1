@@ -66,7 +66,8 @@ function Quote-WindowsArgument {
 function Invoke-Bounded {
     param(
         [string]$File, [string[]]$Arguments = @(), [hashtable]$Environment = @{},
-        [string]$Directory, [int]$TimeoutSeconds = 120, [string]$LogName = 'check'
+        [string]$Directory, [int]$TimeoutSeconds = 120, [string]$LogName = 'check',
+        [int[]]$AcceptedExitCodes = @(0)
     )
     $start = New-Object Diagnostics.ProcessStartInfo
     $start.FileName = $File
@@ -102,7 +103,7 @@ function Invoke-Bounded {
         $text = $stdout.GetAwaiter().GetResult() + $stderr.GetAwaiter().GetResult()
         [IO.File]::WriteAllText((Join-Path $logs ($LogName + '.log')), $text, (New-Object Text.UTF8Encoding($false)))
         if ($text) { Write-Host $text.TrimEnd() }
-        if ($process.ExitCode -ne 0) { throw ('Check failed (' + $process.ExitCode + '): ' + $LogName) }
+        if ($AcceptedExitCodes -notcontains $process.ExitCode) { throw ('Check failed (' + $process.ExitCode + '): ' + $LogName) }
     }
     finally { $process.Dispose() }
 }
@@ -257,6 +258,9 @@ try {
 '@ | Set-Content -LiteralPath $applicationManifest -Encoding UTF8
     $launcherArgs = @('/nologo', '/optimize+', '/platform:x64', '/r:System.Runtime.Serialization.dll', ('/win32manifest:' + $applicationManifest))
     Invoke-Checked $compiler ($launcherArgs + @('/target:winexe', '/r:System.Windows.Forms.dll', ('/win32icon:' + $icon), ('/out:' + (Join-Path $stage 'Glow.exe')), (Join-Path $PSScriptRoot 'launcher\GlowLauncher.cs')))
+    $launcherPaths = Join-Path $work 'launchers\WindowsLauncherPaths.exe'
+    Invoke-Checked $compiler ($launcherArgs + @('/target:exe', '/main:WindowsLauncherPaths', '/r:System.Windows.Forms.dll', ('/out:' + $launcherPaths), (Join-Path $PSScriptRoot 'launcher\GlowLauncher.cs'), (Join-Path $repoRoot 'tests\windows_launcher_paths.cs')))
+    Invoke-Bounded $launcherPaths @((Join-Path $work 'qa\launcher-paths')) @{} $work 120 'launcher-path-regression'
     $tool = Join-Path $work 'launchers\GlowTool.exe'
     Invoke-Checked $compiler ($launcherArgs + @('/target:exe', ('/out:' + $tool), (Join-Path $PSScriptRoot 'launcher\GlowTool.cs')))
     $runtimeConfig = '<configuration><startup><supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.8" /></startup><runtime><AppContextSwitchOverrides value="Switch.System.IO.UseLegacyPathHandling=false;Switch.System.IO.BlockLongPaths=false" /></runtime></configuration>'
@@ -351,7 +355,18 @@ vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = function() vim
     if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw 'ISCC did not create the offline installer.' }
     $installerSmoke = 'not_requested'
     if ($InstallerSmokeTest) {
-        $installed = Join-Path $work "qa\Installed 中文 O'Connor\Neovide Glow"
+        # Keep the successful installation below Inno 6's complete-payload path
+        # limit; Unicode/space/apostrophe handling is independent of root length.
+        $installerQaRoot = Join-Path ([IO.Path]::GetPathRoot($work)) ('GlowInstallerQA-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+        if (Test-Path -LiteralPath $installerQaRoot) { throw 'The installer QA path already exists and was preserved.' }
+        $installed = Join-Path $installerQaRoot "Installed 中文 O'Connor\Glow"
+        $overlongInstalled = Join-Path $installerQaRoot ('Too-long-' + ('x' * 120))
+        $overlongLog = Join-Path $logs 'installer-overlong-path.log'
+        Invoke-Bounded $installer @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR=' + $overlongInstalled), ('/LOG=' + $overlongLog)) @{} $work 60 'installer-overlong-path' @(1, 7)
+        if ((Test-Path -LiteralPath $overlongInstalled) -or
+            -not [IO.File]::ReadAllText($overlongLog).Contains('Glow path preflight: rejected before installation')) {
+            throw 'The installer did not safely refuse the overlong destination before writing its payload.'
+        }
         $fixture = Join-Path $profile 'config\nvim\ci-preserved-user-file.txt'
         [IO.File]::WriteAllText($fixture, 'This user-profile fixture must survive uninstall.')
         $fixtureHash = (Get-FileHash -LiteralPath $fixture -Algorithm SHA256).Hash
@@ -362,6 +377,7 @@ vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = function() vim
             throw 'The user-profile preservation check failed after uninstall.'
         }
         if (Test-Path -LiteralPath (Join-Path $installed 'Glow.exe')) { throw 'The uninstaller retained the installed application executable.' }
+        if (Test-Path -LiteralPath $installerQaRoot) { Remove-Item -LiteralPath $installerQaRoot -Recurse -Force }
         $installerSmoke = 'passed_user_profile_preserved'
     }
     $checksum = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()

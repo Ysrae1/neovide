@@ -75,6 +75,43 @@ vim.api.nvim_buf_set_name(plugin, work .. '/plugin.pdf')
 vim.api.nvim_set_current_buf(plugin)
 settle()
 assert(vim.api.nvim_get_current_buf() == plugin, 'plugin scratch windows are excluded')
+
+-- A notification float does not make it legal to close the last ordinary window.
+vim.cmd('tabonly!')
+vim.cmd('only!')
+local editor_win = vim.api.nvim_get_current_win()
+local notification_buf = vim.api.nvim_create_buf(false, true)
+vim.bo[notification_buf].filetype = 'noice'
+vim.api.nvim_buf_set_lines(notification_buf, 0, -1, false, { 'Image decode failed' })
+local notification_win = vim.api.nvim_open_win(notification_buf, false,
+  { relative = 'editor', row = 1, col = 1, width = 24, height = 1, focusable = false })
+local image_preview = require('config.media.image')
+assert(image_preview.open(image))
+local closed, close_error = pcall(image_preview.close)
+assert(closed, 'Closing the last ordinary image window with a notification must succeed: ' .. tostring(close_error))
+settle()
+assert(vim.api.nvim_win_is_valid(editor_win) and vim.api.nvim_win_is_valid(notification_win),
+  'Keep both the only editor window and the unrelated notification')
+assert(vim.api.nvim_get_current_win() == editor_win and vim.bo.buftype == '' and vim.bo.modifiable,
+  'Return the surviving editor window to an editable buffer')
+vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'Editor remains usable after closing image' })
+vim.bo.modified = false
+local editor_buf = vim.api.nvim_get_current_buf()
+
+-- A second ordinary split still permits closing only the preview window.
+vim.cmd('vsplit')
+local preview_win = vim.api.nvim_get_current_win()
+assert(preview_win ~= editor_win and image_preview.open(image))
+image_preview.close()
+settle()
+assert(not vim.api.nvim_win_is_valid(preview_win), 'Close the image split when another ordinary window exists')
+assert(vim.api.nvim_win_is_valid(editor_win) and vim.api.nvim_win_is_valid(notification_win),
+  'Closing the preview split preserves the editor and its notification')
+assert(vim.api.nvim_win_get_buf(editor_win) == editor_buf
+  and vim.api.nvim_buf_get_lines(editor_buf, 0, 1, false)[1] == 'Editor remains usable after closing image',
+  'The other ordinary split keeps its usable buffer')
+vim.api.nvim_win_close(notification_win, true)
+vim.api.nvim_buf_delete(notification_buf, { force = true })
 vim.fn.delete(work, 'rf')
-print('Dashboard/picker binary routing, protected files, stale opens, source readers: PASS')
+print('Dashboard/picker binary routing, protected files, stale opens, source readers, image close with notification: PASS')
 vim.cmd.qa()

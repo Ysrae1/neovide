@@ -4,8 +4,15 @@
 
 ## 当前维护状态
 
+- 2026-10-21，用户授权睡觉期间由Codex接管PD继续环境与安装包验证；周额度剩余≤5%时停止新增工作，保存当前成果、活动任务及恢复步骤，等待用户合适时恢复。额度由主任务在阶段节点统一检查，不自动唤醒。
+- PD 的 Windows 11 ARM64 开发环境已部署至 `C:\GlowDev\Toolchain`：MSVC 14.44／SDK 26100、Rust 1.99.1 x64、LLVM 21.1.8 x64、Python 3.12.10、CMake／Ninja／Inno 6.7.1／Neovim均通过实际烟测（含 C、Rust、C# 编译运行与 x64 libclang 加载）；桌面入口“Glow 开发环境”使用私有工具路径，原 Anaconda／全局 PATH 保留。源码 `C:\GlowDev\neovide-glow` 为公开 bundle 的 `d0e714d`，21个纯换行差异已按原Git字节规范化，未复制Mac认证。
+- 当前PD命令由Codex主任务独占；13个空闲历史终端宿主已按PID和创建时间核对后清理，开发终端已实际显示文字。后台任务使用 `C:\GlowDev\Run-GlowTask.exe`，日志／回执在 `target/glow-parallels-20261021-qa/`；系统既有更新和待重启状态未改，不自动重启。
+- PD 的原包短中文目录安装通过；63,866文件／2,965,344,774字节逐文件SHA一致后完整恢复至 `C:\GlowDev\PackageQA\Stage`。随后仅按原SHA核对并原子替换启动器、`lazy.lua`、`image.lua`，各有增量回执并同步manifest。真实Windows路径夹具四项通过；完整版根目录上限68字符，本机默认51字符。候选3在 `C:\GlowDev\PackageQA\Candidate-3` 本地压缩中，回执 `root-compile-candidate-3`／`root-compile-status.json`；候选1/2均因发现真实缺陷主动停止，不能当作构建器异常。
+- PD 实际复测修复：启动器显式IO长路径在系统开关仍为0时通过9项回归（两项链接因无权限跳过）；`installed-health-2` 的初始化／7个原生DLL／内核42与关闭／Yazi生命周期通过。完整配置另暴露字节码缓存273字符路径，配置仅对Windows关闭该磁盘缓存，本机验证后同步portable；`full-profile-cache-fix-receipt.json` 已原断言通过Python host／Molten注册。只更新刚创建且SHA未变的QA profile，其他用户配置不覆盖。
+- `image.close()` 已修复把Noice浮窗计入普通窗而报E444，新增真实浮窗定向回归；本机／portable共28项检查通过，配置提交 `665a31f1`。`windows-gui-1` 曾实际解码中文／空格／apostrophe PNG 960×640；正式Launcher的GUI3及不加载配置／插件的最小对照均在D3D12 ResizeBuffers报0x887A0005，GUI4／最小OpenGL也建窗失败，完整GUI未通过。宿主PD27.0.3、虚拟显卡驱动状态OK；[官方支持范围](https://kb.parallels.com/en/129497)到DirectX11.1，不能单独据此归责驱动。自有GUI已清理，后续仅试独立软件OpenGL诊断，不覆盖系统驱动／Stage／冻结前端；第16版仍不部署。
+- [39464264245](https://github.com/Ysrae1/neovide/actions/runs/39464264245) 已通过功能验收并生成完整EXE（Inno压缩970秒），实际安装检查exit5，尚不能发布；原因已定位为262字符目标路径使Inno MoveFile报code3。839MB artifact已完整下载／解包至 `target/glow-windows-native-assets/worker-39464264245`，EXE825,409,484字节；原ZIP保留 `target/glow-windows-native-assets/artifact-39464264245.zip`。后续优先PD本地验证短目录安装及路径检查修复，不再启动新的云端构建。
+- 发布页第16版仅保存未部署：源码 `d56237c81e1d7100b04718ef4994dbfb5dc5468a`，Windows入口已准备指向计划中的原生预览包；源码包 `target/glow-site-windows-native-20261021-qa/site-artifact.tar.gz`。须等EXE安装验收并实际发布后才能部署；当前线上仍第15版字体修复。
 - [39462457618](https://github.com/Ysrae1/neovide/actions/runs/39462457618) 已实际复用完整依赖缓存，5分钟完成本轮流程；原生 Windows Yazi 完整生命周期、完整配置／Python host／Molten 注册和真实 Notebook 内核42均通过，最终 Inno6.7.1 编译被常量名称及 Win32 类型别名拦截。安装脚本已统一自定义名称／32位 Setup ABI 类型；官方6.7.1在隔离瓶的完整夹具编译 exit0，记录 `target/glow-inno-671-qa/`，待云端产品包编译及安装卸载检查。
-- 用户新装本机 Parallels27，Windows11 ARM64 虚拟机已运行且可通过当前用户会话执行命令；当前 PATH 有 Git，未找到 Neovim／Rust。用户决定稍后登录桌面，GUI验收待其登录后继续；不记录账户或虚拟机网络信息。
 - Windows 运行 [39458079662](https://github.com/Ysrae1/neovide/actions/runs/39458079662) 仍在 Yazi 验收失败，但63,866文件的完整组装 checkpoint 已保存（压缩约1.16GB）。诊断和隔离 Windows 程序复现确证：Yazi Lua `os.getenv` 将 `YAZI_FILE_ONE` 中的中文读成 `??`；改用 ASCII `file.exe` 并从包内 Unicode PATH 查找后，真实 bridge 的 clear／preview 恢复。启动器与 QA 环境已按此修正，待原生 Windows 缓存运行确认。
 - 同步 UTF-8 overlay 读写（配置 `5ffd624f`），并让 Yazi／完整 profile／实际 Notebook 内核三项独立检查汇总结果后再决定能否打包；原断言保留。隔离 C# 编译、PowerShell 解析与本机 Yazi 生命周期通过，复现证据 `target/glow-windows-native-assets/yazi-mime-probe/result-relocated-bridge-path.txt`；未把 Wine 结果当作实机验收。
 - 2026-10-21，Codex：Windows 运行 [39453410597](https://github.com/Ysrae1/neovide/actions/runs/39453410597) 已通过 Rust 269 项、搬迁启动／profile 初始化、Python 与6个 Mason 命令、7个原生 DLL 加载及14项隔离配置检查；Yazi 能打开但原生图片预览自定义事件未返回，Notebook 内核／安装卸载验收尚未跑到，EXE 未生成。

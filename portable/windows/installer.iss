@@ -13,6 +13,41 @@
   #error StageDir is missing the compiled launcher or bundle metadata.
 #endif
 
+; Inno Setup 6 does not consistently support extended-length destination paths.
+; Measure this exact payload instead of allowing extraction to fail halfway through.
+#define GlowMaxRelativeFile 0
+#define GlowMaxRelativeDirectory 0
+#define GlowDirectoryCount 1
+#define GlowDirectoryIndex 0
+#define GlowFindHandle 0
+#define GlowFindResult 0
+#define GlowEntryName ""
+#define GlowRelativeName ""
+#dim public GlowDirectories[1] {""}
+#sub GlowMeasureEntry
+  #expr GlowEntryName = FindGetFileName(GlowFindHandle)
+  #if GlowEntryName != "." && GlowEntryName != ".."
+    #expr GlowRelativeName = GlowDirectories[GlowDirectoryIndex] + GlowEntryName
+    #if DirExists(StageDir + "\" + GlowRelativeName)
+      #if Len(GlowRelativeName) > GlowMaxRelativeDirectory
+        #expr GlowMaxRelativeDirectory = Len(GlowRelativeName)
+      #endif
+      #redim public GlowDirectories[GlowDirectoryCount + 1]
+      #expr GlowDirectories[GlowDirectoryCount] = GlowRelativeName + "\"
+      #expr GlowDirectoryCount++
+    #elif Len(GlowRelativeName) > GlowMaxRelativeFile
+      #expr GlowMaxRelativeFile = Len(GlowRelativeName)
+    #endif
+  #endif
+#endsub
+#sub GlowMeasureDirectory
+  #for {GlowFindHandle = GlowFindResult = FindFirst(StageDir + "\" + GlowDirectories[GlowDirectoryIndex] + "*", faAnyFile); GlowFindResult; GlowFindResult = FindNext(GlowFindHandle)} GlowMeasureEntry
+  #if GlowFindHandle
+    #expr FindClose(GlowFindHandle)
+  #endif
+#endsub
+#for {GlowDirectoryIndex = 0; GlowDirectoryIndex < GlowDirectoryCount; GlowDirectoryIndex++} GlowMeasureDirectory
+
 [Setup]
 AppId={{273E54EB-BD13-49D8-B56D-0860903BA699}
 AppName=Neovide Glow
@@ -66,6 +101,50 @@ const
   GlowWmFontChange = $001D;
   GlowHwndBroadcast = $FFFF;
   GlowSmtoAbortIfHung = $0002;
+  GlowMaxRelativeFile = {#GlowMaxRelativeFile};
+  GlowMaxRelativeDirectory = {#GlowMaxRelativeDirectory};
+
+function GlowCheckInstallDirectory(const Directory: String): String;
+var
+  RootLength, MaximumRootLength: Integer;
+begin
+  Result := '';
+  MaximumRootLength := 259 - 1 - GlowMaxRelativeFile;
+  { Inno 6 creates a 17-character is-XXXXXXXXXX.tmp in each destination directory. }
+  if 259 - 1 - GlowMaxRelativeDirectory - 18 < MaximumRootLength then
+    MaximumRootLength := 259 - 1 - GlowMaxRelativeDirectory - 18;
+  RootLength := Length(RemoveBackslashUnlessRoot(Directory));
+  if RootLength > MaximumRootLength then
+  begin
+    Result := 'This installation folder is too long for the complete offline package. ' +
+      'Choose a shorter folder, such as C:\Glow. The folder path must contain at most ' +
+      IntToStr(MaximumRootLength) + ' characters; the selected path contains ' +
+      IntToStr(RootLength) + '.';
+    Log('Glow path preflight: rejected before installation; folder length=' +
+      IntToStr(RootLength) + ', maximum=' + IntToStr(MaximumRootLength));
+  end;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Error: String;
+begin
+  Result := True;
+  if CurPageID = wpSelectDir then
+  begin
+    Error := GlowCheckInstallDirectory(WizardDirValue);
+    if Error <> '' then
+    begin
+      if not WizardSilent then MsgBox(Error, mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := GlowCheckInstallDirectory(ExpandConstant('{app}'));
+end;
 
 function GlowAddFontResourceEx(FileName: String; Flags: DWORD; Reserved: Integer): Integer;
   external 'AddFontResourceExW@gdi32.dll stdcall';
