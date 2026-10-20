@@ -4,6 +4,10 @@
 
 ## 当前维护状态
 
+- 2026-10-20，Codex：接续用户 `neovide-update` 停下的合并，整合官方 `86227b8`（macOS 分屏原生滚动条）；8 个冲突文件与自动合并的 `Window::position_tiled` 接口已处理，保留 Glow／Notebook／Liquid Glass 与刚修复的浮窗材质，文字网格尺寸仍仅由 grid_resize 更新。滚动条默认关闭，用户配置仓库未改。
+- 本次合并验证：Apple Silicon release Rust 292 通过、1 个 Metal 测试照常忽略；格式、release all-targets clippy、独立 release 构建通过。新 GUI 启动／Noice 材质实看正常；临时启用原生滚动条，实际拖动右侧仅滚动右分屏（topline 71），左分屏保持 1，随后恢复关闭。日志与窗口快照 `target/glow-upstream-20261020-qa/`。
+- 合并按本轮授权在本地提交，不替换已安装 App／CLI，不推送或改冻结发行；自有 QA 进程已停止。完成后可由用户重新运行 `neovide-update` 继续原有更新安装流程；跨平台及旧 macOS 未新增实机验收。
+
 - 2026-10-20，Codex：浮窗材质已在独立开发 GUI 修复并实看。根因是 `FloatingLayer` 把浮窗 alpha 再叠到编辑区（85% 变 97.75%），而旧子窗 blend=100 清空了 Noice 父底材；现整层按绝对 alpha 替换，Lua 各窗保留自身 policy，WhichKey footer 只保留外层阴影。配置处理逻辑已同步 portable，两边原有用户材质值与 Ayu 色值未改。
 - 验证：本机／portable 共 28 项隔离检查、两配置真实 Noice／WhichKey／Snacks multigrid 与单外阴影回归、4 项 Rust 浮层像素测试、格式、release all-targets clippy 及独立 release 构建通过。新 GUI 浅深色实看 Noice 外框／留白／输入区一致、WhichKey 独立 opaque／custom／editor 切换及无页脚第二阴影；记录 `target/glow-material-20261020-qa/`。
 - Notebook 原有点击修复已补真实鼠标＋键盘整链验收：初始 Cell 2，分别点击 Out[1] 的正文、图片及留白后按空格 j o，均展开 Out[1]；q 关闭正常。本轮无需再改 Notebook 实现；`target/glow-click-20261020-qa/*-click-expanded.json` 保留窗口／键事件。首次工具残留 Command 导致的非普通点击已排除。

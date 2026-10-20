@@ -1,7 +1,9 @@
 mod glass;
+mod scrollbar;
 pub mod settings;
 mod switcher;
 
+pub use scrollbar::ScrollbarLayoutInput;
 pub use switcher::{
     EditorSwitcherRow, close_editor_switcher_if_open, editor_switcher_key_event_matches,
     show_editor_switcher_panel,
@@ -56,6 +58,8 @@ use crate::window::{
     EventPayload, ForceClickKind, MacShortcutCommand, UserEvent, WindowSettings,
     WindowSettingsChanged,
 };
+
+use self::scrollbar::WindowScrollbars;
 
 thread_local! {
     static APP_MENU: RefCell<Option<Menu>> = const { RefCell::new(None) };
@@ -400,6 +404,7 @@ pub struct MacosWindowFeature {
     simple_fullscreen: bool,
     has_transparent_titlebar: bool,
     glass: glass::GlassMaterial,
+    scrollbars: WindowScrollbars,
 }
 
 impl MacosWindowFeature {
@@ -489,6 +494,7 @@ impl MacosWindowFeature {
             simple_fullscreen,
             has_transparent_titlebar,
             glass: glass::GlassMaterial::new(window, window_settings.liquid_glass),
+            scrollbars: WindowScrollbars::default(),
         };
 
         let mut macos_window_feature = macos_window_feature;
@@ -920,6 +926,8 @@ impl MacosWindowFeature {
             self.is_fullscreen = is_fullscreen;
             self.set_titlebar_click_handler_visible(!is_fullscreen);
         }
+
+        self.update_scrollbar_frames();
     }
 
     /// Get the extra titlebar height in pixels, so Neovide can do the correct top padding.
@@ -1028,6 +1036,9 @@ impl MacosWindowFeature {
             }
             WindowSettingsChanged::MacosSimpleFullscreen(enabled) => {
                 self.set_simple_fullscreen_mode(enabled);
+            }
+            WindowSettingsChanged::Theme(_) => {
+                self.refresh_scrollbar_appearance();
             }
             _ => {}
         }

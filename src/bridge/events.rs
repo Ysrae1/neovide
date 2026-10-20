@@ -2,10 +2,11 @@ use std::{
     convert::TryInto,
     error,
     fmt::{self, Debug},
+    io::Cursor,
 };
 
 use log::{debug, warn};
-use rmpv::Value;
+use rmpv::{Value, decode::read_value};
 use skia_safe::Color4f;
 use strum::AsRefStr;
 
@@ -315,6 +316,7 @@ pub enum RedrawEvent {
     /// previously hidden, it should now be shown again.
     WindowPosition {
         grid: u64,
+        window: u64,
         start_row: u64,
         start_column: u64,
         width: u64,
@@ -472,7 +474,20 @@ pub enum RedrawEvent {
     NeovimSessionStarted,
     StartupMessageUiRestored,
     NeovideSetRedraw(bool),
+    #[cfg(target_os = "macos")]
+    ScrollbarWindow {
+        window: u64,
+        metadata: Option<ScrollbarWindowMetadata>,
+    },
     NeovideIntroBannerAllowed(bool),
+}
+
+/// Buffer identity and scrollbar eligibility reported for a Neovim window.
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScrollbarWindowMetadata {
+    pub buffer: u64,
+    pub eligible: bool,
 }
 
 fn unpack_color(packed_color: u64) -> Color4f {
@@ -543,9 +558,8 @@ fn parse_window_handle(value: Value) -> Result<u64> {
     if let Value::Ext(1, bytes) = &value {
         // Neovim Window handles use extension type 1 whose payload is itself a
         // MessagePack integer, not an untagged big-endian byte sequence.
-        let mut cursor = std::io::Cursor::new(bytes);
-        let decoded =
-            rmpv::decode::read_value(&mut cursor).map_err(|_| ParseError::U64(value.clone()))?;
+        let mut cursor = Cursor::new(bytes);
+        let decoded = read_value(&mut cursor).map_err(|_| ParseError::U64(value.clone()))?;
         if cursor.position() != bytes.len() as u64 {
             return Err(ParseError::U64(value));
         }
@@ -895,11 +909,11 @@ fn parse_grid_scroll(grid_scroll_arguments: Vec<Value>) -> Result<RedrawEvent> {
 }
 
 fn parse_win_pos(win_pos_arguments: Vec<Value>) -> Result<RedrawEvent> {
-    let [grid, _window, start_row, start_column, width, height] =
-        extract_values(win_pos_arguments)?;
+    let [grid, window, start_row, start_column, width, height] = extract_values(win_pos_arguments)?;
 
     Ok(RedrawEvent::WindowPosition {
         grid: parse_u64(grid)?,
+        window: parse_window_handle(window)?,
         start_row: parse_u64(start_row)?,
         start_column: parse_u64(start_column)?,
         width: parse_u64(width)?,
@@ -1368,6 +1382,31 @@ mod tests {
         assert_eq!(super::parse_window_handle(1000.into()).unwrap(), 1000);
         assert!(super::parse_window_handle(Value::Ext(1, vec![0xcd])).is_err());
         assert!(super::parse_window_handle(Value::Ext(0, vec![1])).is_err());
+        assert!(super::parse_window_handle(Value::Ext(1, vec![1, 2])).is_err());
+    }
+
+    #[test]
+    fn window_position_preserves_real_neovim_window_extension_handle() {
+        let event = super::parse_win_pos(vec![
+            2.into(),
+            Value::Ext(1, vec![0xcd, 0x03, 0xe8]),
+            3.into(),
+            4.into(),
+            80.into(),
+            24.into(),
+        ])
+        .unwrap();
+        assert!(matches!(
+            event,
+            RedrawEvent::WindowPosition {
+                grid: 2,
+                window: 1000,
+                start_row: 3,
+                start_column: 4,
+                width: 80,
+                height: 24,
+            }
+        ));
     }
 
     #[test]

@@ -153,7 +153,6 @@ pub struct RenderedWindow {
     pub viewport_scroll: f64,
     pub host_grid_size: Option<GridSize<u32>>,
 }
-
 #[derive(Clone, Debug)]
 pub struct WindowDrawDetails {
     pub id: u64,
@@ -622,7 +621,6 @@ impl RenderedWindow {
         let scroll_offset = scroll_offset_lines - self.scroll_animation.position;
         (scroll_offset * line_height).round()
     }
-
     fn line_for_row(&self, row: u32) -> Option<Rc<RefCell<RenderedLine>>> {
         if self.actual_lines.is_empty() {
             return None;
@@ -1279,8 +1277,7 @@ impl BackgroundFills {
 
         let mut paint = Paint::default();
         paint.set_anti_alias(false);
-        // This extends an existing cell background. Replacing, as the cell
-        // renderer does, avoids accumulating alpha over the window clear.
+        // Extend the cell background without accumulating alpha over the canvas background.
         paint.set_blend_mode(BlendMode::Src);
 
         canvas.save();
