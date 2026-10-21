@@ -1,5 +1,44 @@
 #requires -Version 5.1
 # Sourced by Setup-Dependencies.ps1. No top-level writes, downloads, or installs.
+function Get-DependencySelectedPaths([string]$Selection) {
+    if (-not (Test-Path -LiteralPath $Selection -PathType Leaf)) { return }
+    try {
+        $record=Get-Content -LiteralPath $Selection -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($record.schema_version -ne 1 -or -not $record.PSObject.Properties['tool_paths'] -or $record.tool_paths -isnot [Array]) { return }
+        foreach ($path in $record.tool_paths) {
+            if ($path -is [string] -and [IO.Path]::IsPathRooted($path) -and (Test-Path -LiteralPath $path -PathType Container)) {
+                [IO.Path]::GetFullPath($path)
+            }
+        }
+    } catch { return } # Malformed selections cannot become executable search paths.
+}
+function Get-DependencyTeXTarget([string]$Primary,[string]$Fallback) {
+    # This marker is written and validated by tex/Install-TinyTeX.ps1.
+    $root=$Primary
+    $marker='.glow-tinytex-v1-owner.json'
+    if ((Test-Path -LiteralPath $root) -and -not (Test-Path -LiteralPath (Join-Path $root $marker) -PathType Leaf)) { $root=$Fallback }
+    [pscustomobject]@{root=$root;resume=(Test-Path -LiteralPath (Join-Path $root $marker) -PathType Leaf)}
+}
+function Get-JupyterPythonCandidates([string[]]$DataRoots) {
+    # Read the standard kernelspec locations, never execute a kernel's argv.
+    # https://jupyter-client.readthedocs.io/en/stable/kernels.html#kernel-specs
+    foreach ($root in @($DataRoots | Where-Object { $_ } | Select-Object -Unique)) {
+        $kernels=Join-Path $root 'kernels'
+        if (-not (Test-Path -LiteralPath $kernels -PathType Container)) { continue }
+        foreach ($directory in @(Get-ChildItem -LiteralPath $kernels -Directory -ErrorAction SilentlyContinue)) {
+            $file=Join-Path $directory.FullName 'kernel.json'
+            try {
+                if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or (Get-Item -LiteralPath $file).Length -gt 1MB) { continue }
+                $spec=Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json
+                if (-not $spec.PSObject.Properties['argv'] -or $spec.argv -isnot [Array] -or $spec.argv.Count -eq 0) { continue }
+                $executable=$spec.argv[0]
+                if ($executable -is [string] -and [IO.Path]::IsPathRooted($executable) -and
+                    [IO.Path]::GetFileName($executable) -match '^python(?:[0-9.]*)?\.exe$' -and
+                    (Test-Path -LiteralPath $executable -PathType Leaf)) { $executable }
+            } catch { continue } # A broken/unreadable kernelspec is not a Python installation.
+        }
+    }
+}
 function Write-DependencyJson([string]$Path,$Value) {
     $temporary=$Path+'.preparing-'+[Guid]::NewGuid().ToString('N')
     try {

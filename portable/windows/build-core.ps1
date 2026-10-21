@@ -40,9 +40,26 @@ if ($Frontend) {
 }
 & $Python @arguments
 if ($LASTEXITCODE -ne 0) { throw 'Core payload construction failed.' }
-& (Join-Path $stage 'Glow.exe') --launcher-check
-if ($LASTEXITCODE -ne 0) { throw 'The core payload failed launcher input validation.' }
+$launcherCheck = Start-Process -FilePath (Join-Path $stage 'Glow.exe') -ArgumentList '--launcher-check' -WindowStyle Hidden -Wait -PassThru
+if ($launcherCheck.ExitCode -ne 0) { throw 'The core payload failed launcher input validation.' }
 if (-not $ISCC) { $ISCC = (Get-Command ISCC.exe -ErrorAction Stop).Source }
 & $ISCC ('/DStageDir=' + $stage) ('/DOutputDir=' + $output) ('/DAppVersion=' + $Version) /DDistribution=core (Join-Path $PSScriptRoot 'installer.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Core installer packaging failed.' }
+$artifact = Join-Path $output ('Neovide-Glow-' + $Version + '-Windows-x64-Core-Setup.exe')
+if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { throw 'Compiler succeeded without the expected core installer.' }
+$sizeReport = Get-Content -LiteralPath (Join-Path $work 'core-size-report.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$receipt = [ordered]@{
+    schema_version = 1; state = 'compiled_pending_acceptance'; stack_id = $StackId
+    source_stage = [IO.Path]::GetFullPath($SourceStage)
+    source_seal_sha256 = (Get-FileHash -LiteralPath (Join-Path $SourceStage 'bundle-sha256.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+    stage = $stage; stage_seal_sha256 = (Get-FileHash -LiteralPath (Join-Path $stage 'bundle-sha256.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+    frontend = $sizeReport.frontend
+    launcher_sha256 = (Get-FileHash -LiteralPath $launcher -Algorithm SHA256).Hash.ToLowerInvariant()
+    launcher_check_exit_code = $launcherCheck.ExitCode
+    artifact = @{path=$artifact; bytes=(Get-Item -LiteralPath $artifact).Length; sha256=(Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()}
+    source_bytes = $sizeReport.source_bytes; core_bytes = $sizeReport.core_bytes
+    native_gui_acceptance = 'not_performed_by_packager'; install_acceptance = 'pending'
+    completed_utc = [DateTime]::UtcNow.ToString('o')
+}
+[IO.File]::WriteAllText((Join-Path $work 'receipt.json'), ($receipt | ConvertTo-Json -Depth 8), (New-Object Text.UTF8Encoding($false)))
 Write-Host ('Core package created in ' + $output + '. GUI/optional dependency acceptance is still required before release.')

@@ -110,7 +110,8 @@ function Save-Selection($Selected) {
 $manifest=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'dependencies.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $assetLock=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'system-assets.lock.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($manifest.schema_version -ne 1 -or $assetLock.schema_version -ne 1) { throw 'Unsupported dependency manifest.' }
-$script:SelectedToolPaths=@(); $script:DependencyChecks=@(); $script:DependencyRun=$null
+$script:SelectedToolPaths=@(Get-DependencySelectedPaths (Join-Path $SelectionRoot 'selected.json'))
+$script:DependencyChecks=@(); $script:DependencyRun=$null
 $dependencyMutex=$null; $mutexAcquired=$false
 $mutating=$InstallBase -or $InstallNotebook -or $SelectPython -or $InstallLatex -or $InstallTool.Count -gt 0
 $mapping=@{search='rg';find='fd';yazi='yazi';fzf='fzf';git='git'}
@@ -118,6 +119,11 @@ $minimumVersions=@{search='14.0';find='10.0';yazi='26.5.6';fzf='0.65.0';git='2.3
 function Find-DependencyCommand([string]$Role,[string]$Name) {
     $command=Get-Command $Name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($command -and (-not $mapping.ContainsKey($Role) -or (Test-DependencyCommand $command.Source $minimumVersions[$Role]))) { return $command.Source }
+    foreach ($directory in $script:SelectedToolPaths) {
+        $candidate=Join-Path $directory $Name
+        if ((Test-Path -LiteralPath $candidate -PathType Leaf) -and
+            (-not $mapping.ContainsKey($Role) -or (Test-DependencyCommand $candidate $minimumVersions[$Role]))) { return $candidate }
+    }
     if ($mapping.ContainsKey($Role)) {
         $asset=$assetLock.assets.($mapping[$Role])
         $payload=Join-Path $DependencyRoot ('programs-v1\'+$mapping[$Role]+'-'+$asset.version+'\payload')
@@ -128,8 +134,10 @@ function Find-DependencyCommand([string]$Role,[string]$Name) {
         }
     }
     if ($Role -eq 'latex') {
-        $tiny=Join-Path $env:APPDATA 'TinyTeX\bin\windows\xelatex.exe'
-        if (Test-Path -LiteralPath $tiny -PathType Leaf) { return $tiny }
+        foreach ($tiny in @((Join-Path $env:APPDATA 'TinyTeX\bin\windows\xelatex.exe'),
+            (Join-Path $env:LOCALAPPDATA 'Programs\NeovideGlow-TinyTeX\bin\windows\xelatex.exe'))) {
+            if (Test-Path -LiteralPath $tiny -PathType Leaf) { return $tiny }
+        }
     }
     return $null
 }
@@ -184,6 +192,10 @@ else {
     foreach ($relative in @('anaconda3\python.exe','miniconda3\python.exe','miniforge3\python.exe')) {
         $candidates+=Join-Path $env:USERPROFILE $relative
     }
+    $jupyterRoots=@((Join-Path $env:APPDATA 'jupyter'),(Join-Path $env:PROGRAMDATA 'jupyter'))
+    if ($env:JUPYTER_DATA_DIR) { $jupyterRoots+=$env:JUPYTER_DATA_DIR }
+    if ($env:JUPYTER_PATH) { $jupyterRoots+=@($env:JUPYTER_PATH -split [IO.Path]::PathSeparator) }
+    $candidates+=@(Get-JupyterPythonCandidates $jupyterRoots)
     foreach ($hive in @([Microsoft.Win32.RegistryHive]::CurrentUser,[Microsoft.Win32.RegistryHive]::LocalMachine)) {
         foreach ($view in @([Microsoft.Win32.RegistryView]::Registry64,[Microsoft.Win32.RegistryView]::Registry32)) {
             $key=$null; $baseKey=$null

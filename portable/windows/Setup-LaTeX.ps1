@@ -39,14 +39,9 @@ try {
         $target=Join-Path $assets $lock.assets.tinytex.filename
         try { $null=New-Item -ItemType HardLink -Path $target -Target $archive -ErrorAction Stop }
         catch { Copy-Item -LiteralPath $archive -Destination $target }
-        $install=Join-Path $env:APPDATA 'TinyTeX'
-        $owner=Join-Path $install '.glow-system-tinytex-v1-owner.json'
-        if ((Test-Path -LiteralPath $install) -and -not (Test-Path -LiteralPath $owner)) {
-            $install=Join-Path $env:LOCALAPPDATA 'Programs\NeovideGlow-TinyTeX'
-            $owner=Join-Path $install '.glow-system-tinytex-v1-owner.json'
-        }
-        $resume=Test-Path -LiteralPath $owner -PathType Leaf
-        & (Join-Path $PSScriptRoot 'tex\Install-TinyTeX.ps1') -AssetDirectory $assets -InstallRoot $install -RunRoot (Join-Path $RunRoot 'install') -Resume:$resume -NoUserPath -AllowSeparateExistingTools
+        $target=Get-DependencyTeXTarget (Join-Path $env:APPDATA 'TinyTeX') (Join-Path $env:LOCALAPPDATA 'Programs\NeovideGlow-TinyTeX')
+        $install=$target.root
+        & (Join-Path $PSScriptRoot 'tex\Install-TinyTeX.ps1') -AssetDirectory $assets -InstallRoot $install -RunRoot (Join-Path $RunRoot 'install') -Resume:$target.resume -NoUserPath -AllowSeparateExistingTools
         if (-not $?) { throw 'TinyTeX installation did not pass its compile checks.' }
         $bin=Join-Path $install 'bin\windows'
     }

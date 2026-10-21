@@ -59,6 +59,14 @@ bytes, every plugin's total/native/download-cache bytes, and the 20 largest
 files. Required plugin assets are retained until their runtime role is verified;
 there is no blanket deletion of vendor or node_modules directories. This report
 is the basis for further size changes, not an assumed final EXE size.
+`receipt.json` binds the finished EXE, stage seal, launcher and frontend hashes.
+It records installation/GUI acceptance as pending. On an isolated native Windows
+user task, `tests/windows_core_installer.ps1 -BuildReceipt C:\Build\receipt.json
+-WorkRoot C:\FreshCoreAcceptance` verifies the actual EXE at default and
+Unicode/space/apostrophe paths, rejects an offline directory before extraction,
+checks installed checksums and runtime omissions, and uninstalls while preserving
+the versioned profile and the existing dependency selection. This test skips
+dependency installation; Notebook, LaTeX and native GUI acceptance are separate.
 
 The normal installer now detects and installs missing dependencies before it
 finishes. A feature page selects Notebook/Python and LaTeX; base tools are
@@ -78,7 +86,7 @@ tampered bytes and unknown existing directories are preserved and rejected.
 
 Notebook first reuses a complete CPython 3.12 x64 environment, checking imports
 and both Jupytext/latex2text commands. It detects PATH, standard Python
-registrations, common Conda locations and the prior selection. If needed it
+registrations, common Conda locations, registered Jupyter kernels and the prior selection. Kernel discovery reads only an existing absolute Python executable path; kernel arguments are never executed. If needed it
 installs the official PSF-signed, hash-locked CPython 3.12.10 per user without
 PATH/association/launcher changes. This is the last traditional Windows installer
 for the 3.12 series, not a claim to contain later source-only security patches.
@@ -131,6 +139,9 @@ computer are copied. Launching core reads this selection and changes only its
 child environment. Removing a selected interpreter disables Notebook without
 turning it into an editor launch prerequisite. Uninstalling the editor preserves
 system tools, dependency environments and user profiles.
+Later setup runs retain still-existing selected tool directories, including a
+separate TinyTeX installation, and resume only TeX roots bearing this installer's
+ownership marker. The TeX worker validates that marker against its asset lock.
 
 `python3 tests/windows_core_package.py` tests retention/omission, source
 immutability/checksums, config-lock compatibility, links/traversal and profile
