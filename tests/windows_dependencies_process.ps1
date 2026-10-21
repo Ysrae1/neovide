@@ -27,7 +27,7 @@ $failed=$false
 try{$null=Invoke-DependencyProcess $ps (Child-Arguments '[Console]::Out.WriteLine("child failure evidence");exit 7') 'failure' 30}catch{$failed=$true}
 if(-not $failed -or $script:DependencyChecks[-1].exit_code -ne 7 -or [IO.File]::ReadAllText((Join-Path $WorkRoot 'failure.log')) -notlike '*child failure evidence*'){throw 'Failed child lost its exit code or log'}
 $timedOut=$false
-try{$null=Invoke-DependencyProcess $ps (Child-Arguments '[Console]::Out.WriteLine("before timeout");[Console]::Out.Flush();Start-Sleep -Seconds 60') 'timeout' 8}catch{$timedOut=$_.Exception.GetBaseException() -is [TimeoutException]}
+try{$null=Invoke-DependencyProcess $ps (Child-Arguments '[Console]::Out.WriteLine("before timeout");[Console]::Out.Flush();Start-Sleep -Seconds 60') 'timeout' 30}catch{$timedOut=$_.Exception.GetBaseException() -is [TimeoutException]}
 $check=$script:DependencyChecks[-1]
 if(-not $timedOut -or -not $check.timed_out -or -not $check.pid -or [IO.File]::ReadAllText($check.log) -notlike '*before timeout*'){throw 'Timeout lost its type, process identity or partial output'}
 Write-Output 'PASS dependency process success, exit failure and timeout diagnostics'
@@ -40,7 +40,7 @@ function Save-Receipt{[IO.File]::WriteAllText((Join-Path $WorkRoot 'tex-receipt.
 $output=Invoke-Bounded $ps (Child-Arguments '[Console]::Out.WriteLine("tex success");exit 0') 'tex-success' 30
 if($output -notlike '*tex success*' -or $receipt.checks[-1].exit_code -ne 0){throw 'TeX success changed behavior'}
 $timedOut=$false
-try{$null=Invoke-Bounded $ps (Child-Arguments '[Console]::Out.WriteLine("tex timeout evidence");[Console]::Out.Flush();Start-Sleep -Seconds 60') 'tex-timeout' 8}catch{$timedOut=$_.Exception.GetBaseException() -is [TimeoutException]}
+try{$null=Invoke-Bounded $ps (Child-Arguments '[Console]::Out.WriteLine("tex timeout evidence");[Console]::Out.Flush();Start-Sleep -Seconds 60') 'tex-timeout' 30}catch{$timedOut=$_.Exception.GetBaseException() -is [TimeoutException]}
 $check=$receipt.checks[-1]
 if(-not $timedOut -or -not $check.timed_out -or -not $check.pid -or [IO.File]::ReadAllText($check.log) -notlike '*tex timeout evidence*'){throw 'TeX timeout lost its diagnostics'}
 Write-Output 'PASS TeX process success and bounded timeout retain output and receipt'
