@@ -54,6 +54,8 @@ and Codex runtime. It never includes MSVC/Rust or other compiler installations.
 Optional functionality is unavailable until its dependencies are configured;
 installing core alone does not establish Notebook, LaTeX or all language-server
 acceptance.
+Core defaults to `frame = "none"`, matching the Windows desktop entry; the
+frozen stage's other window/font settings and the user's existing profiles are preserved.
 Each build writes `core-size-report.json` with actual retained/omitted component
 bytes, every plugin's total/native/download-cache bytes, and the 20 largest
 files. Required plugin assets are retained until their runtime role is verified;

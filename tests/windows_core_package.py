@@ -27,7 +27,7 @@ class CorePackage(unittest.TestCase):
         files = {
             "bin/neovide.exe": b"frontend", "bin/nvim.exe": b"nvim", "bin/vcruntime140.dll": b"crt",
             "bin/cmatrix-gm.exe": b"matrix", "share/nvim/runtime/filetype.lua": b"runtime",
-            "config/neovide.toml": b"config", "profile/config/nvim/init.lua": b"old config",
+            "config/neovide.toml": b'frame = "full"\nwsl = false\n[font]\nsize = 12.5\n', "profile/config/nvim/init.lua": b"old config",
             "profile/config/nvim/lazy-lock.json": b'{"plugin":"frozen"}',
             "profile/config/yazi/init.lua": b"yazi", "profile/data/nvim/lazy/plugin/build/native.dll": b"native",
             "runtime/python/python.exe": b"python" * 800, "runtime/node/node.exe": b"node" * 800,
@@ -95,6 +95,7 @@ class CorePackage(unittest.TestCase):
             self.assertFalse((self.destination / directory).exists(), directory)
         self.assertTrue((self.destination / "profile/data/nvim/lazy/plugin/build/native.dll").is_file())
         self.assertEqual((self.destination / "Glow.exe").read_bytes(), self.launcher.read_bytes())
+        self.assertEqual((self.destination / "config/neovide.toml").read_text(), 'frame = "none"\nwsl = false\n[font]\nsize = 12.5\n')
         self.assertIn("current defaults", (self.destination / "profile/config/nvim/init.lua").read_text())
         self.assertTrue((self.destination / "profile/config/nvim/init.lua").read_text().startswith("if vim.env.NEOVIDE_GLOW_INIT"))
         metadata = json.loads((self.destination / "bundle.json").read_text())
@@ -109,6 +110,18 @@ class CorePackage(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "checksum"):
             self.build()
         self.assertFalse(self.destination.exists())
+
+    def test_missing_frame_is_added_at_root_without_changing_font_settings(self):
+        import tomllib
+        config = self.source / "config/neovide.toml"
+        content = 'wsl = false\n[font]\nsize = 12.5\n'
+        config.write_text(content)
+        self.checksums["config/neovide.toml"] = core.digest(config)
+        (self.source / "bundle-sha256.json").write_text(json.dumps(self.checksums))
+        self.build()
+        result = tomllib.loads((self.destination / "config/neovide.toml").read_text())
+        self.assertEqual(result, {"frame": "none", "wsl": False, "font": {"size": 12.5}})
+        self.assertEqual(config.read_text(), content)
 
     def test_changed_plugin_lock_requires_native_rebuild(self):
         (self.payload / "nvim/lazy-lock.json").write_text("{}")

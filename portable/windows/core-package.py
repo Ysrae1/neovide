@@ -168,6 +168,21 @@ def build(source, destination, launcher, stack_id, frontend=None, frontend_sha25
         metadata["frontend_provenance"] = override
     else:
         metadata["frontend_provenance"] = {"origin": "sealed_dependency_stage", "sha256": checksums["bin/neovide.exe"]}
+    # Frozen offline stages used the system title bar. New core installs use
+    # the same frameless default as the verified Windows desktop entry.
+    neovide_config = destination / "config/neovide.toml"
+    config_lines = neovide_config.read_text(encoding="utf-8").splitlines(keepends=True)
+    frame_found = False
+    for index, line in enumerate(config_lines):
+        if line.lstrip().startswith("["):
+            break
+        if re.match(r"[ \t]*frame[ \t]*=", line):
+            config_lines[index] = 'frame = "none"\n'
+            frame_found = True
+            break
+    if not frame_found:
+        config_lines.insert(0, 'frame = "none"\n')
+    neovide_config.write_text("".join(config_lines), encoding="utf-8")
     for name in ("nvim", "yazi"):
         target = destination / "profile/config" / name
         if target.exists():
