@@ -53,6 +53,12 @@ impl Drop for Apartment {
 
 type Layout = ([i32; 4], Vec<[i32; 4]>);
 
+enum Navigation {
+    Ready,
+    LoadingBlank { id: Option<u64> },
+    LoadingPdf { id: Option<u64>, revision: u64, target: String },
+}
+
 struct Preview {
     parent: HWND,
     host: HWND,
@@ -65,6 +71,8 @@ struct Preview {
     page: u64,
     zoom: f64,
     fit: bool,
+    navigation: Navigation,
+    revision: u64,
     // Last HWND bounds and subtracted editor floats, in physical pixels.
     layout: Option<Layout>,
 }
@@ -82,25 +90,66 @@ impl Preview {
     fn fail(&mut self, error: impl std::fmt::Display) {
         self.state = "error";
         self.error = Some(error.to_string());
+        self.navigation = Navigation::Ready;
+        self.layout = None;
         unsafe {
             let _ = ShowWindow(self.host, SW_HIDE);
         }
     }
-    fn navigate(&self) -> windows::core::Result<()> {
-        if let Some(webview) = &self.webview {
-            let mut url = self.source.clone();
-            // Edge's PDF viewer accepts standard PDF open parameters. We only
-            // report requested page/zoom, never invent a page count or SyncTeX.
-            url.set_fragment(Some(&if self.fit {
-                format!("page={}&view=FitH", self.page)
-            } else {
-                format!("page={}&zoom={:.2}", self.page, self.zoom * 100.0)
-            }));
-            unsafe {
-                webview.Navigate(&HSTRING::from(url.as_str()))?;
-            }
+    fn pdf_url(&self) -> String {
+        let mut url = self.source.clone();
+        // Edge's PDF viewer accepts standard PDF open parameters. We only
+        // report requested page/zoom, never invent a page count or SyncTeX.
+        url.set_fragment(Some(&if self.fit {
+            format!("page={}&view=FitH", self.page)
+        } else {
+            format!("page={}&zoom={:.2}", self.page, self.zoom * 100.0)
+        }));
+        url.into()
+    }
+    fn request_navigation(preview: &Rc<RefCell<Self>>) -> windows::core::Result<()> {
+        let start = {
+            let mut preview = preview.borrow_mut();
+            preview.revision = preview.revision.wrapping_add(1);
+            preview.state = "loading";
+            preview.error = None;
+            // Keep only the latest requested parameters while initialization or
+            // an existing navigation is in flight. A reload also gets a revision.
+            preview.webview.is_some() && matches!(preview.navigation, Navigation::Ready)
+        };
+        if start {
+            Self::navigate(preview, true)?;
         }
         Ok(())
+    }
+    fn navigate(preview: &Rc<RefCell<Self>>, reset: bool) -> windows::core::Result<()> {
+        let (webview, target) = {
+            let mut preview = preview.borrow_mut();
+            let Some(webview) = preview.webview.clone() else {
+                return Ok(());
+            };
+            // Changing only a PDF fragment can leave Edge's PDF viewer on the
+            // old page. Finish a different-document navigation before reopening
+            // the PDF; do not race two asynchronous Navigate calls.
+            let target = if reset {
+                preview.navigation = Navigation::LoadingBlank { id: None };
+                "about:blank".to_owned()
+            } else {
+                let target = preview.pdf_url();
+                preview.navigation = Navigation::LoadingPdf {
+                    id: None,
+                    revision: preview.revision,
+                    target: target.clone(),
+                };
+                target
+            };
+            preview.state = "loading";
+            preview.error = None;
+            (webview, HSTRING::from(target))
+        };
+        // Navigation callbacks may access Preview. Never call Navigate with a
+        // RefCell borrow held, including when called from a completion handler.
+        unsafe { webview.Navigate(&target) }
     }
     fn status(&self) -> String {
         serde_json::json!({"state":self.state,"error":self.error,"source":self.source.as_str(),
@@ -152,23 +201,34 @@ impl NativePreviews {
             }
             NativeCommand::Action { id, action, value } => {
                 let preview = self.previews.get(&id)?;
-                let mut preview = preview.borrow_mut();
                 let result = (|| -> windows::core::Result<()> {
-                    match action.as_str() {
-                        "page" => { preview.page = value.clamp(1.0, 1_000_000.0) as u64; preview.navigate()?; }
-                        "next" => { preview.page = preview.page.saturating_add(1).min(1_000_000); preview.navigate()?; }
-                        "previous" => { preview.page = preview.page.saturating_sub(1).max(1); preview.navigate()?; }
-                        "zoom" => { preview.zoom = value.clamp(0.25, 5.0); preview.fit = false; preview.navigate()?; }
-                        "fit" => { preview.fit = true; preview.navigate()?; }
-                        "reload" => { if let Some(webview) = &preview.webview { unsafe { webview.Reload()?; } } }
-                        "focus" => { if let Some(controller) = &preview.controller { unsafe { controller.MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC)?; } } }
-                        "blur" => { unsafe { let _ = SetFocus(Some(preview.parent)); } }
-                        _ => {}
+                    let navigate = {
+                        let mut preview = preview.borrow_mut();
+                        match action.as_str() {
+                            "page" => { preview.page = value.clamp(1.0, 1_000_000.0) as u64; true }
+                            "next" => { preview.page = preview.page.saturating_add(1).min(1_000_000); true }
+                            "previous" => { preview.page = preview.page.saturating_sub(1).max(1); true }
+                            "zoom" => { preview.zoom = value.clamp(0.25, 5.0); preview.fit = false; true }
+                            "fit" => { preview.fit = true; true }
+                            "reload" => true,
+                            _ => false,
+                        }
+                    };
+                    if navigate {
+                        Preview::request_navigation(preview)?;
+                    } else if action == "focus" {
+                        let controller = preview.borrow().controller.clone();
+                        if let Some(controller) = controller {
+                            unsafe { controller.MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC)?; }
+                        }
+                    } else if action == "blur" {
+                        let parent = preview.borrow().parent;
+                        unsafe { let _ = SetFocus(Some(parent)); }
                     }
                     Ok(())
                 })();
-                if let Err(error) = result { preview.fail(error); }
-                Some((id, preview.status()))
+                if let Err(error) = result { preview.borrow_mut().fail(error); }
+                Some((id, preview.borrow().status()))
             }
         }
     }
@@ -227,6 +287,8 @@ impl NativePreviews {
             page: 1,
             zoom: 1.0,
             fit: true,
+            navigation: Navigation::Ready,
+            revision: 0,
             layout: None,
         }));
         self.previews.insert(id, preview.clone());
@@ -366,16 +428,47 @@ fn initialize(
         settings.SetIsWebMessageEnabled(false)?;
         let mut token = 0;
         let allowed = preview.borrow().source.clone();
+        let starting = weak.clone();
         webview.add_NavigationStarting(
             &NavigationStartingEventHandler::create(Box::new(move |_, args| {
-                if let Some(args) = args {
+                if let (Some(preview), Some(args)) = (starting.upgrade(), args) {
                     let mut raw = windows::core::PWSTR::null();
                     args.Uri(&mut raw)?;
                     let value = webview2_com::CoTaskMemPWSTR::from(raw).to_string();
-                    let permitted = url::Url::parse(&value).is_ok_and(|mut url| {
-                        url.set_fragment(None);
-                        url == allowed
-                    });
+                    let mut navigation_id = 0;
+                    args.NavigationId(&mut navigation_id)?;
+                    let permitted = {
+                        let mut preview = preview.borrow_mut();
+                        if value == "about:blank" {
+                            // This exception is only for our pending reset; PDF
+                            // links never gain a general about: navigation right.
+                            if let Navigation::LoadingBlank { id } = &mut preview.navigation {
+                                if id.is_none() || *id == Some(navigation_id) {
+                                    *id = Some(navigation_id);
+                                    true
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
+                        } else {
+                            let permitted = url::Url::parse(&value).is_ok_and(|mut url| {
+                                url.set_fragment(None);
+                                url == allowed
+                            });
+                            if permitted {
+                                if let Navigation::LoadingPdf { id, target, .. } =
+                                    &mut preview.navigation
+                                {
+                                    if *target == value && id.is_none() {
+                                        *id = Some(navigation_id);
+                                    }
+                                }
+                            }
+                            permitted
+                        }
+                    };
                     // A PDF link cannot turn a PDF-only capability into arbitrary
                     // web or filesystem browsing inside the editor.
                     if !permitted {
@@ -399,16 +492,37 @@ fn initialize(
         webview.add_NavigationCompleted(
             &NavigationCompletedEventHandler::create(Box::new(move |_, args| {
                 if let (Some(preview), Some(args)) = (completed.upgrade(), args) {
+                    let mut navigation_id = 0;
+                    args.NavigationId(&mut navigation_id)?;
+                    let next = {
+                        let preview = preview.borrow();
+                        match &preview.navigation {
+                            Navigation::LoadingBlank { id: Some(id) } if *id == navigation_id => {
+                                Some(false)
+                            }
+                            Navigation::LoadingPdf { id: Some(id), revision, .. }
+                                if *id == navigation_id =>
+                            {
+                                (*revision != preview.revision).then_some(true)
+                            }
+                            // A canceled or older document must not complete a
+                            // newer request, including a same-id reopened view.
+                            _ => return Ok(()),
+                        }
+                    };
                     let mut success = BOOL::default();
                     args.IsSuccess(&mut success)?;
                     if success.as_bool() {
-                        preview.borrow_mut().state = "ready";
-                    } else {
-                        let mut status = COREWEBVIEW2_WEB_ERROR_STATUS_UNKNOWN;
-                        args.WebErrorStatus(&mut status)?;
-                        if status == COREWEBVIEW2_WEB_ERROR_STATUS_OPERATION_CANCELED {
-                            return Ok(());
+                        if let Some(reset) = next {
+                            if let Err(error) = Preview::navigate(&preview, reset) {
+                                preview.borrow_mut().fail(error);
+                            }
+                        } else {
+                            let mut preview = preview.borrow_mut();
+                            preview.navigation = Navigation::Ready;
+                            preview.state = "ready";
                         }
+                    } else {
                         preview.borrow_mut().fail("WebView2 could not load this PDF");
                     }
                 }
@@ -430,17 +544,20 @@ fn initialize(
             })),
             &mut token,
         )?;
-        let mut preview = preview.borrow_mut();
         // Show may arrive while the environment is still initializing. Apply
         // its latest geometry now, without waiting for another redraw.
-        if let Some(([_, _, w, h], _)) = &preview.layout {
-            controller.SetBounds(RECT { left: 0, top: 0, right: *w, bottom: *h })?;
-            controller.SetIsVisible(*w > 0 && *h > 0)?;
+        let bounds = preview.borrow().layout.as_ref().map(|(bounds, _)| *bounds);
+        if let Some([_, _, w, h]) = bounds {
+            controller.SetBounds(RECT { left: 0, top: 0, right: w, bottom: h })?;
+            controller.SetIsVisible(w > 0 && h > 0)?;
         }
-        preview.controller = Some(controller);
-        preview.webview = Some(webview);
-        preview.layout = None; // Apply the most recent Show on the next frame.
-        preview.navigate()?;
+        {
+            let mut preview = preview.borrow_mut();
+            preview.controller = Some(controller);
+            preview.webview = Some(webview);
+            preview.layout = None; // Apply the most recent Show on the next frame.
+        }
+        Preview::navigate(preview, false)?;
     }
     Ok(())
 }
