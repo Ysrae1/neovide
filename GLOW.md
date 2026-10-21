@@ -17,6 +17,13 @@
 - 实际Git/MSYS zsh5.9定向验证passed：正常用户启动、Git别名、两插件一次加载、中文空格路径与参数、Yazi失败状态／临时文件清理、nvidec父环境保持；函数检查使用隔离stub，未启动真实Yazi／Neovide GUI，不宣称实体输入／像素验收。初次QA把同目录的/tmp与/c/Users/.../Temp别名误判不同，改为比较cygpath原生路径后通过，生产函数无需修改。
 - 现有终端未热重载；下次打开Git终端自动生效。`nvidec`沿用已验收PdfNav92启动器，不换装未验收拖窗。收据 `target/glow-zsh-port-20261021/receipt.json`；禁用本次新增的Oh My Zsh入口即可回滚。此前归档的开发任务不恢复。
 
+### Ubuntu 与 Windows 终端增量（2026-10-22，Codex）
+
+- 按用户继续要求补齐此前漏掉的Ubuntu操作层：独立配置仓库提交 `8a0a7141dd0506bbf0be98ec20d1f77e239e0c17`，新增 `shell/zsh-port/ubuntu.zsh`；加载官方OMZ快照的目录／目录栈／Git行为及锁定的两个输入插件。实际Ubuntu zsh5.8.1定向验证通过：`..`、`./SCDAA`、Git与目录栈别名、插件一次加载及p10k保留；`.zshrc`仅前置入口，原内容逐字节保留并备份，p10k配置／入口／全部非Git主题文件校验一致。新开Ubuntu终端生效；不改目录权限，不恢复Linux原生GUI开发。证据 `target/glow-zsh-port-20261021/ubuntu-receipt.json`。
+- 本次QA初始重定向输入在提示符等待，35秒宿主超时；通过精确ZDOTDIR身份核对停止自有QA shell及daemon。随后确认SHIN_STDIN不能运行时修改、source测试文件会改变输入语义，改用启动时`-isc`和eval断言后通过；生产配置未因探针误判反复改动，不宣称实体按键验收。
+- Windows Terminal原“Git Bash”入口更名为`zsh`，图标换为自带通用终端图像；仅改name／icon，备份和冲突检查完成，截图已看到Git图标消失。现有shell仍可动态显示目录标题，不更改启动命令、权限或主题。证据 `target/glow-terminal-label-20261022/receipt.json`。
+- 按用户新增要求为CMD配置现有PowerShell同款Oh My Posh主题：用户级官方Clink ARM64 1.9.34，复用原主题，PowerShell profile／主题保持；CMD AutoRun及初始化CLI检查通过。当前已打开的管理员CMD PID16348经身份核对后，仅一次官方CLI外部注入失败，未提权或重启；CUA读取截图可用，但当前VM输入目标失败，未能从旧窗口内部激活，故不作当前CMD渲染通过结论。新开CMD将走已配置的AutoRun，或在旧CMD自身执行收据内currentSessionCommand。证据 `target/glow-cmd-theme-20261022/{receipt.json,inject-existing-receipt.json}`；回滚入口已保存。本次不重跑Windows开发／发行验收或唤醒归档聊天。
+
 ### 2026-10-21 重启前交接（Codex）
 
 - 用户22:05:50要求两个Windows任务无论进展如何，最迟22:10:50停止、总结并交付；随后因Codex图形界面明显迟缓要求立即保存结束。本轮停止新增开发／构建／测试；重启后先读本节及下列收据，不自动恢复或唤醒任务，继续开发需用户明确恢复。Linux仍暂缓。
