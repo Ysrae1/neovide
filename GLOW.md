@@ -24,12 +24,15 @@
 - 策略变化：先校准控制面和实际登录身份；复用原证据，只补真实断点；TeX 正确性与封包并行。CUA 输入返回 `noWindowsAvailable` 后停止重试，用户明确允许隔离窗口 SendInput 后才继续。封包辅助层的 stderr、换行、UTF-8 和收尾变量问题按实际阶段恢复，未反复重编／压缩或安装。用户要求无需其协助的部分结束后暂停，不设 standby、自动唤醒或常驻监控。
 - 本轮已停止：GUI／编译／安装验收自有进程已结束，本轮创建的无触发器任务已移除（`installer/cleanup.json`、`tex-diagnostic/*cleanup.json`）；保留实际包、失败材料与回滚入口，不强停历史身份不明进程。后续需本人在场的是实体键鼠体验与明确首帧场景；TeX 父入口另属未闭合的调用上下文问题，未写成“只等用户操作”或整体完成。
 
-### 2026-10-22 TeX 父入口与 VS Code 配置维护（新增授权，Codex）
+### 2026-10-22 TeX、VS Code 与 Windows 软件维护（新增授权，Codex）
 
 - 用户恢复 TeX 修复后，新增唯一验收入口 `tests/windows_latex_parent.ps1`，直接调用未修改的产品 `Setup-Dependencies.ps1 -InstallLatex`；实际登录用户 session1、含中文／空格／单引号的路径、原 180 秒编译期限，整体验收 12.52 秒。两原生子进程 exit0 且输出完整关闭，中文 PDF 43,900 字节、SyncTeX 3,787 字节，分别确认正文中文及源路径映射；用户选择与既有科学字段保留，零下载／新装／Python 导入。证据 `target/glow-windows-20261022/tex-fix-20261022/{receipt.json,final-evidence/receipt.json,final-products.json,cleanup.json}`；自有 PID 已退出、未建计划任务，无需重封精简包。
 - 精确捕获的父入口环境、原 `Invoke-DependencyProcess`、前置检测、transcript 与 progress 均分别通过。旧嵌套并重定向输出的 PowerShell 监督包装仍是失败／通过间的执行边界，内部停滞机理未确认；没有为旧验收包装猜测性修改产品。上节 `tex-diagnostic` 的失败保留历史含义，不再代表当前真实父入口未通过。
 - Mac VS Code 共同设置由 8 项扩为 21 项，Windows 加两项 XeLaTeX 工具／配方共 23 项；实际补齐 9 个设置，8 条快捷键及 16 个 LaTeX 片段已一致。Mac 专用路径、终端环境及 Windows 的外观共享范围保留本机语义；Mac 配置无改动。源仓库 `~/Dev/workstation-config` 提交 `86dba49`，仅含两份本轮源配置；未提交其既有其他改动。Windows 两次本机事务均保存原始备份，三项同步审计通过，证据 `target/glow-vscode-sync-20261022/{config-receipt.json,settings-cleanup-receipt.json}`。
-- 按用户要求对照 Mac，Windows 扩展 54→41，卸载 13 项并清理其 17 个闲置设置键；41 个保留项版本不变、依赖齐全，Mac 独有项未新增。官方 CLI 卸载与最终元数据通过，精确旧版本和恢复命令见 `target/glow-vscode-extensions-audit-20261022/uninstall-result.json`。未重载／关闭用户窗口；VS Code 1.143.0 官方 ARM64 更新包 SHA 与 Microsoft 签名已核对，等待用户保存退出当前编辑器后应用。
+- 按用户要求对照 Mac，Windows 扩展 54→41，卸载 13 项并清理其 17 个闲置设置键；卸载时 41 个保留项版本不变、依赖齐全，Mac 独有项未新增。官方 CLI 卸载与最终元数据通过，精确旧版本和恢复命令见 `target/glow-vscode-extensions-audit-20261022/uninstall-result.json`。用户随后保存退出 VS Code；官方 ARM64 包 SHA 与 Microsoft 签名核对后，1.142.0→1.143.0 安装 exit0，三配置 SHA 前后一致，未强停或自动重开编辑器。证据 `target/glow-vscode-sync-20261022/update-receipt.json`。
+- 用户随后授权原软件清单全部更新及移除 Classic Teams。15 条候选最终为 13 项实际更新、Oh My Posh 命令已为 31.9.1 而保留旧 MSI 登记、Classic 用户客户端与 Machine-Wide Installer 均精准卸载；新版 Teams 保留。实际版本：7-Zip 26.04、Git 2.55.0.5、Inno Setup 6.7.3、iTunes 12.13.11.1、Apple Mobile Device Support 20.0.0.35、VC++ 三架构 14.51.36247.0、Teams 26198.304.4946.9672、Outlook 1.2026.812.100、Terminal 1.25.2733.0、Windows App Runtime 1.6.9。证据 `target/glow-windows-software-update-20261022/update-results.{json,csv}` 及 `target/glow-windows-appx-update-20261022/appx-results.json`；自有安装进程无残留，VC++ ARM64 exit3010 需之后重启，未自动重启 Windows。
+- 用户明确弃用旧 Anaconda 环境后，两套已确认旧根卸载均 exit0，唯一新版 JustMe 安装 2026.07-1 exit0。实际用户默认 Python 3.14.6、conda 26.5.3，原用户入口路径沿用、旧 ProgramData 根不存在，Glow 独立 Python SHA 保留；`final-current-user-check.json` passed。官方安装期间的包事务及新根 ACL 遍历有实际 CPU／元数据进度，不因父日志空白而重复安装。Git／Anaconda／运行库变动后再跑一次同一 TeX-only 入口：两子进程 exit0／drained，PDF 43,900 字节、SyncTeX 3,796 字节，watchdog 退出、选择字段保留、零下载／新装；`target/glow-windows-20261022/tex-fix-20261022/after-software-evidence/receipt.json` passed。
+- 保留扩展的版本查询随后由实际 Windows 短脚本成功完成：官方 Marketplace HTTP200、41项均可判定。两项兼容 ARM64／Code 1.143.0 的稳定更新已由官方 CLI 安装 exit0：Continue 0.8.68→2.0.0、Markdown All in One 3.6.2→3.6.3；总数仍 41、其余 39 项版本／渠道不变，C/C++ 1.35.4 最新预发布保留（稳定版 1.34.4 不作升级）。三份配置 SHA 未变，未读取 Continue 的配置／密钥，未启动用户窗口，CLI 均退出；`target/glow-vscode-extensions-audit-20261022/{gallery-41-update-audit.json,stable-update-receipt.json}`。本轮软件／TeX维护结束，不设自动唤醒或 standby；原 Neovide 实体输入与首帧验收仍等用户在场。
 
 ### Windows Git zsh选择性迁移（新增授权，2026-10-21 Codex）
 
