@@ -245,7 +245,8 @@ async fn create_neovim_session(
         // See https://github.com/neovide/neovide/issues/3499
         options.set_messages_externa(true);
     }
-    #[cfg(target_os = "macos")]
+    // Highlight roles need the group identities in hl_attr_define on every platform.
+    // Without ext_hlstate, native roles such as reference outlines cannot be matched.
     options.set_hlstate_external(true);
     // We can close the handle here, as Neovim already owns it
     #[cfg(not(target_os = "windows"))]

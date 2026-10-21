@@ -53,9 +53,30 @@ pub async fn setup_neovide_specific_state(
         .await
         .context("Could not advertise owner-anchored native images")?;
 
-    nvim.set_var("neovide_native_preview", Value::from(cfg!(target_os = "macos")))
+    nvim.set_var(
+        "neovide_native_preview",
+        Value::from(cfg!(any(target_os = "macos", target_os = "windows"))),
+    )
+    .await
+    .context("Could not advertise native media/web preview")?;
+    // Capabilities are per kind: Windows currently embeds PDF only.
+    nvim.set_var(
+        "neovide_native_preview_kinds",
+        Value::Array(
+            ["audio", "video", "web", "pdf"]
+                .into_iter()
+                .filter(|kind| {
+                    cfg!(target_os = "macos") || (cfg!(target_os = "windows") && *kind == "pdf")
+                })
+                .map(Value::from)
+                .collect(),
+        ),
+    )
+    .await
+    .context("Could not advertise native preview kinds")?;
+    nvim.set_var("neovide_native_pdf_synctex", Value::from(cfg!(target_os = "macos")))
         .await
-        .context("Could not advertise native media/web preview")?;
+        .context("Could not advertise PDF coordinate synchronization")?;
 
     nvim.exec2("runtime! ginit.vim", nvim_dict!())
         .await

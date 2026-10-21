@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>name</key>
+	<string>Glow editor light</string>
+	<key>settings</key>
+	<array>
+		<dict>
+			<key>settings</key>
+			<dict>
+				<key>background</key>
+				<string>#FAFAFA</string>
+				<key>foreground</key>
+				<string>#5C6166</string>
+				<key>selection</key>
+				<string>#CCE0FF</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>scope</key>
+			<string>comment</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#A0A0A0</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>scope</key>
+			<string>string</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#86B300</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>scope</key>
+			<string>constant.numeric, constant.language</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#A37ACC</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>scope</key>
+			<string>keyword, storage</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#FA8D3E</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>scope</key>
+			<string>entity.name.function, support.function</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#55B4D4</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>scope</key>
+			<string>entity.name.type, support.type</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#399EE6</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>scope</key>
+			<string>variable.parameter</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#A37ACC</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>scope</key>
+			<string>punctuation</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#F2AE49</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>scope</key>
+			<string>invalid</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#E65050</string>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>

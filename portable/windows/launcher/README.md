@@ -1,5 +1,18 @@
 # Native Windows launcher and offline installer contract
 
+`distribution: "core"` in `bundle.json` selects the new small-package contract
+described in [../README.md](../README.md). Omitted distribution or `"offline"`
+retains the complete frozen offline contract below. Unknown modes are rejected.
+Core still verifies every declared native component and fixed plugin payload;
+it does not require private Python/Node runtimes. Its launcher reads only the
+explicit per-user `NeovideGlow/dependencies/selected.json` selection for Python,
+Jupytext and latex2text, and otherwise starts with Notebook unavailable. A
+missing, stale or malformed optional selection does not block the editor.
+`runtime/lua/WindowsInit.lua` registers `:GlowDependencies` for the explicit
+system dependency setup console; normal launch never installs anything. The
+core package intentionally omits the Python/Codex CLI shims below, so they do
+not shadow existing system tools with missing bundled runtimes.
+
 These files are build inputs. Neither compiling the launcher nor installing an
 EXE alone proves that the complete Windows application has passed acceptance.
 The Windows staging pipeline must provide and verify every runtime component
@@ -87,3 +100,10 @@ latex2text invoke `runtime/tool.py --entry <name>`. Codex entry points read
 `{"runtime":"node","script":"<relative packaged JavaScript entry>"}`.
 All script paths must resolve inside the installation, and every child uses
 only process-local environment changes.
+
+Core installers detect/reuse/install selected dependencies before finishing. The
+core launcher consumes `selected.json` tool directories for its child PATH,
+independently of whether optional Notebook Python is selected. Existing user
+PATH and Conda remain unchanged. A missing selected tool directory is ignored;
+setup/repair rechecks actual availability. Details and acceptance limits are in
+`../README.md`.

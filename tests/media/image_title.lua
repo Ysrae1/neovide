@@ -1,6 +1,7 @@
 -- nvim --headless -u NONE -l tests/media/image_title.lua
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h:h")
 vim.opt.rtp:prepend(vim.env.GLOW_TEST_CONFIG or (root .. "/portable/payload/nvim"))
+require("config.platform.locale").set_lang("en", { save = false, silent = true })
 vim.o.columns = 120
 vim.g.neovide, vim.g.neovide_native_image, vim.g.neovide_channel_id = true, true, 77
 local sent = {}

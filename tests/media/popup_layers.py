@@ -25,7 +25,9 @@ try:
       local config,plugins=...
       vim.opt.rtp={config,plugins..'/nui.nvim',plugins..'/noice.nvim',plugins..'/snacks.nvim',plugins..'/which-key.nvim',vim.env.VIMRUNTIME}
       vim.g.neovide=true
-      local theme=require('config.appearance.themes.ayu_dark_customed')
+      local theme_name=vim.env.GLOW_TEST_THEME or 'dark'
+      vim.o.background=theme_name
+      local theme=require('config.appearance.themes.ayu_'..theme_name..'_customed')
       package.loaded.base46={get_theme_tb=function(kind)return theme[kind] or {} end}
       local a=vim.api
       a.nvim_set_hl(0,'Normal',{fg=0xffffff,bg=tonumber(theme.base_30.black:sub(2),16)})

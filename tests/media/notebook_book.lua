@@ -6,6 +6,8 @@ package.loaded['config.media.preview'] = {
   open = function(source, opts) views[#views + 1] = {source = source, opts = opts}; return true end,
   refresh_source = function(source) refreshes[#refreshes + 1] = source end,
 }
+-- Fix this behavior fixture to English; bilingual rendering is exercised separately.
+require('config.platform.locale').set_lang('en', {save=false, silent=true})
 local notebook = require('config.media.notebook')
 local book = require('config.media.book')
 local function check(value, message)
@@ -59,7 +61,7 @@ vim.cmd.tabclose()
 local bad = vim.fs.joinpath(temporary,'bad.ipynb')
 write(bad,'{"bad":true}')
 check(notebook.open(bad), 'invalid source read remains asynchronous')
-wait(function() return (notifications[#notifications] or ''):find('需要 nbformat 4',1,true) end, 'invalid notebook gives failure feedback')
+wait(function() return (notifications[#notifications] or ''):find('An .ipynb file in nbformat 4 is required.',1,true) end, 'invalid notebook gives failure feedback')
 local root = vim.fs.joinpath(temporary,'book with spaces $()')
 vim.fn.mkdir(vim.fs.joinpath(root,'chapter'),'p')
 write(vim.fs.joinpath(root,'_config.yml'),'title: Test')
@@ -89,7 +91,7 @@ wait(function() return book.status(root).status == 'failed' end, 'failure exit c
 check(#refreshes == refresh_count, 'failed build does not refresh stale artifact')
 check(book.log(root), 'build log is inspectable')
 local logtext = table.concat(vim.api.nvim_buf_get_lines(0,0,-1,false),'\n')
-check(logtext:find('fixture build error',1,true) and logtext:find('退出码 7',1,true), 'logs include builder stderr and failure code')
+check(logtext:find('fixture build error',1,true) and logtext:find('exit code 7',1,true), 'logs include builder stderr and failure code')
 vim.cmd.close()
 vim.fn.delete(vim.fs.joinpath(root,'fail'))
 write(vim.fs.joinpath(root,'slow'),'yes')

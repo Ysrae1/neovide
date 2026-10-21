@@ -1,0 +1,295 @@
+# Derived from the existing editor Ayu Light palette; no new RGB values.
+
+["mgr"]
+
+["mgr"."cwd"]
+"fg" = "#26292F"
+
+["mgr"."find_keyword"]
+"fg" = "#26292F"
+"bold" = true
+"underline" = true
+
+["mgr"."find_position"]
+"fg" = "#26292F"
+"bold" = true
+
+["mgr"."symlink_target"]
+"fg" = "#26292F"
+"italic" = true
+
+["mgr"."marker_copied"]
+"fg" = "#6CBF43"
+"bg" = "#6CBF43"
+
+["mgr"."marker_cut"]
+"fg" = "#E65050"
+"bg" = "#E65050"
+
+["mgr"."marker_marked"]
+"fg" = "#399EE6"
+"bg" = "#399EE6"
+
+["mgr"."marker_selected"]
+"fg" = "#FFB62E"
+"bg" = "#FFB62E"
+
+["mgr"."count_copied"]
+"fg" = "#FAFAFA"
+"bg" = "#6CBF43"
+
+["mgr"."count_cut"]
+"fg" = "#FAFAFA"
+"bg" = "#E65050"
+
+["mgr"."count_selected"]
+"fg" = "#26292F"
+"bg" = "#FFB62E"
+
+["mgr"."border_style"]
+"fg" = "#E1E1E1"
+
+["tabs"]
+
+["tabs"."active"]
+"fg" = "#26292F"
+"bg" = "#CCE0FF"
+"bold" = true
+"reversed" = false
+
+["tabs"."inactive"]
+"fg" = "#26292F"
+"bg" = "#EBEBEB"
+
+["mode"]
+
+["mode"."normal_main"]
+"fg" = "#26292F"
+"bg" = "#399EE6"
+"bold" = true
+
+["mode"."normal_alt"]
+"fg" = "#26292F"
+"bg" = "#EBEBEB"
+
+["mode"."select_main"]
+"fg" = "#26292F"
+"bg" = "#6CBF43"
+"bold" = true
+
+["mode"."select_alt"]
+"fg" = "#26292F"
+"bg" = "#EBEBEB"
+
+["mode"."unset_main"]
+"fg" = "#26292F"
+"bg" = "#E65050"
+"bold" = true
+
+["mode"."unset_alt"]
+"fg" = "#26292F"
+"bg" = "#EBEBEB"
+
+["indicator"]
+
+["indicator"."parent"]
+"fg" = "#26292F"
+"bg" = "#CCE0FF"
+"bold" = true
+"reversed" = false
+
+["indicator"."current"]
+"fg" = "#26292F"
+"bg" = "#CCE0FF"
+"bold" = true
+"reversed" = false
+
+["indicator"."preview"]
+"fg" = "#26292F"
+"underline" = true
+
+["status"]
+
+["status"."overall"]
+"fg" = "#26292F"
+"bg" = "#EBEBEB"
+
+["status"."progress_label"]
+"fg" = "#26292F"
+"bold" = true
+
+["status"."progress_normal"]
+"fg" = "#399EE6"
+"bg" = "#EBEBEB"
+
+["status"."progress_error"]
+"fg" = "#E65050"
+"bg" = "#EBEBEB"
+
+["status"."perm_sep"]
+"fg" = "#26292F"
+
+["status"."perm_type"]
+"fg" = "#26292F"
+
+["status"."perm_read"]
+"fg" = "#26292F"
+
+["status"."perm_write"]
+"fg" = "#E65050"
+
+["status"."perm_exec"]
+"fg" = "#26292F"
+
+["pick"]
+
+["pick"."border"]
+"fg" = "#399EE6"
+
+["pick"."active"]
+"fg" = "#26292F"
+"bg" = "#CCE0FF"
+"bold" = true
+"reversed" = false
+
+["pick"."inactive"]
+"fg" = "#26292F"
+
+["input"]
+
+["input"."border"]
+"fg" = "#399EE6"
+
+["input"."title"]
+"fg" = "#26292F"
+
+["input"."value"]
+"fg" = "#26292F"
+
+["input"."selected"]
+"fg" = "#26292F"
+"bg" = "#CCE0FF"
+"bold" = true
+"reversed" = false
+
+["confirm"]
+
+["confirm"."border"]
+"fg" = "#399EE6"
+
+["confirm"."title"]
+"fg" = "#26292F"
+
+["confirm"."body"]
+"fg" = "#26292F"
+
+["confirm"."list"]
+"fg" = "#26292F"
+
+["confirm"."btn_yes"]
+"fg" = "#26292F"
+"bg" = "#CCE0FF"
+"bold" = true
+"reversed" = false
+
+["confirm"."btn_no"]
+"fg" = "#26292F"
+
+["cmp"]
+
+["cmp"."border"]
+"fg" = "#399EE6"
+
+["cmp"."active"]
+"fg" = "#26292F"
+"bg" = "#CCE0FF"
+"bold" = true
+"reversed" = false
+
+["cmp"."inactive"]
+"fg" = "#26292F"
+
+["tasks"]
+
+["tasks"."border"]
+"fg" = "#399EE6"
+
+["tasks"."title"]
+"fg" = "#26292F"
+
+["tasks"."hovered"]
+"fg" = "#26292F"
+"bg" = "#CCE0FF"
+"bold" = true
+"reversed" = false
+
+["which"]
+
+["which"."mask"]
+"bg" = "#FAFAFA"
+
+["which"."cand"]
+"fg" = "#26292F"
+"bold" = true
+
+["which"."rest"]
+"fg" = "#26292F"
+
+["which"."desc"]
+"fg" = "#26292F"
+
+["which"."separator_style"]
+"fg" = "#26292F"
+
+["help"]
+
+["help"."on"]
+"fg" = "#26292F"
+"bold" = true
+
+["help"."run"]
+"fg" = "#26292F"
+
+["help"."desc"]
+"fg" = "#26292F"
+
+["help"."hovered"]
+"fg" = "#26292F"
+"bg" = "#CCE0FF"
+"bold" = true
+"reversed" = false
+
+["help"."footer"]
+"fg" = "#26292F"
+"bg" = "#EBEBEB"
+
+["notify"]
+
+["notify"."title_info"]
+"fg" = "#26292F"
+
+["notify"."title_warn"]
+"fg" = "#26292F"
+
+["notify"."title_error"]
+"fg" = "#E65050"
+
+["spot"]
+
+["spot"."border"]
+"fg" = "#399EE6"
+
+["spot"."title"]
+"fg" = "#26292F"
+
+["spot"."tbl_col"]
+"fg" = "#26292F"
+
+["spot"."tbl_cell"]
+"fg" = "#26292F"
+"bg" = "#CCE0FF"
+"bold" = true
+"reversed" = false
+
+["filetype"]
+"rules" = [{ "url" = "*", "is" = "orphan", "fg" = "#E65050" }, { "url" = "*/", "fg" = "#26292F" }, { "url" = "*", "is" = "exec", "fg" = "#26292F" }, { "mime" = "image/*", "fg" = "#26292F" }, { "mime" = "{audio,video}/*", "fg" = "#26292F" }, { "mime" = "application/{zip,rar,7z*,tar,gzip,xz,zstd,bzip*,lzma,compress,archive,cpio,arj,xar,ms-cab*}", "fg" = "#26292F" }, { "mime" = "application/{pdf,doc,rtf,vnd.*}", "fg" = "#26292F" }, { "url" = "*", "fg" = "#26292F" }]

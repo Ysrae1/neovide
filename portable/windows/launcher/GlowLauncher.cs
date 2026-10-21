@@ -58,6 +58,18 @@ internal static class GlowLauncher
         [DataMember(Name = "stack_id")] public string StackId { get; set; }
         [DataMember(Name = "native_required")] public string[] NativeRequired { get; set; }
         [DataMember(Name = "tool_paths")] public string[] ToolPaths { get; set; }
+        // Omitted by existing frozen offline bundles.
+        [DataMember(Name = "distribution")] public string Distribution { get; set; }
+    }
+
+    [DataContract]
+    private sealed class SystemDependencies
+    {
+        [DataMember(Name = "schema_version")] public int SchemaVersion { get; set; }
+        [DataMember(Name = "python")] public string Python { get; set; }
+        [DataMember(Name = "jupytext")] public string Jupytext { get; set; }
+        [DataMember(Name = "latex2text")] public string Latex2text { get; set; }
+        [DataMember(Name = "tool_paths")] public string[] ToolPaths { get; set; }
     }
 
     [DataContract]
@@ -118,15 +130,28 @@ internal static class GlowLauncher
         if (bundle.SchemaVersion != 1 || String.IsNullOrEmpty(bundle.StackId) ||
             !Regex.IsMatch(bundle.StackId, @"\A[A-Za-z0-9][A-Za-z0-9._-]{0,100}\z"))
             throw new InvalidDataException("The bundle schema or stack identifier is invalid.");
+        if (!String.IsNullOrEmpty(bundle.Distribution) && bundle.Distribution != "core" && bundle.Distribution != "offline")
+            throw new InvalidDataException("The bundle distribution is unsupported.");
         string[] basic = {
             "bin/neovide.exe", "bin/nvim.exe", "share/nvim/runtime/filetype.lua", "config/neovide.toml",
-            "runtime/python/python.exe", "runtime/node/node.exe", "runtime/lua/WindowsInit.lua",
+            "runtime/lua/WindowsInit.lua",
             "profile/config/nvim/init.lua", "profile/config/nvim/lazy-lock.json"
         };
         foreach (string relative in basic) RequireFile(ChildPath(root, relative));
-        if (!Directory.Exists(FileSystemPath(ChildPath(root, "profile/data/nvim/lazy"))) ||
-            !Directory.Exists(FileSystemPath(ChildPath(root, "runtime/python/Lib/site-packages"))))
-            throw new InvalidDataException("This installation is missing its packaged plugins or Python dependencies.");
+        if (!Directory.Exists(FileSystemPath(ChildPath(root, "profile/data/nvim/lazy"))))
+            throw new InvalidDataException("This installation is missing its packaged plugins.");
+        if (bundle.Distribution == "core")
+        {
+            foreach (string relative in new string[] { "dependencies/Setup-Dependencies.ps1", "dependencies/WebView2.ps1", "dependencies/dependencies.json", "dependencies/Dependency-Helpers.ps1", "dependencies/system-assets.lock.json", "dependencies/Setup-LaTeX.ps1" })
+                RequireFile(ChildPath(root, relative));
+        }
+        else
+        {
+            RequireFile(ChildPath(root, "runtime/python/python.exe"));
+            RequireFile(ChildPath(root, "runtime/node/node.exe"));
+            if (!Directory.Exists(FileSystemPath(ChildPath(root, "runtime/python/Lib/site-packages"))))
+                throw new InvalidDataException("This offline installation is missing its packaged Python dependencies.");
+        }
         if (bundle.NativeRequired == null || bundle.NativeRequired.Length == 0)
             throw new InvalidDataException("The bundle does not declare its prebuilt native components.");
         foreach (string entry in bundle.NativeRequired)
@@ -134,6 +159,56 @@ internal static class GlowLauncher
             RequireFile(ChildPath(root, entry));
         }
         return bundle.StackId;
+    }
+
+    private static string DependencyReceipt()
+    {
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "NeovideGlow", "dependencies", "selected.json");
+    }
+
+    private static bool ExistingExecutable(string path)
+    {
+        try
+        {
+            return !String.IsNullOrWhiteSpace(path) && Path.IsPathRooted(path) &&
+                String.Equals(Path.GetFullPath(path), path, StringComparison.OrdinalIgnoreCase) &&
+                String.Equals(Path.GetExtension(path), ".exe", StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(FileSystemPath(path));
+        }
+        catch (ArgumentException) { return false; }
+        catch (NotSupportedException) { return false; }
+        catch (PathTooLongException) { return false; }
+    }
+
+    private static void ApplyRuntime(ProcessStartInfo child, string root, BundleMetadata bundle)
+    {
+        if (bundle.Distribution != "core")
+        {
+            child.EnvironmentVariables["NEOVIDE_GLOW_DISTRIBUTION"] = "offline";
+            child.EnvironmentVariables["GLOW_PYTHON"] = ChildPath(root, "runtime/python/python.exe");
+            child.EnvironmentVariables["JAVA_HOME"] = ChildPath(root, "runtime/java");
+            return;
+        }
+        child.EnvironmentVariables["NEOVIDE_GLOW_DISTRIBUTION"] = "core";
+        child.EnvironmentVariables["NEOVIDE_GLOW_DEPENDENCY_SETUP"] = ChildPath(root, "dependencies/Setup-Dependencies.ps1");
+        foreach (string variable in new string[] { "GLOW_PYTHON", "NEOVIDE_GLOW_PYTHON", "GLOW_JUPYTEXT", "GLOW_LATEX2TEXT" })
+            child.EnvironmentVariables.Remove(variable);
+        string receipt = DependencyReceipt();
+        if (!File.Exists(FileSystemPath(receipt))) return;
+        SystemDependencies selected;
+        try { selected = ReadObject<SystemDependencies>(receipt); }
+        catch (IOException) { return; }
+        catch (UnauthorizedAccessException) { return; }
+        catch (SerializationException) { return; }
+        catch (InvalidDataException) { return; }
+        if (selected.SchemaVersion != 1) return;
+        // A stale/removed environment disables Notebook, not the editor itself.
+        // Setup probes imports before registering; launch never installs packages.
+        if (!ExistingExecutable(selected.Python) || !ExistingExecutable(selected.Jupytext)) return;
+        child.EnvironmentVariables["GLOW_PYTHON"] = selected.Python;
+        child.EnvironmentVariables["GLOW_JUPYTEXT"] = selected.Jupytext;
+        if (ExistingExecutable(selected.Latex2text)) child.EnvironmentVariables["GLOW_LATEX2TEXT"] = selected.Latex2text;
     }
 
     private static string PackagedSourcePath(string root, string path)
@@ -268,7 +343,43 @@ internal static class GlowLauncher
                 }
             }
         }
+        if (bundle.Distribution == "core" && File.Exists(FileSystemPath(DependencyReceipt())))
+        {
+            try
+            {
+                SystemDependencies selection = ReadObject<SystemDependencies>(DependencyReceipt());
+                if (selection.SchemaVersion == 1 && selection.ToolPaths != null)
+                    foreach (string path in selection.ToolPaths)
+                        if (!String.IsNullOrWhiteSpace(path) && path.IndexOf(Path.PathSeparator) < 0 &&
+                            Path.IsPathRooted(path) && String.Equals(Path.GetFullPath(path), path, StringComparison.OrdinalIgnoreCase) &&
+                            Directory.Exists(FileSystemPath(path))) paths.Add(path);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            catch (SerializationException) { }
+            catch (InvalidDataException) { }
+            catch (ArgumentException) { }
+            catch (NotSupportedException) { }
+        }
         string inherited = Environment.GetEnvironmentVariable("PATH");
+        if (bundle.Distribution == "core" && !String.IsNullOrEmpty(inherited))
+        {
+            // Git's regular Windows PATH exposes cmd/, not usr/bin/file.exe.
+            // Resolve its MIME helper for this child only, retaining the ASCII
+            // YAZI_FILE_ONE value required by Yazi's ANSI Lua environment API.
+            foreach (string directory in inherited.Split(Path.PathSeparator))
+            {
+                try
+                {
+                    string gitDirectory = directory.Trim().Trim('"');
+                    if (!Path.IsPathRooted(gitDirectory) || !File.Exists(Path.Combine(gitDirectory, "git.exe"))) continue;
+                    string helper = Path.GetFullPath(Path.Combine(gitDirectory, "..", "usr", "bin"));
+                    if (File.Exists(Path.Combine(helper, "file.exe"))) { paths.Add(helper); break; }
+                }
+                catch (ArgumentException) { }
+                catch (NotSupportedException) { }
+            }
+        }
         if (!String.IsNullOrEmpty(inherited)) paths.Add(inherited);
         return String.Join(Path.PathSeparator.ToString(), paths.ToArray());
     }
@@ -340,8 +451,7 @@ internal static class GlowLauncher
             start.EnvironmentVariables["NEOVIDE_CONFIG"] = ChildPath(root, "config/neovide.toml");
             start.EnvironmentVariables["NEOVIDE_GLOW_ROOT"] = root;
             start.EnvironmentVariables["NEOVIDE_GLOW_INIT"] = ChildPath(root, "runtime/lua/WindowsInit.lua");
-            start.EnvironmentVariables["GLOW_PYTHON"] = ChildPath(root, "runtime/python/python.exe");
-            start.EnvironmentVariables["JAVA_HOME"] = ChildPath(root, "runtime/java");
+            ApplyRuntime(start, root, bundle);
             // Yazi's Lua os.getenv uses the Windows ANSI CRT. Keep this value
             // ASCII; its Rust command launcher resolves our Unicode PATH.
             start.EnvironmentVariables["YAZI_FILE_ONE"] = "file.exe";

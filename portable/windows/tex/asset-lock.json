@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "repository": "rstudio/tinytex-releases",
+  "tag": "v2026.10",
+  "published_at": "2026-10-01T07:43:37Z",
+  "release_url": "https://github.com/rstudio/tinytex-releases/releases/tag/v2026.10",
+  "asset_url": "https://github.com/rstudio/tinytex-releases/releases/download/v2026.10/TinyTeX-1-windows-v2026.10.exe",
+  "filename": "TinyTeX-1-windows-v2026.10.exe",
+  "size": 73701889,
+  "sha256": "36c329c644683d981a668419d13c8804696e2816ae4d287ad755788fee231a31",
+  "digest_source": "Official GitHub Release asset digest",
+  "license_info": "https://github.com/rstudio/tinytex-releases#license",
+  "official_install_script": "https://tinytex.yihui.org/install-bin-windows.ps1",
+  "install_script_sha256": "528372167cd3b9b1be5974224749abde5c7cad9016c02e79a06cc357a58b935a"
+}

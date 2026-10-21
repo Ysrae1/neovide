@@ -1,3 +1,4 @@
+# glow-ayu-light is bundled locally and does not require a registry dependency.
 # No third-party runtime plugins are required by this snapshot.
 [[flavor.deps]]
 use = "kmlupreti/ayu-dark"

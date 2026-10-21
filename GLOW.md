@@ -4,10 +4,67 @@
 
 ## 当前维护状态
 
+### 2026-10-21 下午需求进度（Codex，本轮更新）
+
+“已完成”表示相应改动已经实际部署并完成注明的验证；代码已通过测试但未应用到当前窗口的，单独列出。
+
+| 状态 | 下午提出的事项 | 已有结果／还差什么 |
+| --- | --- | --- |
+| 已完成 | Windows 配置可编辑、保存时 swap／undo 报错 | 原配置目录可写；短 swap／undo 路径已部署，真实 Windows 重开后撤销通过，用户主题内容保留。 |
+| 已完成 | Windows 当前缩放作为默认 | 实际保存 60%，没有改变当前比例。 |
+| 已完成 | Windows 复制／剪切／粘贴／保存等编辑键 | 已部署并热应用；Ctrl+C/X 选区操作、Ctrl+V、Ctrl+S、终端 Ctrl+Shift+V 已核对。多光标新增鼠标映射完整加载需下一次正常启动。 |
+| 已完成 | Windows UNC 共享路径、NeoTree／LSP URI 报错 | 修复已部署，真实 Windows UNC 路径与 URI 检查通过。 |
+| 已完成 | Windows 浅色可读性、浮窗阴影 | Windows 专属透明度与阴影配置已部署，实际查看 Yazi 清晰文字；用户后来调整的 Ayu 色值保留。 |
+| 已热应用 | Windows 底部状态栏空白材质 | statuslinehot78 已应用；Normal／St_EmptySpace／St_NormalModeSep 同背景 724500、blend=0，胶囊原实色保留。 |
+| 下次启动生效 | 隐藏 Windows 系统标题栏 | frame78 已为现有桌面入口设置 `--frame none`；保留 Glow 标签栏，当前窗口未重启。 |
+| 已完成 | PowerShell 兼容、Matrix 脚本报错 | PS5 不再无条件读取 PS7 属性；修复已部署。 |
+| 已完成 | Mac Matrix 与编辑区材质一致 | 开屏／Dashboard 配置已同步；开屏首帧网格及 Dashboard 实际界面检查通过。 |
+| 已完成 | GitHub 入口可由用户配置 | 已有用户名、gh 登录／当前账户及清除配置入口，已部署；不绑定发布者账户。 |
+| 已完成 | 移动／重排编辑窗口排除侧栏 | 已修复并验证布局及快捷键入口，排除 NeoTree、AI 侧栏和浮窗。 |
+| 已完成 | Windows 开发依赖 | 用户级 TeX、中文 XeLaTeX＋SyncTeX、独立 Python 科学环境、Jupyter 内核、VS Code 及14项扩展已实际验证。 |
+| 已完成 | WSL Python 环境 | python52 已完成；独立 Python 3.12.8、11项固定依赖与 Jupyter 内核已验证，未替换系统 Python。 |
+| 部分完成 | 跨平台环境配置工作流 | Mac 盘点与 Windows／WSL 配置应用已有结果；长期三端更新、冲突处理和完整 Linux GUI 验收尚未闭合。 |
+| 部分完成 | Toggle Language 全界面中英切换 | Mac hot75 已成功并保留文档及视图；Windows locale75 已部署38文件至2个 profile，旧 pipe 热应用失败，新窗口尚未全面验证。 |
+| Mac 已应用 | NeoTree 帮助漏项 | 四来源182条实际帮助项测试通过，包含滚动方向、文件剪贴板、自动宽度；Mac hot75 已应用，Windows 重开后待核对。 |
+| Mac 已应用 | 操作等待／Visual 等 WhichKey 菜单 | 172项来源词条及真实菜单中英往返通过，Mac hot75 已应用；Windows 新窗口尚未全面验证。 |
+| Mac 已应用 | LaTeX 菜单说明 | 真实 .tex 中22项 normal／1项 visual 映射不变；LaTeX／LaTeX功能及功能说明已在 Mac 热应用，Windows 待核对。 |
+| 部分应用 | 选择器标题、预览文件名及中英文留白 | Mac 当前 Snacks 标题已热应用；真实 Snacks／Telescope、深浅主题及 grep 留白测试通过，Windows 重开后待全面验证。 |
+| 部分完成 | 诊断及 Notebook 状态汉化 | 精确诊断及生成状态适配已部署，保留原始诊断与输出；Mac locale 热应用成功，旧 Python host 的部分折叠文字仍需下一次正常启动，Windows 新窗口待验证。 |
+| 已完成 | Mac 缩放与重新缩进入口 | Command+=/+ 放大、Command+- 缩小、移除旧 Command+9；leader c=重新缩进，hot75 已应用；默认缩放80%已实际保存并由 RPC 确认。 |
+| 进行中 | Windows 配置迁到 ~/.config/nvim | migration79 正在执行；保留目标独立旧仓库与用户主题，等待实际入口切换结果。 |
+| 进行中 | Windows 选中词蓝框 | ext_hlstate 源码修正已进入 build76 并编译成功；该构建仅作测试，须先提交源码／配置后重构建，再做实际蓝框验收。 |
+| 未完成 | Windows 原生 PDF 最终验收 | 新 EXE 已编译、协议／WebView2就绪通过，实际页面像素与完整交互验收仍缺。 |
+| 未完成 | 小体积安装包、缺失依赖检测安装及发布 | 检测／安装流程已有真实检查；新核心安装包尚未生成和公开发布。 |
+| 未完成 | 所有浮窗首帧／材质问题全面闭合 | 已有部分修复及定向检查；不能据此宣称所有插件浮窗均已验收。 |
+| 部分完成 | Mac 原生菜单、原生 PDF 白栏 | 原生菜单尚未完整接入 Toggle Language；PDF 重复原生工具栏已在源码隐藏，测试通过但未安装。 |
+| 未完成 | Mac／Windows／Linux 全面对齐 | Windows 集成及 Linux 实机 GUI 验收仍有缺口。 |
+
+当前优先顺序：完成 Windows 配置迁移 → 提交源码与配置 → 重新构建并验收蓝框／原生 PDF。用户主题、公开冻结包及正在编辑的文件保留。
+
+- 2026-10-21，Codex：Mac `hot75` 已应用 locale、WhichKey、VimTeX 23项映射说明、缩放／重新缩进、NeoTree 帮助及当前 Snacks 标题，文档与视图保留；默认缩放80%已保存并由实际 RPC 确认。
+- Windows `locale75` 已部署38文件至2个 profile；旧 pipe 热应用失败，新用户窗口（Neovim PID 6812）重启后尚未全面验证。`statuslinehot78` 的同色底材及胶囊保留已通过实际应用检查，`frame78` 仅为桌面入口设置下次启动无系统标题栏。
+- `build76` 编译成功（产物 SHA256 前缀 `93c4b8`），但用户新增规则要求所有编译前先提交源码和配置，因此该产物仅作测试，待提交后重新构建；Mac PDF 白栏修复亦未安装，不作为已交付界面。
+- WSL `python52` 已完成；Windows `migration79` 仍在执行，待主任务补最终回执。公开安装包和用户主题均未替换。
+
+
+- 2026-10-21 16:35，Codex：本机及 portable 已补产品语言层，含真实 leader／Ctrl-W proxy、buffer-local LSP／语法导航、Dashboard、NeoTree、Notebook／图片／PDF 胶囊与状态栏；28 项隔离检查×2配置及14项语言专项通过。当前 Mac 已热应用词典／菜单／状态栏／文件浏览器标题，既有媒体胶囊的安全热更新仍在进行；原生应用菜单与原生 PDF 工具栏尚未接入语言切换，不声称全界面完结。
+- Windows 两个实际 profile 已备份部署 `locale62-deployed.json`（31文件×2，init 仅补 setup 调用，保留用户编辑）、`config43-deployed.json`（短 swap 路径解决配置编辑 E303）、`config46-deployed.json`（PS5 Shell 兼容及 picker 首帧材质）；80% 用户缩放已保存。编辑区移动／交换／重排／均分／关闭其余窗口排除侧栏及浮窗，本机真实布局和快捷键入口测试通过。当前新 Windows 诊断入口为 `\\.\pipe\glow-config64`；旧 config24 已由用户关闭。
+- Windows 用户级 TeX／中文及单引号路径 XeLaTeX+SyncTeX 已通过 `tex28e-receipt.json`；独立 Python3.12.10 科学环境及 Jupyter 内核由 `python58-windows.json`确认完成，VS Code 升级与14项扩展补齐见 `vscode45.json`／`extensions54.json`。WSL 的 Python 私有环境仍未完成，离线材料已官方校验；`python51-wsl-51.json`在安全解包链接时失败，正定向修复，原证据保留。
+- 原生 Windows PDF 新 EXE 已完整构建，`pdf26-gui-2.state.json`协议／WebView2就绪／开关与遮挡检查通过，实际像素验收仍待补；核心安装器基础依赖的真实检测／安装见 `core49/receipt.json`，新小包尚未生成／发布。Scratch 标题图标与页脚底材的同类修复正在进行；保留冻结标签、旧安装包及用户文件，所有 QA 位置在 `target/glow-parallels-20261021-qa/`。
+
+- 2026-10-21，Codex：按用户继续要求补 Windows 兼容性：UNC Neo-tree 根目录、标准 file URI、Ctrl+=/+/−/0 缩放、PowerShell 终端、可配置 GitHub 入口及 Matrix 提前覆盖／编辑区材质。各定向检查通过，UNC 两项另在真实 Windows 路径通过（`windows-unc-tests-20.json`）；19文件×2个实际profile已备份部署，保留既有init hook和浅色选择（`config23-deployed.json`）。
+- Windows 浅色单独降低透明度；纠正 Neovide 先发布g默认1/10导致初始化遗漏后，实机RPC确认Normal不透明度0.98、阴影高度6、圆角0.48、messages空（`config25-live.json`）。嵌入Yazi私有主题跟随编辑器，浅色文件名使用原Ayu深色；CUA已实际见清晰文字与加实面板。独立Yazi配置及AyuRGB未改。Mac两处Matrix配置已同步并通过multigrid检查；已新开本机Dashboard实际确认Matrix背景与编辑区一致；开屏以首帧multigrid检查为证，未捕获动画截图。PD全屏已恢复。
+- 当前可见开发会话为`\\.\pipe\glow-config24`，应用由本任务新启动，未重启已有编辑器；阶段进度窗口已实际显示并在该阶段结束后关闭。Windows/WSL环境只读盘点已完成，配置workflow源在`~/Dev/workstation-config`；Windows及WSL配置已实际应用，各自audit均unchanged；系统TeX与依赖安装继续进行。
+- Windows WebView2 PDF后端及小核心安装路径已落源码，未发布。Mac主工程离线check与Windows后端独立目标check通过；原生Windows完整链接/GUI及新核心包验收尚待进行。新源码快照`pdf26-source/`和6项native manifest用于独立构建，不改旧Stage/C5/冻结标签。原生PDF不声称坐标SyncTeX支持。
+
+- 2026-10-21，Codex：按用户决定停止输入法排查，临时桥接任务已中断，未部署或启用同步服务；保留用户有效映射。后续当前任务为恢复 Windows Glow 普通启动。
+- 启动故障已恢复：同硬件入口／profile在保存网格20×9时持续占用CPU且无首屏，仅关闭启动消息捕获无效；只加110×34网格约4.08秒出窗且开场动画正常（`glow-startup-probe-10/`、`-13/`）。仅修复用户本地`neovide-settings.json`中的网格和像素尺寸，原文精确备份`neovide-window-before-14.json`；未改源码、安装包、输入设置。正式已安装普通Launcher不加OpenGL／grid／capture／intro覆盖，约4.08秒出窗（`glow-startup-probe-15/`），该自有验证进程已清理；当前硬件窗口保留给用户，CUA已见用户打开Notebook。小网格卡死的更深层原因尚未确认，不将恢复尺寸视为源码缺陷已修复。
+- `glow-startup-cleanup-16/`已逐一确认原三组启动进程的PID亲缘、exe、空文件参数及没有有效可见客户区，只结束这三组持续占用CPU的卡死树；保留用户当前窗口。Candidate5先前Yazi健康失败与当前普通启动故障分开，尚未重新发布。Windows配置目前没有界面缩放快捷键（仅Mac分支定义），临时可设置`vim.g.neovide_scale_factor`，本次未新增绑定。
 - 2026-10-21，Codex：完整候选4已在PD本地编译并通过安装／卸载七阶段及最终六项运行环境检查（`candidate-installer-3/`，续用`-2`前三个已通过阶段；仅QA sentinel作用域修复）。两次卸载均保留配置，任务自有sentinel已清理；825,413,515字节，SHA256 `fc74b4eac13bd28ba39631b32113d36a5f2b9867a07c22128f27867af7604ed4`，已导出并核对草稿远端digest，仍未公开。用户反馈PD软件绘制帧率低，先处理硬件OpenGL再确定发布内容。
 - 系统WGL独立探针`opengl-probe-result-1`在x64/ARM64均取得Parallels/Metal硬件OpenGL4.3及Core3.3；不要求WGL透明格式可选5项，要求透明时API失败且error0。Windows-only回退`f4e035b178c42007e44cab412fedfe670491e64d`已推送及同步PD；本机renderer检查96通过、1项Metal默认忽略。`opengl-frontend-1`在1065.708秒因`+crt-static`请求未发布的Skia静态包404，源码回退又遇symlink1314而失败；无新EXE，Stage/C4未改。`opengl-frontend-3`曾以0x40010004中断，原因未确定；`-4`正常返回101，确证强制下载模式在registry crate无.git时跳过预编译，转源码而遇symlink1314。`opengl-frontend-5`改用registry VCS元数据／本地官方归档并显式`skia-safe/no-compile`，recipe v3，Windows单次按需任务实际472.067秒通过：AMD64、35,875,840字节、SHA256 `a96bece797dddc7533c0929654d42610ebcd0635360a58f88db1a770d38fe3b7`。`vc-runtime-1.json`的包内VC普通／延迟导入及递归符号89/89通过，不代表干净机运行验收。原缓存、各轮失败回执保留。`hardware-gui-3/gui/state.json`实际26.984秒通过并清理全部自有后代：真实系统OpenGL／Parallels驱动、包内VC运行库、原生PNG加载／关闭、同一窗口resize及再次解码均通过；`opengl-renderer-tests-2`在164.858秒完成96通过、0失败。GUI1/2失败证据保留，GUI3以真实UI/HWND判定就绪并增加RPC诊断；尚无人工视觉／帧率验收，不推断GUI2超时根因。Candidate5第一次prepare因唯一未封印运行缓存`runtime/python/Lib/encodings/__pycache__/gbk.cpython-312.pyc`被严格file-set检查拦截（缺失0、未创建候选目录）；缓存保留，仅精确排除并记录SHA，封印内文件逐项复制验SHA门槛保留。普通入口默认D3D12会在PD失败，已在Launcher `51de98eea4a66f5abf7af40f6b0dd1cfcc20d208`补仅Parallels子进程默认OpenGL，保留显式值与普通Windows默认；`launcher-pd-build-1`在PD真实编译114,688字节／SHA `afbce652ce262a162e665f29d5ee981c915aebe5cb00df0dd543d0578225472e`且14项定向检查通过。`hardware-default-launcher-gui-1`无显式OpenGL参数／父环境值，10.047秒通过全部原硬件GUI门槛并清理；C5第二次prepare在长临时路径创建目录时报206，失败临时目录保留；第三次显式长路径复制在545.960秒因`runtime/python/Lib/__pycache__/copyreg.cpython-312.pyc`与原seal不同而停止，原Stage与部分候选`.C5-8eef11a3eca7`均保留；详见`baseline-hash-mismatch-1.json`。该缓存修改时间20:13早于C4编译20:44，不依赖C4恢复缓存，也未运行恢复安装。新C5改用包内Python3.12.2在无旧缓存的独立候选中，以`-I -S -B`从逐项验证原seal的.py源码显式重建PEP3147 checked-hash缓存；其他文件SHA门槛保留。版本化worker与打包来源`fe0e8270b16cb477280e2674b27d7afbf2ea83c4`已推送；C5第四轮`candidate5-compile-4`在508.983秒完成全部非缓存复制验SHA及3914项源码绑定checked-hash缓存重建，包内Python3.12.2实际运行通过。新封印63870项／SHA `f40139c3063a970fa1ce63ba425e1e8bf2db29f2b1de8ba8312d767058dbfae0`，仅新增gbk缓存及3份来源记录；Stage-Candidate-5为独立副本。`candidate5-compile-4`已完成压缩1747.599秒，最终候选5为825,632,023字节／SHA256 `840db51b9ba82ecf183c6a3583b8b6d4bf5cfb634358e3e869a6b0c76ad58e2c`，未签名。`Glow-Candidate5Install-20261021-1`已启动本次7阶段／6项健康及11项关键payload检查，按用户预设用量停工条件，已停止新增模型工作及宿主观察器。`candidate-installer-5/receipt.json`停工时过长目录拒绝、默认安装／launcher-check／卸载共4阶段已通过，含中文／空格／单引号路径安装正运行；已启动的一次性有界本地套件继续自行完成健康检查与卸载收尾，不会自动导出或发布。恢复先读本次receipt、`installed-health/receipt.json`及`root-run-candidate5-install-1.result.json`，检查任务实际状态，不重启已存在的运行。全部通过后才运行已准备的`root-register-candidate5-export-task-1.ps1`、`root-verify-candidate5-host-export.py`单次宿主SHA校验、`root-finalize-candidate5-public-receipt.py`（compile4、installer5、export-host、launcher-pd-build-1、ordinary GUI1及compile4/canonical-python-caches.json）、`root-publish-candidate5.py`，最后部署并核对Sites已保存第16版。旧C4草稿EXE与线上第15版仍未替换；若本地套件失败，先处理其明确错误，不继承旧验收。有限时防休眠保留到自身超时，不自动续期。新C5显式绑定新Launcher来源／测试／普通入口GUI，不复用候选4安装结论。
+- 2026-10-21，Codex只读接手检查发现候选5本地安装套件已结束：6个安装／入口阶段通过，安装后健康／来源绑定检查失败，按脚本保留该安装，未继续卸载、导出或发布；证据`candidate-installer-5/receipt.json`及`root-run-candidate5-install-1.result.json`。后续恢复发布工作先处理该明确失败，不沿用候选4结论。
 - 两轮Windows更新已重启完成，用户已登录；`windows-update-after-2.json`实际26H2／26300.9711，WU与CBS均无待重启。全屏Scale view mode已核对为Auto；一次实际窗口→全屏切换读到3024×1680→3024×1898／120Hz，active与registry相同，证据`display-layout-window-auto-1`／`display-layout-fullscreen-auto-1`，未强写显示模式。`Show-Frontend-BuildLog.ps1`已指向已通过的`opengl-frontend-5`。GUI3诊断后已恢复全屏Auto，`display-layout-restored-fullscreen-1`再次读到当前与默认均3024×1898／120Hz；全屏CUA画面曾停在旧帧，退出全屏后刷新，不作产品根因结论。窗口模式来宾坐标输入仍报noWindowsAvailable，输入法及完整手动视觉验收留待可操作时验证，用户睡觉期间不提问。
-- 输入法目标为Mac控制Ctrl+Space最近两项、Fn轮换中英希腊，PD保持双向同步；用户实测Mac切换而Windows未跟随，尚未修好。已通过PD原生CLI实际设Keyboard optimization=off（Mouse未改）；此前我写入的三项Windowslegacy值已按备份精确撤回并核对，`keyboard-shortcuts-owned-rollback-2.json`。Mac快捷键／输入源及PD Auto／内置Switch Language保留，第二轮重启后三项legacy值仍为空。用户最新实测离开PD后Mac切换正常，Windows前台选择任意源仍停Greek，联动未通过；已仅追加正式希腊输入源（Windows规范化tag为`el`），`greek-input-registration-verified-1.json`确认中英原属性／默认输入源／UI语言覆盖均保留，尚待Ctrl+Space／Fn实际验证；CUA全屏来宾输入曾报noWindowsAvailable，不能把AX尝试算作实际输入。
+- 输入法目标为Mac控制Ctrl+Space最近两项、Fn轮换中英希腊，PD保持双向同步；2026-10-21用户先恢复本项排障，发布任务仍暂停。Keyboard optimization=off、内置Switch Language与Mac快捷键／输入源保留，三项task-created Windows legacy值已精确撤回；正式希腊已追加且保留中英原属性与默认源（`greek-input-registration-verified-1.json`）。用户已将Send macOS system shortcuts从Auto改为Never，CUA画面确认；实按快捷键已有反应，但Mac选拼音时Windows仅在ENG／Greek间切换，4秒用户录屏同样显示该现象。用户另确认Windows可手动选微软拼音，不能把问题归为未安装中文；`input-current-status-3.json`确认用户级拼音启用、ChsIME／ctfmon运行、三语及四布局均存在、Tools与PD均27.0.3、KeyboardLayoutSync Enabled=1。用户随后明确确认Windows可手动切拼音，但快捷键仍陷于ENG／EL；按用户明确授权添加PD输入监控后未改善。已通过PD官方CLI重装Tools，界面明确显示成功，并完成Windows重启；用户重测仍失败，不能将重装成功视为修复。已找到PD27同类Mac→Windows同步失败用户报告，未找到本案已确认修复；新版／旧版拼音差异仅为假设，未启用兼容模式或删除任何键盘。用户继续要求解决；最新明确现象为Ctrl+Space时Mac3项／Windows2项，Ctrl+Option+Space时Mac2项／Windows3项（不是两边选中语言相反）。独立记事本正文仍复现，排除仅设置页焦点；未改拼音内部热键。用户随后明确反馈Ctrl+Space→Win+Ctrl+Space无效；自行改为Ctrl+Option+Space→Win+Space后Windows可三语轮换，但Mac不跟随，CUA设置截图确认当前保留该用户映射（Windows.dat从31增至32项；不能仅按Qt二进制modifier值猜标签）。原31项备份`input-keymap-before-7.dat`保留。Windows本身三语切换有效，双向同步仍未修复；同版本论坛有同步失效报告但无本案中文专属已核实修复，不将报告当成本机根因。Mac快捷键与输入源均未改；不覆盖用户有效映射，不重复权限／重装／重启路径。CUA能读原生设置，但坐标输入仍报noWindowsAvailable；如无新证据，不再让用户重复同一测试。
 - Notebook整链 `windows-notebook-gui-8` 已通过62.344秒：真实修改41+1得到42、Matplotlib原生PNG、保存源码／计数／输出、关闭内核、同进程重开恢复且marker仍1／磁盘不变；自有GUI与内核均退出。修复覆盖Windows Jupytext双引号、远程桥路径、私有连接目录及sidecar斜杠身份；后者真实Windows旧失败／新通过，输出匹配保护未改。配置 `df6d66f5` 已推送；Stage与仅未改动的QA profile按SHA原子更新，第16版发布页仍仅保存。
 - 2026-10-21，用户授权睡觉期间由Codex接管PD继续环境与安装包验证；周额度剩余≤5%时停止新增工作，保存当前成果、活动任务及恢复步骤，等待用户合适时恢复。额度由主任务在阶段节点统一检查，不自动唤醒。
 - PD 的 Windows 11 ARM64 开发环境已部署至 `C:\GlowDev\Toolchain`：MSVC 14.44／SDK 26100、Rust 1.99.1 x64、LLVM 21.1.8 x64、Python 3.12.10、CMake／Ninja／Inno 6.7.1／Neovim均通过实际烟测（含 C、Rust、C# 编译运行与 x64 libclang 加载）；桌面入口“Glow 开发环境”使用私有工具路径，原 Anaconda／全局 PATH 保留。源码 `C:\GlowDev\neovide-glow` 已按公开 bundle 更新至 `f4e035b`，21个纯换行差异已按原Git字节规范化，未复制Mac认证。

@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "target": "windows-x64",
+  "assets": {
+    "rg": {
+      "filename": "ripgrep-15.2.0-x86_64-pc-windows-msvc.zip",
+      "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-pc-windows-msvc.zip",
+      "sha256": "71b2fef860abe467217a538ff31de02f5258807c0129f771846f87bd029aafc5",
+      "format": "zip",
+      "binary": "rg.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 1789611,
+      "version": "15.2.0"
+    },
+    "fd": {
+      "filename": "fd-v10.4.2-x86_64-pc-windows-msvc.zip",
+      "url": "https://github.com/sharkdp/fd/releases/download/v10.4.2/fd-v10.4.2-x86_64-pc-windows-msvc.zip",
+      "sha256": "b2816e506390a89941c63c9187d58a3cc10e9a55f2ef0685f9ea0eccaf7c98c8",
+      "format": "zip",
+      "binary": "fd.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 1525898,
+      "version": "10.4.2"
+    },
+    "yazi": {
+      "filename": "yazi-x86_64-pc-windows-msvc.zip",
+      "url": "https://github.com/sxyazi/yazi/releases/download/v26.5.6/yazi-x86_64-pc-windows-msvc.zip",
+      "sha256": "6c6c52a4b2648e179f917bdaa7c57e793d18561b380a8bfa025f10cd1b9b2ad1",
+      "format": "zip",
+      "binary": "yazi.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 13493257,
+      "version": "26.5.6"
+    },
+    "fzf": {
+      "filename": "fzf-0.73.1-windows_amd64.zip",
+      "url": "https://github.com/junegunn/fzf/releases/download/v0.73.1/fzf-0.73.1-windows_amd64.zip",
+      "sha256": "521a974dc32e93404265e55bffaf71a59e05e80abdf8ca4afb21a6030dc76f5f",
+      "format": "zip",
+      "binary": "fzf.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 2149253,
+      "version": "0.73.1"
+    },
+    "git": {
+      "filename": "PortableGit-2.55.0.5-64-bit.7z.exe",
+      "url": "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/PortableGit-2.55.0.5-64-bit.7z.exe",
+      "sha256": "5aa8a20f6e9abb2c755f0e73c91c687701a46b309ad84a0ca6509380fa4ae290",
+      "format": "7zip",
+      "binary": "git.exe",
+      "checksum_source": "official-github-release-digest",
+      "download_size": 58960208,
+      "version": "2.55.0.5"
+    },
+    "python": {
+      "filename": "python-3.12.10-amd64.exe",
+      "url": "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe",
+      "sha256": "67b5635e80ea51072b87941312d00ec8927c4db9ba18938f7ad2d27b328b95fb",
+      "download_size": 26964224,
+      "version": "3.12.10",
+      "format": "installer",
+      "binary": "python.exe",
+      "checksum_source": "fixed-official-PSF-signed-installer"
+    },
+    "tinytex": {
+      "filename": "TinyTeX-1-windows-v2026.10.exe",
+      "url": "https://github.com/rstudio/tinytex-releases/releases/download/v2026.10/TinyTeX-1-windows-v2026.10.exe",
+      "sha256": "36c329c644683d981a668419d13c8804696e2816ae4d287ad755788fee231a31",
+      "download_size": 73701889,
+      "version": "2026.10",
+      "format": "self-extracting",
+      "binary": "xelatex.exe",
+      "checksum_source": "official-github-release-digest"
+    },
+    "webview2": {
+      "source_url": "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
+      "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/ed55121c-0243-4978-b7e7-56505b5b96ff/MicrosoftEdgeWebview2Setup.exe",
+      "sha256": "f414de01c4680f0bb0694d1ea7803c6968f3a81bf6bad01b89bfc65dce14c2a2",
+      "download_size": 1876736,
+      "filename": "MicrosoftEdgeWebview2Setup.exe",
+      "version": "20261021-locked-bootstrapper",
+      "format": "installer",
+      "binary": "MicrosoftEdgeWebview2Setup.exe",
+      "checksum_source": "fixed-official-Microsoft-bootstrapper-download"
+    }
+  }
+}

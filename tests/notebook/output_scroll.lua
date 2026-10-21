@@ -1,6 +1,7 @@
 -- Real isolated output windows, no plugin runtime, Python host or kernel.
 -- GLOW_TEST_CONFIG=~/.config/nvim nvim --headless -u NONE -i NONE -l tests/notebook/output_scroll.lua
 vim.opt.rtp = { assert(vim.env.GLOW_TEST_CONFIG), vim.env.VIMRUNTIME }
+require("config.platform.locale").set_lang("zh", { save = false, silent = true })
 local api = vim.api
 local source, source_buf = api.nvim_get_current_win(), api.nvim_get_current_buf()
 local source_lines = { "# %%", "print('saved output')" }

@@ -1,6 +1,7 @@
 -- No kernels: evaluate the real winbar syntax, widths, palette and theme refresh.
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h:h")
 vim.opt.rtp:prepend(vim.env.GLOW_TEST_CONFIG or (root .. "/portable/payload/nvim"))
+require("config.platform.locale").set_lang("en", { save = false, silent = true })
 vim.g.mapleader = " "
 vim.o.background = "dark"
 package.preload.base46 = function()

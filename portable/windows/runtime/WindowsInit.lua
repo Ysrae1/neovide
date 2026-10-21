@@ -6,9 +6,32 @@ root = vim.fs.normalize(root):gsub("/$", "")
 if vim.g.neovide_glow_windows_runtime == root then return end
 
 local runtime = require("config.media.runtime")
+local core = vim.env.NEOVIDE_GLOW_DISTRIBUTION == "core"
+if core then
+  -- Default invocation is a read-only local audit. Downloads/package changes
+  -- require explicit selections in the visible dependency console.
+  vim.api.nvim_create_user_command("GlowDependencies", function()
+    local script = vim.env.NEOVIDE_GLOW_DEPENDENCY_SETUP
+    if not script or vim.fn.filereadable(script) ~= 1 then
+      vim.notify("Dependency setup is missing; reinstall the Glow core package.", vim.log.levels.ERROR)
+      return
+    end
+    vim.cmd("botright new")
+    vim.fn.jobstart({ "powershell.exe", "-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", script }, { term = true })
+    vim.cmd("startinsert")
+  end, { desc = "Review optional system dependencies" })
+  if not vim.env.GLOW_PYTHON or not vim.env.GLOW_JUPYTEXT then
+    function runtime.ready() return false end
+    function runtime.python() return "" end
+    function runtime.jupytext() return "" end
+    function runtime.convert() error("Notebook dependencies are unavailable. Run :GlowDependencies to configure them.", 0) end
+    vim.g.neovide_glow_windows_runtime = root
+    return
+  end
+end
 local python = vim.env.GLOW_PYTHON or vim.env.NEOVIDE_GLOW_PYTHON or root .. "/runtime/python/python.exe"
 python = vim.fs.normalize(python)
-local jupytext = root .. "/bin/jupytext.exe"
+local jupytext = core and vim.env.GLOW_JUPYTEXT or root .. "/bin/jupytext.exe"
 assert(vim.fn.executable(python) == 1, "The packaged Python runtime is missing: " .. python)
 assert(vim.fn.executable(jupytext) == 1, "The packaged Jupytext launcher is missing: " .. jupytext)
 
@@ -23,7 +46,7 @@ function runtime.prepare_host()
 end
 runtime.prepare_host()
 vim.env.GLOW_PYTHON, vim.env.NEOVIDE_GLOW_PYTHON = python, python
-vim.env.GLOW_LATEX2TEXT = root .. "/bin/latex2text.exe"
+if not core then vim.env.GLOW_LATEX2TEXT = root .. "/bin/latex2text.exe" end
 
 -- Molten's frozen client writes connection files under data_dir/runtime even
 -- when JUPYTER_RUNTIME_DIR points elsewhere. Prepare only this private profile.

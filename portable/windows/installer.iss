@@ -9,6 +9,20 @@
 #ifndef AppVersion
   #error AppVersion is required.
 #endif
+#ifndef Distribution
+  #define Distribution "offline"
+#endif
+#if Distribution == "core"
+  #define PackageSuffix "Core-Setup"
+  #define InstallDirectoryName "Neovide Glow Core"
+  #define ShortcutName "Neovide Glow Preview"
+  #define ProductId "2BE1E0A6-180C-4700-8453-FB29359286D9"
+#else
+  #define PackageSuffix "Setup"
+  #define InstallDirectoryName "Neovide Glow"
+  #define ShortcutName "Neovide Glow"
+  #define ProductId "273E54EB-BD13-49D8-B56D-0860903BA699"
+#endif
 #if !FileExists(StageDir + "\Glow.exe") || !FileExists(StageDir + "\bundle.json")
   #error StageDir is missing the compiled launcher or bundle metadata.
 #endif
@@ -49,14 +63,14 @@
 #for {GlowDirectoryIndex = 0; GlowDirectoryIndex < GlowDirectoryCount; GlowDirectoryIndex++} GlowMeasureDirectory
 
 [Setup]
-AppId={{273E54EB-BD13-49D8-B56D-0860903BA699}
+AppId={{{#ProductId}}
 AppName=Neovide Glow
 AppVersion={#AppVersion}
 AppPublisher=Neovide Glow contributors
 AppPublisherURL=https://github.com/Ysrae1/neovide
 AppSupportURL=https://github.com/Ysrae1/neovide/issues
-DefaultDirName={localappdata}\Programs\Neovide Glow
-DefaultGroupName=Neovide Glow
+DefaultDirName={localappdata}\Programs\{#InstallDirectoryName}
+DefaultGroupName={#ShortcutName}
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -66,7 +80,7 @@ DisableDirPage=no
 UsePreviousAppDir=yes
 UninstallDisplayIcon={app}\Glow.exe
 OutputDir={#OutputDir}
-OutputBaseFilename=Neovide-Glow-{#AppVersion}-Windows-x64-Setup
+OutputBaseFilename=Neovide-Glow-{#AppVersion}-Windows-x64-{#PackageSuffix}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -76,7 +90,7 @@ RestartApplications=no
 ChangesEnvironment=no
 ChangesAssociations=no
 Uninstallable=yes
-VersionInfoDescription=Neovide Glow offline installer
+VersionInfoDescription=Neovide Glow {#Distribution} installer
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -88,8 +102,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\Neovide Glow"; Filename: "{app}\Glow.exe"; WorkingDir: "{userdocs}"
-Name: "{autodesktop}\Neovide Glow"; Filename: "{app}\Glow.exe"; WorkingDir: "{userdocs}"; Tasks: desktopicon
+Name: "{autoprograms}\{#ShortcutName}"; Filename: "{app}\Glow.exe"; WorkingDir: "{userdocs}"
+Name: "{autodesktop}\{#ShortcutName}"; Filename: "{app}\Glow.exe"; WorkingDir: "{userdocs}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Glow.exe"; Description: "Launch Neovide Glow"; WorkingDir: "{userdocs}"; Flags: nowait postinstall skipifsilent unchecked
@@ -104,11 +118,72 @@ const
   GlowMaxRelativeFile = {#GlowMaxRelativeFile};
   GlowMaxRelativeDirectory = {#GlowMaxRelativeDirectory};
 
+#if Distribution == "core"
+var
+  GlowFeaturePage: TInputOptionWizardPage;
+
+procedure InitializeWizard;
+begin
+  GlowFeaturePage := CreateInputOptionPage(wpSelectDir, 'Choose features',
+    'Existing compatible tools will be reused. Only missing components are downloaded.',
+    'Base tools are included in setup: search, file manager, Git and PDF runtime. ' +
+    'Their official downloads total up to 75 MiB, plus WebView2 only if missing. ' +
+    'Shared dependencies are installed outside the Glow application.', False, False);
+  GlowFeaturePage.Add('Notebook / Python (CPython up to 26 MiB, plus Python packages)');
+  GlowFeaturePage.Add('LaTeX / Chinese PDF (TinyTeX up to 71 MiB, plus TeX packages)');
+  GlowFeaturePage.Values[0] := True;
+  GlowFeaturePage.Values[1] := True;
+end;
+
+procedure GlowInstallSelectedDependencies;
+var
+  Arguments: String;
+  ExitCode: Integer;
+begin
+  { Automated packaging smoke tests must not install external software. }
+  if WizardSilent and (ExpandConstant('{param:INSTALLDEPS|0}') <> '1') then Exit;
+  Arguments := '-NoProfile -ExecutionPolicy Bypass -File "' +
+    ExpandConstant('{app}\dependencies\Setup-Dependencies.ps1') + '" -InstallBase';
+  if GlowFeaturePage.Values[0] then Arguments := Arguments + ' -InstallNotebook';
+  if GlowFeaturePage.Values[1] then Arguments := Arguments + ' -InstallLatex';
+  WizardForm.StatusLabel.Caption := 'Checking existing tools and installing selected missing dependencies...';
+  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Arguments,
+    ExpandConstant('{app}'), SW_SHOWNORMAL, ewWaitUntilTerminated, ExitCode) or (ExitCode <> 0) then
+    RaiseException('The application files were installed, but a selected dependency did not finish. ' +
+      'Existing environments and partial downloads were preserved. See ' +
+      ExpandConstant('{localappdata}\NeovideGlow\dependencies\runs') +
+      ' for the error, then rerun this installer to continue.');
+end;
+#endif
+
 function GlowCheckInstallDirectory(const Directory: String): String;
 var
   RootLength, MaximumRootLength: Integer;
+#if Distribution == "core"
+  ExistingBundle: AnsiString;
+#endif
 begin
   Result := '';
+#if Distribution == "core"
+  { Do not leave old offline runtimes/shims shadowing system dependencies. }
+  { A separate install identity preserves the old package instead of deleting it. }
+  if FileExists(AddBackslash(Directory) + 'runtime\python\python.exe') or
+     FileExists(AddBackslash(Directory) + 'bin\python.exe') then
+  begin
+    Result := 'This folder contains an offline runtime. Choose a separate folder for Neovide Glow Core. ' +
+      'The existing application and its user profiles will be preserved.';
+    Exit;
+  end;
+  if FileExists(AddBackslash(Directory) + 'Glow.exe') then
+  begin
+    if not LoadStringFromFile(AddBackslash(Directory) + 'bundle.json', ExistingBundle) or
+      (Pos('"distribution": "core"', ExistingBundle) = 0) then
+    begin
+      Result := 'This folder belongs to another Glow package. Choose a separate folder for the core installation.';
+      Exit;
+    end;
+  end;
+#endif
   MaximumRootLength := 259 - 1 - GlowMaxRelativeFile;
   { Inno 6 creates a 17-character is-XXXXXXXXXX.tmp in each destination directory. }
   if 259 - 1 - GlowMaxRelativeDirectory - 18 < MaximumRootLength then
@@ -116,7 +191,7 @@ begin
   RootLength := Length(RemoveBackslashUnlessRoot(Directory));
   if RootLength > MaximumRootLength then
   begin
-    Result := 'This installation folder is too long for the complete offline package. ' +
+    Result := 'This installation folder is too long for this package. ' +
       'Choose a shorter folder, such as C:\Glow. The folder path must contain at most ' +
       IntToStr(MaximumRootLength) + ' characters; the selected path contains ' +
       IntToStr(RootLength) + '.';
@@ -228,5 +303,11 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssPostInstall then GlowInstallUserFonts;
+  if CurStep = ssPostInstall then
+  begin
+    GlowInstallUserFonts;
+#if Distribution == "core"
+    GlowInstallSelectedDependencies;
+#endif
+  end;
 end;

@@ -108,6 +108,10 @@ pub async fn report_status(nvim: Neovim<NeovimWriter>, id: u64, json: String) {
 mod macos;
 #[cfg(target_os = "macos")]
 pub use macos::NativePreviews;
+#[cfg(target_os = "windows")]
+mod windows;
+#[cfg(target_os = "windows")]
+pub use windows::NativePreviews;
 
 #[cfg(test)]
 mod tests {

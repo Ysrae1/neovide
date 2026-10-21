@@ -1,0 +1,39 @@
+\documentclass[UTF8,fontset=fandol,12pt,a4paper]{ctexart}
+\usepackage{fontspec,xeCJK}
+\usepackage{geometry,enumitem,fancyhdr,xcolor,amsmath,amsfonts,amsthm}
+\usepackage{graphicx,booktabs,longtable,array,caption,listings,hyperref}
+\geometry{margin=23mm}
+\setmainfont[BoldFont=lmroman10-bold.otf,ItalicFont=lmroman10-italic.otf]{lmroman10-regular.otf}
+\setmonofont{lmmono10-regular.otf}
+\setCJKmainfont[BoldFont=FandolSong-Bold.otf]{FandolSong-Regular.otf}
+\setCJKsansfont[BoldFont=FandolHei-Bold.otf]{FandolHei-Regular.otf}
+\setCJKmonofont{FandolFang-Regular.otf}
+\pagestyle{fancy}
+\fancyhf{}
+\setlength{\headheight}{16pt}
+\fancyhead[L]{Glow Windows 原生排版验证}
+\fancyfoot[C]{\thepage}
+\hypersetup{unicode=true,colorlinks=true,linkcolor=blue,urlcolor=blue}
+\newtheorem{theorem}{定理}
+\begin{document}
+\section{中文与数学排版}
+中文正文使用发行版附带的 Fandol 字体，避免依赖 Windows 系统字体。
+English text uses Latin Modern. 本文验证 \texttt{XeLaTeX}、\texttt{latexmk} 和 SyncTeX。
+\begin{equation}
+  \int_0^1 x^2\,\mathrm{d}x=\frac{1}{3},\qquad
+  A\in\mathbb{R}^{2\times2},\quad \alpha+\beta=\gamma.
+\end{equation}
+\begin{theorem}若 $x>0$，则 $x^2\geq0$。\end{theorem}
+\begin{enumerate}[label=\arabic*.]
+  \item 编译过程不启用 shell escape。
+  \item 检查生成 PDF 与非空的 SyncTeX 文件。
+\end{enumerate}
+\begin{center}
+\begin{tabular}{lc}
+\toprule 功能 & 状态 \\
+\midrule 中文、数学、表格与页眉 & 可验证 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\href{https://yihui.org/tinytex/}{TinyTeX 官方说明}
+\end{document}

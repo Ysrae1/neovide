@@ -133,6 +133,9 @@ static NSButton *GlowPDFButton(NSString *title, id target, SEL action, NSString 
     _toolbar.orientation = NSUserInterfaceLayoutOrientationHorizontal;
     _toolbar.alignment = NSLayoutAttributeCenterY;
     _toolbar.spacing = 5;
+    // The themed Lua PDF capsules own navigation and zoom. Keep the duplicate
+    // native controls hidden, without reserving a second toolbar above the page.
+    _toolbar.hidden = YES;
     [_view addSubview:_toolbar];
     _message = [NSTextField labelWithString:@"正在加载 PDF…"];
     _message.alignment = NSTextAlignmentCenter;
@@ -254,9 +257,7 @@ static NSButton *GlowPDFButton(NSString *title, id target, SEL action, NSString 
 - (void)layout {
     if (self.destroyed) return;
     CGFloat width = self.view.bounds.size.width, height = self.view.bounds.size.height;
-    self.toolbar.frame = NSMakeRect(8, 3, fmax(0, width - 16), 32);
-    self.zoomLabel.hidden = width < 380;
-    self.pdfView.frame = NSMakeRect(0, 38, width, fmax(0, height - 38));
+    self.pdfView.frame = self.view.bounds;
     self.message.frame = NSMakeRect(16, fmax(40, height / 2 - 32), fmax(0, width - 32), 90);
 }
 

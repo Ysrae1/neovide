@@ -2,6 +2,7 @@
 -- slots without launching a GUI, Yazi process, kernel, or installed plugins.
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h:h")
 vim.opt.rtp:prepend(vim.env.GLOW_TEST_CONFIG or root .. "/portable/payload/nvim")
+require("config.platform.locale").set_lang("zh", { save = false, silent = true })
 vim.g.neovide, vim.g.neovide_native_image = true, true
 vim.g.neovide_channel_id, vim.g.neovide_native_image_anchor = 42, true
 vim.g.neovide_cell_width, vim.g.neovide_cell_height = 10, 20

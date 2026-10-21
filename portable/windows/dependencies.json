@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "tools": [
+    {
+      "role": "powershell",
+      "command": "pwsh.exe",
+      "package": "Microsoft.PowerShell",
+      "purpose": "Interactive terminal"
+    },
+    {
+      "role": "git",
+      "command": "git.exe",
+      "package": "Git.Git",
+      "purpose": "Version control"
+    },
+    {
+      "role": "search",
+      "command": "rg.exe",
+      "package": "BurntSushi.ripgrep.MSVC",
+      "purpose": "Text search"
+    },
+    {
+      "role": "find",
+      "command": "fd.exe",
+      "package": "sharkdp.fd",
+      "purpose": "File search"
+    },
+    {
+      "role": "yazi",
+      "command": "yazi.exe",
+      "package": "sxyazi.yazi",
+      "purpose": "File manager"
+    },
+    {
+      "role": "fzf",
+      "command": "fzf.exe",
+      "package": "junegunn.fzf",
+      "purpose": "Interactive filtering"
+    },
+    {
+      "role": "node",
+      "command": "node.exe",
+      "package": "OpenJS.NodeJS.LTS",
+      "purpose": "JavaScript language servers"
+    },
+    {
+      "role": "latex",
+      "command": "xelatex.exe",
+      "package": "TinyTeX-v2026.10",
+      "purpose": "TeX document compilation"
+    },
+    {
+      "role": "pdf",
+      "command": "SumatraPDF.exe",
+      "package": "SumatraPDF.SumatraPDF",
+      "purpose": "External PDF fallback"
+    },
+    {
+      "role": "webview2",
+      "detector": "webview2-evergreen",
+      "package": "Microsoft.EdgeWebView2Runtime",
+      "purpose": "Embedded PDF/web rendering"
+    }
+  ]
+}

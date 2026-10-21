@@ -42,6 +42,7 @@ for _, theme in ipairs({ "dark", "light" }) do
   local profiles = require("config.appearance.popup_materials")
   for name in pairs(profiles.config) do profiles.config[name] = { mode = "opaque" } end
   profiles.config.notebook_output = { mode = "editor" }
+  profiles.config.matrix_dashboard = { mode = "editor" }
   local theme_data = require("config.appearance.themes.ayu_" .. theme .. "_customed")
   local colors = theme_data.base_30
   vim.o.background = theme
@@ -122,8 +123,13 @@ for _, theme in ipairs({ "dark", "light" }) do
     and vim.api.nvim_get_hl_ns({ winid = namespaced }) == namespace, "reload stacked mappings/namespaces")
   local actual = hl(namespace, "PopupSemantic")
   assert(actual.fg == semantic.fg and actual.bg == semantic.bg and actual.bold, "provider semantic highlight changed")
-  assert(vim.wo[dashboard].winblend == 65 and vim.wo[dashboard].winhighlight == "Normal:SnacksDashboardTerminal",
-    "embedded Dashboard terminal changed")
+  local dashboard_policy = profiles.resolve("matrix_dashboard", base, popup)
+  local dashboard_material = window_hl(dashboard, "Normal")
+  assert(vim.w[dashboard].glow_popup_material.profile == "matrix_dashboard"
+    and vim.w[dashboard].glow_popup_material.mode == "editor"
+    and dashboard_material.bg == dashboard_policy.bg and dashboard_material.blend == dashboard_policy.blend
+    and vim.wo[dashboard].winhighlight == "Normal:SnacksDashboardTerminal",
+    "embedded Dashboard Matrix must inherit the editor material")
   assert(vim.deep_equal(base, hl(0, "Normal")) and vim.deep_equal(cursorline, hl(0, "CursorLine"))
     and vim.deep_equal(visual, hl(0, "Visual")) and vim.wo[root].winhighlight == root_options[1]
     and vim.wo[root].winblend == root_options[2], "root editor material changed")
