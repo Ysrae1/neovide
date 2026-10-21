@@ -43,7 +43,9 @@ function Write-DependencyJson([string]$Path,$Value) {
     $temporary=$Path+'.preparing-'+[Guid]::NewGuid().ToString('N')
     try {
         [IO.File]::WriteAllText($temporary,($Value|ConvertTo-Json -Depth 8),(New-Object Text.UTF8Encoding($false)))
-        if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($temporary,$Path,$null) }
+        # A bare $null can bind as an empty backup path in Windows PowerShell.
+        # NullString passes the CLR null required by File.Replace for no backup.
+        if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($temporary,$Path,[System.Management.Automation.Language.NullString]::Value) }
         else { [IO.File]::Move($temporary,$Path) }
     } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary } }
 }

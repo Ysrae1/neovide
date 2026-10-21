@@ -183,7 +183,7 @@ function Save-Selection($Selected) {
     $temporary = $receipt + '.preparing-' + [Guid]::NewGuid().ToString('N')
     try {
         [IO.File]::WriteAllText($temporary, ($contents | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
-        if (Test-Path -LiteralPath $receipt) { [IO.File]::Replace($temporary, $receipt, $null) }
+        if (Test-Path -LiteralPath $receipt) { [IO.File]::Replace($temporary, $receipt, [System.Management.Automation.Language.NullString]::Value) }
         else { [IO.File]::Move($temporary, $receipt) }
     }
     finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary } }
@@ -415,12 +415,20 @@ try {
         Write-Host 'Existing Python/Conda environments are preserved. No global PATH or file associations were rewritten.'
     }
 } catch {
+    $failure=$_
+    $diagnosticWriteErrors=@()
     if ($script:DependencyRun) {
-        Write-DependencyJson (Join-Path $script:DependencyRun 'python-probes.json') @($script:PythonProbeDiagnostics)
-        Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') @{schema_version=1;status='failed';error=$_.Exception.Message;python_probes=@($script:PythonProbeDiagnostics);checks=$script:DependencyChecks}
+        try { Write-DependencyJson (Join-Path $script:DependencyRun 'python-probes.json') @($script:PythonProbeDiagnostics) }
+        catch {
+            $diagnosticWriteErrors+=('python-probes.json: '+$_.Exception.Message)
+            Write-Warning ('Could not save Python diagnostics: '+$_.Exception.Message+'. Original setup error: '+$failure.Exception.Message) -WarningAction Continue
+        }
+        try {
+            Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') @{schema_version=1;status='failed';error=$failure.Exception.Message;
+                python_probes=@($script:PythonProbeDiagnostics);checks=$script:DependencyChecks;diagnostic_write_errors=$diagnosticWriteErrors}
+        } catch { Write-Warning ('Could not save setup failure receipt: '+$_.Exception.Message+'. Original setup error: '+$failure.Exception.Message) -WarningAction Continue }
     }
-    Write-Error $_
-    throw
+    throw $failure
 } finally {
     if ($mutexAcquired) { $dependencyMutex.ReleaseMutex() }
     if ($dependencyMutex) { $dependencyMutex.Dispose() }
