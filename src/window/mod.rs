@@ -48,8 +48,8 @@ use crate::{
     frame::Frame,
     renderer::{DrawCommand, WindowConfig, build_window_config},
     settings::{
-        HotReloadConfigs, PersistentWindowSettings, Settings, SettingsChanged, clamped_grid_size,
-        load_last_window_settings, save_window_size,
+        DEFAULT_GRID_SIZE, HotReloadConfigs, PersistentWindowSettings, Settings, SettingsChanged,
+        clamped_grid_size, load_last_window_settings, save_window_size,
     },
     units::{Grid, GridSize},
     utils::expand_tilde,
@@ -63,7 +63,6 @@ pub use window_wrapper::WinitWindowWrapper;
 
 static DEFAULT_ICON: &[u8] = include_bytes!("../../assets/neovide.ico");
 
-const DEFAULT_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize { width: 500, height: 500 };
 const MIN_PERSISTENT_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize { width: 300, height: 150 };
 const MAX_PERSISTENT_WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize { width: 8192, height: 8192 };
 
@@ -374,6 +373,11 @@ pub fn create_window(
     #[allow(clippy::let_and_return)]
     let window_config = build_window_config(window_attributes, event_loop, settings);
 
+    #[cfg(target_os = "windows")]
+    if frame_decoration == Frame::None {
+        crate::platform::windows::frameless_resize::install(&window_config.window);
+    }
+
     #[cfg(target_os = "macos")]
     if let Some(previous_position) = previous_position {
         window_config.window.set_outer_position(previous_position);
@@ -421,7 +425,9 @@ pub fn determine_window_size(
                     .to_physical(scale),
                 )
             }
-            _ => WindowSize::Size(DEFAULT_WINDOW_SIZE),
+            // Resolve a fresh window through its font metrics and display DPI,
+            // rather than leaving the temporary physical startup size in place.
+            _ => WindowSize::Grid(DEFAULT_GRID_SIZE),
         },
     }
 }
@@ -464,4 +470,69 @@ pub fn load_icon(path: Option<&String>) -> Icon {
         rgba.extend_from_slice(&pixel.to_rgba().0);
     }
     Icon::from_rgba(rgba, width, height).expect("Failed to create icon object")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dimensions::Dimensions;
+
+    fn size_with(geometry: GeometryArgs, saved: Option<&PersistentWindowSettings>) -> WindowSize {
+        let settings = Settings::new();
+        let mut command_line = CmdLineSettings::default();
+        command_line.geometry = geometry;
+        settings.set(&command_line);
+        determine_window_size(saved, &settings)
+    }
+
+    fn no_geometry() -> GeometryArgs {
+        GeometryArgs { grid: None, size: None, maximized: false }
+    }
+
+    #[test]
+    fn startup_size_without_saved_pixels_uses_dpi_aware_default_grid() {
+        let position_only = PersistentWindowSettings::Windowed {
+            position: (220, 110).into(),
+            pixel_size: None,
+            grid_size: None,
+        };
+        for saved in [None, Some(&position_only)] {
+            let WindowSize::Grid(size) = size_with(no_geometry(), saved) else {
+                panic!("A fresh window must resolve its size from the actual font and DPI");
+            };
+            assert_eq!(size, DEFAULT_GRID_SIZE);
+        }
+    }
+
+    #[test]
+    fn startup_size_preserves_saved_pixels_and_explicit_geometry() {
+        let saved = PersistentWindowSettings::Windowed {
+            position: (220, 110).into(),
+            pixel_size: Some((1200, 800).into()),
+            grid_size: None,
+        };
+        assert!(matches!(size_with(no_geometry(), Some(&saved)), WindowSize::Size(size)
+            if size == PhysicalSize::new(1200, 800)));
+        assert!(matches!(size_with(GeometryArgs {
+            size: Some(Dimensions { width: 1400, height: 900 }), ..no_geometry()
+        }, Some(&saved)), WindowSize::Size(size) if size == PhysicalSize::new(1400, 900)));
+        assert!(matches!(size_with(GeometryArgs {
+            grid: Some(Some(Dimensions { width: 120, height: 40 })), ..no_geometry()
+        }, Some(&saved)), WindowSize::Grid(size) if size == GridSize::new(120, 40)));
+        assert!(matches!(
+            size_with(GeometryArgs { grid: Some(None), ..no_geometry() }, None),
+            WindowSize::NeovimGrid
+        ));
+        assert!(matches!(
+            size_with(GeometryArgs { maximized: true, ..no_geometry() }, Some(&saved)),
+            WindowSize::Maximized
+        ));
+        assert!(matches!(
+            size_with(
+                no_geometry(),
+                Some(&PersistentWindowSettings::Maximized { grid_size: None })
+            ),
+            WindowSize::Maximized
+        ));
+    }
 }
