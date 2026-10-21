@@ -1,13 +1,13 @@
 # Neovide Glow Preview
 
-基于 [neovide/neovide](https://github.com/neovide/neovide) 的实验分支 `glow-preview`，加入可调节的柔光效果。保留上游 MIT 许可证。这是第三方分支，尚未合入官方版本；此仓库没有提供经过签名、公证的安装包。
+基于 [neovide/neovide](https://github.com/neovide/neovide) 的实验分支 `glow-preview`，加入可调节的柔光效果。保留上游 MIT 许可证。这是第三方分支，尚未合入官方版本；本轮 Mac 预览包采用 ad-hoc 签名，未做 Apple 公证。
 
 ## 当前维护状态
 
 > 2026-10-21，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据负责对话与已有回执，不将源码／协议检查写成实际界面验收。
 
-- 已安装Mac为 `nightly-139+g955e75f`，Windows待构建源码仍固定 `3724db9`；当前配置 `5687116f`，对应Lua补修 `40e4a29`／`7eb12cd`。Mac菜单修正版真实展开验收及正式签名／安装已完成；Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留。
-- 已完成的迁移、提交和既有回归不再作为待办。Mac `mac78-3724db9` 已实际安装，PDF白栏交付完成；原生菜单新版另行构建。Windows Commit82 尚未构建，需先恢复承载虚拟机的外置盘实际空间并达到脚本的 3 GiB 门槛。
+- 已安装Mac为 `nightly-139+g955e75f`，Windows新构建源码固定 `3724db9`；当前配置 `5687116f`，对应Lua补修 `40e4a29`／`7eb12cd`。Mac菜单修正版真实展开验收及runtime签名／安装已完成；Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留。
+- 已完成的迁移、提交和既有回归不再作为待办。Mac PDF与原生菜单已安装；通用发行构建已完成实际菜单／PDF检查，DMG挂载／签名／内容核验通过。容量瓶颈已解除，Windows Commit82构建通过，正做实际GUI验收。
 - 公开冻结版仍为 `glow-stack-20261020-gm1`。旧 tag／发行资产保留；新精简包、下载清单及发布页待本轮产物验收后统一发布。旧 Candidate5 健康检查失败，不能沿用其发布脚本或把旧候选视为本轮完成。
 
 ### 剩余交付、负责人和验收依赖
@@ -17,16 +17,16 @@
 | 状态 | 交付／唯一负责人 | 当前证据与下一项必要验收 |
 | --- | --- | --- |
 | 已交付；负责人本轮已结束 | Mac App 更新、PDF 白栏：[Mac 前端更新与 PDF 白栏修复交付](codex://threads/01a15e0d-c1a7-7753-9d75-7777301cfa21) | `mac-delivery83-3724db9/receipt.json`／`gui-checks.json`／`pdf-top-edge.png`：App与CLI已安装为 `nightly-118+g3724db9`，签名／架构／hash一致；实际PDF无重复toolbar，胶囊、翻页／缩放通过。旧版在该stage的 `previous-install`，恢复入口已就绪。许可补齐单独提交 `14c3cf0`，477包／14Skia检查通过；未改用户主题与80%缩放。 |
-| 等待空间；准备结束，无构建运行 | Windows 蓝框、原生 PDF、无系统标题栏：[Windows 蓝框与原生 PDF 构建交付](codex://threads/01a15e0d-c5ad-7b91-8d59-a48eb54f56c7) | `commit82-manifest.json`／归档已绑定 `3724db9`；未解包或启动 cargo，负责人已结束本轮等待容量恢复。用户已授权容量负责人恢复后一次通知本项及精简包任务，整合者不重复唤醒。构建后实测引用框、PDF页面像素／交互及无系统标题栏，再重定向桌面入口；用户旧进程与旧overlay保留。新证据入口 `commit82-build-1/receipt.json`／`commit82-native-acceptance.json`。 |
-| 检测修复完成；打包等待新 EXE／空间 | 精简安装器、缺失依赖检测：[Windows 精简安装包与依赖检测交付](codex://threads/01a15e0d-d247-7c73-bcb6-a2d5cbbacd0a) | `dc9be70`／`19a53e7` 的发现／续装修复经原生脚本10项、core7项及真实Jupyter自动发现通过，未重装。最终固定输入 `core85-source=7eb12cd`／配置 `5687116f`，250项SHA见 `core85-source-manifest.json`，其中3份Lua与language-ui84实际文件hash匹配；旧core83／84保留。新包等待EXE，仍须安装／卸载／配置保留及健康验收，物理像素／首帧未验边界保留。 |
+| 新EXE构建通过；原生GUI验收中 | Windows 蓝框、原生 PDF、无系统标题栏：[Windows 蓝框与原生 PDF 构建交付](codex://threads/01a15e0d-c5ad-7b91-8d59-a48eb54f56c7) | `commit82-build-1/receipt.json` passed／exit0／279.712秒；源码3724db9，新EXE 36,179,456B，SHA256 `217ce184286a24705c23c2903de18416bfad71979982f7d0b1fbd934404cba31`，无cargo残留。前端负责人现独占Windows GUI，正在实测引用框、PDF像素／交互及无系统标题栏，保留用户旧进程／overlay；PD capture尚待实际图像，不把RPC当像素。证据入口 `commit82-build-1/receipt.json`／`commit82-native-acceptance.json`。 |
+| 独立原生检查通过；打包等新EXE／GUI | 精简安装器、缺失依赖检测：[Windows 精简安装包与依赖检测交付](codex://threads/01a15e0d-d247-7c73-bcb6-a2d5cbbacd0a) | 依赖复用修复及core85=7eb12cd／配置5687116f的250项SHA保留；`core85-native-validation/receipt.json`：生产launcher编译、两脚本AST、只读体积探针通过。探针保留383,238,559B／排除2,582,106,728B，不是最终EXE大小；正窄修安装测试的同名快捷方式保护与真实profile文件保留断言。仍须绑定新前端，完成安装／卸载／配置保留及健康／实际GUI验收。 |
 | 代码／实际数据验收与部署完成；物理键／像素未验收 | Lua 中英文菜单、标题／浮窗材质首帧、快捷键及终端样式：[中英文菜单与跨平台界面修复验收](codex://threads/01a15e0d-df72-7160-9316-fd825b365156) | `40e4a29`／`7eb12cd`（配置 `584ee281`／`5687116f`）补输入标题刷新及12组Mini.ai中英／内外语义；local＋portable窄回归通过。`language-ui84/receipt.json`：实际Windows隔离实例的NeoTree、VimTeX22n＋1x、真实LuaLS同浮窗/raw不变、Notebook两输出无内核、Snacks／Telescope／Scratch深浅标题／配色／留白数据通过；3文件按旧hash备份部署用户配置，未热改／重启用户窗口，下次启动加载。自有进程已结束；物理键、实际像素及首帧仍受 `noWindowsAvailable` 阻塞，不是完整GUI验收。 |
 | 已交付；负责人本轮已结束 | 三端环境同步、PowerShell profile优化：[开发环境同步工作流与 PowerShell 启动提速](codex://threads/01a15e0f-47aa-7d71-818f-b0f160ee299f) | 独立仓库 `~/Dev/workstation-config` 提交 `074b9a7`／`31f2292`，14项测试、Mac三个受管配置一致；`workstation-sync89-receipt.json` 六步全exit0，Windows三项／WSL一项一致、独立Python＋11包exact-match，未重装。`workstation-profile87-applied.json`／`88-normal-startup.json` 已去重复OMP初始化，主体6625→1762 ms，主题／提示符／按键hash相同、posh-git保留；普通新进程总8.103秒含会话启动，不能称总启动1.76秒。原profile字节备份保留；终端视觉由UI任务接续。 |
 | 已验收并安装；原负责人已结束 | Mac 原生菜单中英切换：[Mac 原生菜单接入中英文切换](codex://threads/01a15e0f-4c6e-75b2-9edb-c9f521ec1b58) | `mac-menu87-955e75f/receipt.json`：实际NSMenu中英往返、Dock、动作／target／快捷键、未保存内容／tick／光标／布局／撤销通过，CUA真实展开系统窗口操作已中文且全屏项唯一。整合者 `mac-delivery88-955e75f/receipt.json` 完成hardened runtime重签与App／CLI安装，旧mac83在该stage的previous-install，恢复入口已备；用户主题与80%缩放hash不变。OS提供方Services仍沿系统语言，全屏进出动画及多编辑器焦点往返未单独验收；旧84／86／85候选不可安装。 |
-| 用户明确暂缓；负责人本轮已结束 | Linux 入口、原生媒体及平台差异：[Linux 端兼容与三平台差异闭合](codex://threads/01a15e0f-5123-7692-b3f5-09de30021a20) | 用户2026-10-21决定“linux开发先暂缓”。保留入口 `360a2e0` 及X11后端 `57a341f`；11项入口／12项helper检查、宿主Rust替身接口检查通过，不是完整Linux编译／桌面GUI／解码验收。未推送或触发LinuxCI，自有宿主任务均结束。仅来宾 `*linux-native-20261021*run-entry-check.ps1*` 是否残留未知，两次有界调用超时后已停；恢复只核对此入口，不动其他进程。Wayland／ARM64清单缺口保留，容量恢复不自动唤醒Linux。 |
-| 执行容量恢复；外部依赖未解除 | 实际磁盘容量、PowerToys：[排查 Windows C 盘占满与 PowerToys 安装失败](codex://threads/01a15e09-9198-74c3-91b3-97c47d63f6ca) | C盘内部约382 GiB空闲，但来宾可用量受外置卷实际余量限制。负责人已定位差额并按用户授权执行数据迁移，校验前不删除源，容量门槛尚未解除；恢复后由其一次唤醒Windows前端与精简包，不唤醒已暂缓Linux。 |
-| Mac通用构建已完成；GUI优先交容量瓶颈 | 唯一状态整合、新版本发布与网站入口：[全部剩余开发事项整合与最终交付](codex://threads/01a15e10-07ad-77f3-b12c-1f312d3b2b1d) | `mac-public89-955e75f/receipt.json`：955e75f实际重编generic／arm64／minOS11，App与CLI严格runtime签名、477＋14许可、无observer，未替换本机native版。`gui90`真实中文菜单及未保存内容保持已过，自有控制器exit0／进程已清理；用户已手动解锁。当前GUI明确交容量负责人先完成Photos切换验证，回交后继续英语往返／通用版PDF及DMG；未创建／发布新release。Sites仍是d56237c8／第16版仅保存未部署，整体尚未完成。 |
+| 用户明确暂缓；负责人本轮已结束 | Linux 入口、原生媒体及平台差异：[Linux 端兼容与三平台差异闭合](codex://threads/01a15e0f-5123-7692-b3f5-09de30021a20) | 用户2026-10-21决定“linux开发先暂缓”。保留入口 `360a2e0` 及X11后端 `57a341f`；11项入口／12项helper检查、宿主Rust替身接口检查通过，不是完整Linux编译／桌面GUI／解码验收。未触发LinuxCI，自有宿主任务均结束。仅来宾 `*linux-native-20261021*run-entry-check.ps1*` 是否残留未知，两次有界调用超时后已停；恢复只核对此入口，不动其他进程。Wayland／ARM64清单缺口保留，容量恢复不自动唤醒Linux。 |
+| 容量瓶颈已解除；PowerToys结果由原任务续报 | 实际磁盘容量、PowerToys：[排查 Windows C 盘占满与 PowerToys 安装失败](codex://threads/01a15e09-9198-74c3-91b3-97c47d63f6ca) | 2026-10-21 19:28:45迁移完成后的宿主真可用404,418,498,560字节；Windows C盘可用404,421,296,128字节（约376.7 GiB）、Healthy，已远超3 GiB构建门槛。容量负责人已各唤醒一次Windows前端／精简包，整合者不重复唤醒；GUI已回交整合，Linux维持暂停。 |
+| Mac通用GUI／DMG通过；发行打包中 | 唯一状态整合、新版本发布与网站入口：[全部剩余开发事项整合与最终交付](codex://threads/01a15e10-07ad-77f3-b12c-1f312d3b2b1d) | `mac-public89-955e75f/receipt.json`：generic／arm64／minOS11、runtime签名／477＋14许可，无observer。GUI已由容量任务回交；`gui91/acceptance.json`及checks确认真实中英文菜单、PDF实际页面／无重复白栏／彩色胶囊、翻页缩放fit、未保存内容保持，消息空，自有进程已退出。DMG已只读挂载验证App签名／generic二进制及Applications链接，17,929,958B；新预览元数据位于 `target/releases/glow-macos-20261021-preview1`，尚未公开／改旧tag。Sites仍是d56237c8／第16版仅保存未部署，整体尚未完成。 |
 
-共享资源：菜单／Lua／通用Mac编译与整合GUI90均已结束，无cargo或DMG运行；用户已解锁，当前GUI归容量负责人Photos验证，完成后回交整合继续发行。环境工作流audit已完成；Linux已暂缓，仅遗留入口状态见上。平台预览release使用各自原生验收回执，release-check-frozen只为一般发行跑Linux源码构建，避免Mac／Windows预览触发已暂缓Linux工作；其他CI触发保持。不建常驻锁／轮询。
+共享资源：Mac GUI／DMG任务已退出，整合仅做打包和发布；Windows构建已退出，来宾GUI归前端，core短调用须明确交接。Linux保持暂停。平台预览release使用各自原生验收回执，release-check-frozen只为一般发行跑Linux源码构建；不手动启动LinuxCI或常驻轮询。
 
 ### 已交付，复用既有证据
 

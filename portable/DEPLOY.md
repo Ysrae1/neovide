@@ -2,7 +2,7 @@
 
 这套安装包将 Neovide Glow、Neovim 配置、文件选择器、字母雨和 AI 侧栏放进一个独立环境，方便在新电脑上恢复相近的体验。核心软件与插件采用固定版本，日常启动不会自行更新插件或安装语言工具。发行包另附 `SHA256SUMS.txt`，可用于核对收到的 ZIP 或单文件安装器；依赖下载仍由内部清单逐项校验。现有的 Neovim 配置、终端设置和登录信息不会作为安装源复制。
 
-适用范围是 Apple Silicon Mac，以及 Windows x64 原生 Neovide 加 Ubuntu 24.04 WSL2。Windows ARM64、Intel Mac 和原生 Windows Neovim 后端不在本版范围内。不同系统的字体回退、透明材质、GPU 驱动和窗口装饰仍可能有差别。
+本次 `glow-macos-20261021-preview1` 仅交付 Apple Silicon Mac 预览，独立环境标识为 `neovide-glow-20261021-preview1`。Windows x64 原生 Neovide 加 Ubuntu 24.04 WSL2 的既有源码安装章节继续保留，供维护参考；新版 Windows 原生前端和精简安装器仍待验收，Linux 开发暂缓。Windows ARM64、Intel Mac 不在本次交付范围内。不同系统的字体回退、透明材质、GPU 驱动和窗口装饰仍可能有差别。
 
 **从未安装过 Neovim 也可以部署。** 安装器先取得清单锁定的 Neovim 0.12.3，核对 SHA256，放入独立版本目录，再用该目录的 Neovim 安装和检查插件；不调用系统中其他版本的 Neovim，也无需先用 Homebrew、apt 或 WinGet 安装 Neovim。Node.js、应用 Python、Yazi 和字母雨等同样由固定清单提供。下面列出的系统编译工具、引导 Python 与 WSL 首次设置仍需先完成；它们不等于预装这套编辑器。
 
@@ -18,7 +18,7 @@
 | `payload/plugins.json` | 插件的精确来源、提交和构建方式 |
 | `payload/mason.json` | 语言工具顶层版本及固定 registry |
 | `payload/patches` | 必须保留的 LuaSnip、Treesitter 兼容修复及 CMatrix 原生字母雨扩展 |
-| `payload/Neovide.dmg` | Mac 的 Glow App、分层图标和拖拽安装界面 |
+| `payload/Neovide.dmg` | 可选本地 Mac 安装盘；缺省时按清单下载固定 DMG 并校验，包含 Glow App、分层图标和拖拽安装界面 |
 | `scripts` | 安装和版本维护所需代码 |
 | `licenses` | Neovide、图标和字母雨上游的来源与授权说明 |
 
@@ -36,6 +36,8 @@
 Notebook Python 包版本已固定，但没有逐个发行文件的 SHA256；与 Mason 的历史传递依赖一样，不承诺未来下载逐字节复现。新机联网完整安装和 Windows／WSL 的 Notebook 执行尚未实机验收。
 
 ## Apple Silicon Mac
+
+App 固定源码 `955e75faf91a518699abc2cc6ad4ac9c240b5671`，配置固定为 `5687116f97156745fae6c4dcfc084e3cadd853ef`。App 使用通用 Apple Silicon CPU 目标编译，最低构建目标 macOS 11；这不代表较旧 macOS 或整套依赖已完成实机兼容验收。固定 [Mac DMG](https://github.com/Ysrae1/neovide/releases/download/glow-macos-20261021-preview1/Neovide-Glow-macOS-arm64.dmg) 的校验值见 `manifest.json`。
 
 ### 准备
 
@@ -74,7 +76,7 @@ bash install.sh
 默认环境在：
 
 ```text
-~/.local/share/neovide-glow/stacks/neovide-glow-20261020-gm1/
+~/.local/share/neovide-glow/stacks/neovide-glow-20261021-preview1/
 ```
 
 下载会核对清单中的 SHA256。安装器把 Neovim、配置、插件、运行库和缓存放进这个版本目录；失败时保留结果并退出，可以在处理具体错误后重跑同一命令。首次源码构建需要联网和一定磁盘空间；构建耗时取决于网络和电脑，不能把仍在编译误判为无响应。
@@ -86,18 +88,20 @@ bash install.sh
 3. 从版本目录里的 `bin/neovide-glow` 启动这套独立环境。这个入口使用专用的配置及 Neovim 路径。
 4. 若希望从 Finder、Dock 直接打开 Neovide 时也使用此环境，再运行 `bash install.sh --activate`。它会先备份已有 Neovide 配置，写入指向此版本的路径；不会覆盖原来的 Neovim 配置。
 
-这个社区构建没有 Apple 公证签名。若 macOS 阻止打开，请核实来源后使用系统的“隐私与安全性”允许打开流程；不要关闭全局 Gatekeeper。动态图标材质需要支持该图标格式的 macOS，较旧系统使用内置 ICNS 回退。
+这个社区构建采用 ad-hoc hardened runtime 签名，未经 Apple 公证。若 macOS 阻止打开，请核实来源后使用系统的“隐私与安全性”允许打开流程；不要关闭全局 Gatekeeper。动态图标材质需要支持该图标格式的 macOS，较旧系统使用内置 ICNS 回退。
 
 ### 验证
 
 ```sh
 bash install.sh --doctor
-~/.local/share/neovide-glow/stacks/neovide-glow-20261020-gm1/bin/nvim --version
+~/.local/share/neovide-glow/stacks/neovide-glow-20261021-preview1/bin/nvim --version
 ```
 
 再启动 GUI，确认字体完整、Glow 正常、启动字母雨能结束、首页和侧栏正常。打开一个 Lua 或 Python 文件，确认没有启动报错并检查对应 LSP。详细检查项见后面的验收清单。
 
-## Windows x64 与 WSL2
+## Windows x64 与 WSL2（既有源码安装流程）
+
+以下步骤保留既有 WSL2 源码安装方案。本次 Mac 预览不将它作为已验收的 Windows 安装交付；新版原生 Windows 前端和精简安装器验收另行完成。
 
 ### 准备 WSL
 
@@ -149,7 +153,7 @@ Windows 使用同一 Glow 源码与静态浅色图标，Apple `.icon/Assets.car`
 
 ## AI 登录和公式
 
-AI 仍使用 Avante 原侧栏与原快捷键，通过固定版本的 Codex ACP 适配器连接。首次使用时在这套环境中启动登录流程，使用自己的 ChatGPT 账号完成浏览器授权，例如在 Mac 或 WSL 终端运行 `~/.local/share/neovide-glow/stacks/neovide-glow-20261020-gm1/bin/codex login`；已有宿主电脑的登录不会自动复制到另一台机器。WSL 后端需要在 WSL 里完成登录，Windows 宿主的登录文件不等于 Linux 后端的登录。
+AI 仍使用 Avante 原侧栏与原快捷键，通过固定版本的 Codex ACP 适配器连接。首次使用时在这套环境中启动登录流程，使用自己的 ChatGPT 账号完成浏览器授权，例如在 Mac 或 WSL 终端运行 `~/.local/share/neovide-glow/stacks/neovide-glow-20261021-preview1/bin/codex login`；已有宿主电脑的登录不会自动复制到另一台机器。WSL 后端需要在 WSL 里完成登录，Windows 宿主的登录文件不等于 Linux 后端的登录。
 
 不要把 `auth.json`、密钥、会话和账号目录发到 GitHub 或交给其他用户。部署说明可以交给 Codex，账号登录仍由账号本人完成。
 
@@ -235,18 +239,20 @@ Mason 清单共有 22 项工具。Mac ARM 跳过旧版 Hadolint 2.12.0：固定 
 
 ## 本次安装包的实际验证范围
 
-Mac 已在独立目录完成工具安装、68 个固定插件及其原生库构建、56 个语法解析器和本平台 21 个语言工具安装，整体 Doctor 检查通过。插件源码检查使用本机 Git 对象缓存建立干净提交副本；运行库和工具使用清单里的官方发行文件，未复制原电脑的登录或运行状态。
+本次通用 Apple Silicon App 已通过中文→英文→中文原生菜单往返、系统窗口菜单及真实 PDF 画面检查；重复白色工具栏已移除，彩色胶囊、页码、翻页和缩放可用，未保存内容保持。输入标题刷新与 Mini.ai 修复已同步配置。系统提供方的 Services 子项仍随系统语言；全屏动画、多编辑器焦点往返、旧 macOS 及新电脑联网完整部署未单独验收。
+
+下列安装与依赖结果沿用既有冻结版记录，不表示本次重新执行了新电脑整套安装。Mac 已在独立目录完成工具安装、68 个固定插件及其原生库构建、56 个语法解析器和本平台 21 个语言工具安装，整体 Doctor 检查通过。插件源码检查使用本机 Git 对象缓存建立干净提交副本；运行库和工具使用清单里的官方发行文件，未复制原电脑的登录或运行状态。
 
 空主题缓存的终端启动与 Neovide 配置分支检查通过；后者是 headless 源码分支检查，不代表打开了新的 GUI 窗口。CMatrix 旧首页模式在 Neovim 的 6 行和 12 行终端中未留下异常分隔列字符。Lua 首文件自然识别为 Lua 且 LuaLS 成功连接，Python／Ruff 与 Texlab 连接和公式转换通过。新开场动画实际使用 cmatrix-gm 混合字符，约两秒后进程、浮窗和缓冲区清理通过。CMatrix 完整源补丁已在固定官方 2.0 归档上应用并编译为原生 arm64，源码与本机对应文件一致，补丁 SHA256 与清单一致。实际 GUI 的外观和账号登录，仍按目标电脑上的验收清单完成。
 
-Windows 入口经官方 PowerShell 运行时解析，语法错误数为 0；本次没有 Windows 真机，原生 Windows 编译、WSL 连接、字体、剪贴板和 GPU 尚未验收。
+Windows 新原生程序已编译通过；新版实际界面、字体、剪贴板、GPU 及精简安装器的安装／卸载流程尚未完成验收。旧 WSL2 入口说明与检查记录保留，不以本次 Mac 验收替代。Linux 原生桌面开发及验收暂缓。
 
 ## 可以直接交给 Codex 的部署指令
 
 把以下指令连同整个安装包提供给目标电脑上的 Codex。这里只授权部署这份固定快照；修改远程仓库、公开上传配置和更新版本需另行确定范围。
 
 ```text
-请部署当前文件夹中的 Neovide Glow 固定快照。先完整读取 DEPLOY.md、README.md、manifest.json 和对应平台入口，并确认目标系统是否在支持范围内。
+请部署当前文件夹中的 Neovide Glow 固定快照。先完整读取 DEPLOY.md、README.md、manifest.json 和对应平台入口，并确认目标系统是否在支持范围内。本次交付仅限 Apple Silicon Mac 预览；保留的 Windows／WSL2 步骤不构成已验收交付，Linux 开发暂缓。
 
 把它当作可能从未安装过 Neovim 的新电脑处理。不要要求我先安装 Neovim、Yazi、Node.js 或字母雨；这些组件应使用本包清单的固定下载。先完成文档明确列出的系统前置依赖和引导 Python，再运行安装器。
 
