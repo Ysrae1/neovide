@@ -186,11 +186,17 @@ static void Observe(void) {
             [menus addObject:ReadItem(top, 5, YES)];
         }
         NSMutableArray *windows = [NSMutableArray array];
+        NSMutableArray *helpers = [NSMutableArray array];
         for (NSWindow *window in NSApp.windows) {
-            [windows addObject:@{@"AXRole": @"AXWindow", @"AXTitle": window.title ?: @"",
-                                 @"identity": Identity(window)}];
+            NSDictionary *row = @{@"AXRole": @"AXWindow", @"AXTitle": window.title ?: @"",
+                                  @"identity": Identity(window)};
+            // AppKit may lazily create empty-title helper windows during menu
+            // validation. Our named document windows retain their full identity
+            // and title invariant; helpers remain visible in the evidence.
+            [(window.title.length > 0 ? windows : helpers) addObject:row];
         }
         NSMutableDictionary *snapshot = [@{@"pid": @(getpid()), @"menus": menus, @"windows": windows,
+            @"helper_windows": helpers,
             @"registrations": @{@"main": Identity(NSApp.mainMenu), @"services": Identity(NSApp.servicesMenu),
                                  @"windows": Identity(NSApp.windowsMenu), @"help": Identity(NSApp.helpMenu)}} mutableCopy];
         id delegate = NSApp.delegate;
