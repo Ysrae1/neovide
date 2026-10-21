@@ -64,7 +64,8 @@ function Invoke-DependencyProcess {
     Write-Host ('Installing / checking: '+$Name)
     $start=New-Object Diagnostics.ProcessStartInfo
     $start.FileName=$Executable; $start.Arguments=(@($Arguments|ForEach-Object { Quote-Argument $_ }) -join ' ')
-    $start.UseShellExecute=$false; $start.CreateNoWindow=$false; $start.WorkingDirectory=$Directory
+    # Console output is relayed through setup; GUI installers retain their UI.
+    $start.UseShellExecute=$false; $start.CreateNoWindow=$true; $start.WorkingDirectory=$Directory
     $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
     $process=New-Object Diagnostics.Process; $process.StartInfo=$start
     $stdout=$null; $stderr=$null

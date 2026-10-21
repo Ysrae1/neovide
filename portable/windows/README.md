@@ -150,6 +150,10 @@ immutability/checksums, config-lock compatibility, links/traversal and profile
 separation with synthetic files. `tests/windows_launcher_core.cs` exercises the
 actual launcher validator. `tests/windows_dependencies_helpers.ps1` checks owned-directory resume, archive containment and cached digest rejection with synthetic local files. Native Windows install/GUI/Notebook/TeX acceptance
 is still required before publishing a core package.
+`tests/windows_dependencies_process.ps1` checks native command success/failure,
+timeout logs and process receipts, and ensures an uncertain existing TeX check
+stops before any replacement download. A timeout preserves the current environment;
+it is not treated as proof that a new TeX distribution is required.
 
 ## Optional full offline package
 
