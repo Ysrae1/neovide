@@ -10,6 +10,8 @@ import json
 import re
 import shutil
 import struct
+import subprocess
+import sys
 from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
@@ -45,6 +47,15 @@ def retained(relative):
 
 def write_json(path, value):
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def package_dependency_notices(destination):
+    # Reuse the reviewed, offline notice generator; the dependency stage may
+    # predate the explicitly supplied frontend and its Rust dependencies.
+    root = HERE.parents[1]
+    subprocess.run([sys.executable, "-I", "-B", str(root / "scripts/generate-third-party-notices.py"),
+                    "--output", str(destination / "licenses/THIRD-PARTY-NOTICES.txt")], check=True)
+    shutil.copy2(root / "licenses/third-party/manifest.json", destination / "licenses/THIRD-PARTY-NOTICES.json")
 
 
 def size_breakdown(root, files):
@@ -203,6 +214,7 @@ def build(source, destination, launcher, stack_id, frontend=None, frontend_sha25
     shutil.copytree(HERE / "tex", dependencies / "tex")
     shutil.copy2(payload / "nvim/lua/config/media/runtime/requirements.txt", dependencies / "notebook-requirements.txt")
     shutil.copy2(payload / "requirements-latex.lock", dependencies / "latex-requirements.lock")
+    package_dependency_notices(destination)
     metadata.update({"stack_id": stack_id, "distribution": "core", "native_required": sorted(required), "tool_paths": []})
     write_json(destination / "bundle.json", metadata)
     source_bytes = sum((source / path).stat().st_size for path in checksums) + (source / "bundle-sha256.json").stat().st_size

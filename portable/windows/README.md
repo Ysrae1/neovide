@@ -56,6 +56,9 @@ installing core alone does not establish Notebook, LaTeX or all language-server
 acceptance.
 Core defaults to `frame = "none"`, matching the Windows desktop entry; the
 frozen stage's other window/font settings and the user's existing profiles are preserved.
+The current reviewed Rust/Skia notice generator adds `licenses/THIRD-PARTY-NOTICES.txt`
+and its source index to the sealed core payload, covering frontend dependencies
+added after the old offline stage. Notice generation is offline.
 Each build writes `core-size-report.json` with actual retained/omitted component
 bytes, every plugin's total/native/download-cache bytes, and the 20 largest
 files. Required plugin assets are retained until their runtime role is verified;

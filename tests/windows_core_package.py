@@ -56,6 +56,8 @@ class CorePackage(unittest.TestCase):
             self.write(self.here / path, b"test input")
         self.launcher = self.root / "new-launcher.exe"
         self.launcher.write_bytes(b"compiled current launcher")
+        self.write(self.root / "licenses/third-party/manifest.json", b'{"fixture":"reviewed notices"}')
+        self.write(self.root / "scripts/generate-third-party-notices.py", b'import pathlib,sys\np=pathlib.Path(sys.argv[-1]);p.parent.mkdir(parents=True,exist_ok=True);p.write_text("reviewed Rust and native dependency notices")\n')
         self.mock = patch.object(core, "HERE", self.here)
         self.mock.start()
 
@@ -94,6 +96,8 @@ class CorePackage(unittest.TestCase):
         for directory in ["runtime/python", "runtime/node", "runtime/java", "tools", "profile/data/nvim/mason", "profile/data/nvim/codex-acp"]:
             self.assertFalse((self.destination / directory).exists(), directory)
         self.assertTrue((self.destination / "profile/data/nvim/lazy/plugin/build/native.dll").is_file())
+        self.assertEqual((self.destination / "licenses/THIRD-PARTY-NOTICES.txt").read_text(), "reviewed Rust and native dependency notices")
+        self.assertEqual((self.destination / "licenses/THIRD-PARTY-NOTICES.json").read_bytes(), (self.root / "licenses/third-party/manifest.json").read_bytes())
         self.assertEqual((self.destination / "Glow.exe").read_bytes(), self.launcher.read_bytes())
         self.assertEqual((self.destination / "config/neovide.toml").read_text(), 'frame = "none"\nwsl = false\n[font]\nsize = 12.5\n')
         self.assertIn("current defaults", (self.destination / "profile/config/nvim/init.lua").read_text())
