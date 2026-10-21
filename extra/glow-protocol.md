@@ -2,6 +2,14 @@
 
 维护：Codex，2026-10-19。这里记录 GUI 与 Neovim 配置共同使用的长期约定；当前状态和验收记录仍只在 [GLOW.md](../GLOW.md)。
 
+## macOS 原生菜单语言
+
+支持的 macOS GUI 设置 `g:neovide_native_menu_version=1`，提供 `neovide.set_native_menu_language("en" | "zh")`，并触发 `User NeovideNativeMenuReady`。底层通知 `neovide.native_menu.language` 接收一个完整快照 `{version=1, language="en" | "zh"}`；非法版本／语言整包拒绝，保留当前菜单。旧 GUI、Windows 和 Linux 不发送此通知。
+
+本机及 portable 的 `config.platform.native_menu_locale` 监听就绪及 `GlowLanguageChanged`，传递同一 UI 语言。原生端记录各编辑器 route 的选择，只更新活动窗口对应的应用菜单；切换编辑窗口时恢复其语言，后台初始化不覆盖前台。启动期间窗口尚未创建的通知也会保留。
+
+仅原位修改应用自建的菜单和 Dock“新建窗口”标题，不重建菜单，不修改 selector、target、快捷键或 Services／Windows／Help 注册。全屏标题随实际窗口状态更新。应用名、文档名和系统提供的 Services 子项保留原值；后者仍由 macOS 自身的语言和服务提供方管理。桥接回归见 `tests/navigation/native_menu_locale.lua`，真实菜单与文档保护验收使用独立测试 App。
+
 ## 图片传输与编号
 
 `neovide.image.load/show/hide/close` 使用同一个编辑器 route 内的正整数 ID；不同 route 独立。图片、Molten 和嵌入式 Yazi 共用该命名空间，不能各自从 1 开始计数。配套配置的 `config.media.image_transport` 是编号分配及状态分发入口：

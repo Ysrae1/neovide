@@ -118,6 +118,8 @@ impl From<&str> for ForceClickKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowCommand {
+    #[cfg(target_os = "macos")]
+    NativeMenuLanguage(crate::platform::macos::menu_locale::MenuLanguage),
     NativePreview(crate::native_preview::NativeCommand),
     TitleChanged(String),
     SetMouseEnabled(bool),

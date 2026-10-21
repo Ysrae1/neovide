@@ -1,4 +1,5 @@
 mod glass;
+pub mod menu_locale;
 mod scrollbar;
 pub mod settings;
 mod switcher;
@@ -59,13 +60,41 @@ use crate::window::{
     WindowSettingsChanged,
 };
 
+use self::menu_locale::{MenuLabel, MenuLanguage};
 use self::scrollbar::WindowScrollbars;
 
 thread_local! {
     static APP_MENU: RefCell<Option<Menu>> = const { RefCell::new(None) };
+    static MENU_LANGUAGE: RefCell<MenuLanguage> = const { RefCell::new(MenuLanguage::English) };
     static QUICKLOOK_PREVIEW_ITEM: RefCell<Option<Retained<NSURL>>> = const { RefCell::new(None) };
     static QUICKLOOK_CONTROLLER: RefCell<Option<Retained<QuickLookPreviewController>>> =
         const { RefCell::new(None) };
+}
+
+/// Called on the UI thread; retained menu objects keep their actions and state.
+pub fn set_native_menu_language(language: MenuLanguage) {
+    MENU_LANGUAGE.with(|current| *current.borrow_mut() = language);
+    refresh_native_menu_language();
+}
+
+fn refresh_native_menu_language() {
+    APP_MENU.with(|menu| {
+        if let Some(menu) = menu.borrow().as_ref() {
+            menu.refresh_language();
+        }
+    });
+}
+
+fn menu_title(label: MenuLabel) -> Retained<NSString> {
+    let mtm = MainThreadMarker::new().expect("Menu titles must be updated on the main thread");
+    let app = NSApplication::sharedApplication(mtm);
+    let fullscreen = app
+        .keyWindow()
+        .is_some_and(|window| window.styleMask().contains(NSWindowStyleMask::FullScreen));
+    let process = NSProcessInfo::processInfo().processName();
+    MENU_LANGUAGE.with(|language| {
+        NSString::from_str(&label.title(*language.borrow(), &process.to_string(), fullscreen))
+    })
 }
 
 static SHOW_NATIVE_TAB_BAR: AtomicBool = AtomicBool::new(false);
@@ -1227,11 +1256,13 @@ define_class!(
         #[unsafe(method(menuNeedsUpdate:))]
         fn menu_needs_update(&self, menu: &NSMenu) {
             Menu::remove_system_show_all_tabs(menu);
+            refresh_native_menu_language();
         }
 
         #[unsafe(method(menuWillOpen:))]
         fn menu_will_open(&self, menu: &NSMenu) {
             Menu::remove_system_show_all_tabs(menu);
+            refresh_native_menu_language();
             unsafe { self.schedule_deferred_prune(menu) };
         }
 
@@ -1244,6 +1275,7 @@ define_class!(
                 .downcast()
                 .expect("timer userInfo was not an NSMenu");
             Menu::remove_system_show_all_tabs(menu.as_ref());
+            refresh_native_menu_language();
         }
     }
 );
@@ -1359,6 +1391,7 @@ impl WindowMenuNotificationHandler {
 }
 #[derive(Debug)]
 struct Menu {
+    localized_items: RefCell<Vec<(Retained<NSMenuItem>, MenuLabel)>>,
     quit_handler: Retained<QuitHandler>,
     help_menu_handler: Retained<HelpMenuHandler>,
     new_window_handler: Retained<NewWindowHandler>,
@@ -1370,6 +1403,7 @@ struct Menu {
 impl Menu {
     fn new(mtm: MainThreadMarker, settings: &Settings) -> Self {
         let menu = Menu {
+            localized_items: RefCell::new(Vec::new()),
             quit_handler: QuitHandler::new(mtm),
             help_menu_handler: HelpMenuHandler::new(mtm),
             new_window_handler: NewWindowHandler::new(mtm),
@@ -1381,33 +1415,46 @@ impl Menu {
         menu
     }
 
+    fn localized_item(&self, mtm: MainThreadMarker, label: MenuLabel) -> Retained<NSMenuItem> {
+        let item = NSMenuItem::new(mtm);
+        item.setTitle(&menu_title(label));
+        self.localized_items.borrow_mut().push((item.clone(), label));
+        item
+    }
+
+    fn refresh_language(&self) {
+        for (item, label) in self.localized_items.borrow().iter() {
+            let title = menu_title(*label);
+            item.setTitle(&title);
+            if let Some(submenu) = item.submenu() {
+                submenu.setTitle(&title);
+            }
+        }
+    }
+
     fn add_app_menu(&self, mtm: MainThreadMarker, settings: &CmdLineSettings) -> Retained<NSMenu> {
         unsafe {
             let app_menu = NSMenu::new(mtm);
-            let process_name = NSProcessInfo::processInfo().processName();
-            let about_item = NSMenuItem::new(mtm);
-            about_item.setTitle(&ns_string!("About ").stringByAppendingString(&process_name));
+            let about_item = self.localized_item(mtm, MenuLabel::About);
             about_item.setAction(Some(sel!(orderFrontStandardAboutPanel:)));
             app_menu.addItem(&about_item);
 
-            let services_item = NSMenuItem::new(mtm);
+            let services_item = self.localized_item(mtm, MenuLabel::Services);
             let services_menu = NSMenu::new(mtm);
-            services_item.setTitle(ns_string!("Services"));
             services_item.setSubmenu(Some(&services_menu));
+            NSApplication::sharedApplication(mtm).setServicesMenu(Some(&services_menu));
             app_menu.addItem(&services_item);
 
             let sep = NSMenuItem::separatorItem(mtm);
             app_menu.addItem(&sep);
 
             // application window operations
-            let hide_item = NSMenuItem::new(mtm);
-            hide_item.setTitle(&ns_string!("Hide ").stringByAppendingString(&process_name));
+            let hide_item = self.localized_item(mtm, MenuLabel::Hide);
             apply_menu_item_hotkey(&hide_item, &settings.system_hide_hotkey, "system_hide_hotkey");
             hide_item.setAction(Some(sel!(hide:)));
             app_menu.addItem(&hide_item);
 
-            let hide_others_item = NSMenuItem::new(mtm);
-            hide_others_item.setTitle(ns_string!("Hide Others"));
+            let hide_others_item = self.localized_item(mtm, MenuLabel::HideOthers);
             apply_menu_item_hotkey(
                 &hide_others_item,
                 &settings.system_hide_others_hotkey,
@@ -1424,8 +1471,7 @@ impl Menu {
             let sep = NSMenuItem::separatorItem(mtm);
             app_menu.addItem(&sep);
 
-            let quit_item = NSMenuItem::new(mtm);
-            quit_item.setTitle(&ns_string!("Quit ").stringByAppendingString(&process_name));
+            let quit_item = self.localized_item(mtm, MenuLabel::Quit);
             apply_menu_item_hotkey(&quit_item, &settings.system_quit_hotkey, "system_quit_hotkey");
             quit_item.setAction(Some(sel!(quit:)));
             quit_item.setTarget(Some(&self.quit_handler));
@@ -1443,38 +1489,35 @@ impl Menu {
         let app_menu = self.add_app_menu(mtm, settings);
         let app_menu_item = NSMenuItem::new(mtm);
         app_menu_item.setSubmenu(Some(&app_menu));
-        if let Some(services_menu) = app_menu.itemWithTitle(ns_string!("Services")) {
-            app.setServicesMenu(services_menu.submenu().as_deref());
-        }
         main_menu.addItem(&app_menu_item);
 
         let edit_menu = self.add_edit_menu(mtm);
-        let edit_menu_item = NSMenuItem::new(mtm);
+        let edit_menu_item = self.localized_item(mtm, MenuLabel::Edit);
         edit_menu_item.setSubmenu(Some(&edit_menu));
         main_menu.addItem(&edit_menu_item);
 
         let win_menu = self.add_window_menu(mtm, settings);
-        let win_menu_item = NSMenuItem::new(mtm);
+        let win_menu_item = self.localized_item(mtm, MenuLabel::Window);
         win_menu_item.setSubmenu(Some(&win_menu));
         main_menu.addItem(&win_menu_item);
         app.setWindowsMenu(Some(&win_menu));
 
         let help_menu = self.add_help_menu(mtm);
-        let help_menu_item = NSMenuItem::new(mtm);
+        let help_menu_item = self.localized_item(mtm, MenuLabel::Help);
         help_menu_item.setSubmenu(Some(&help_menu));
         main_menu.addItem(&help_menu_item);
         app.setHelpMenu(Some(&help_menu));
 
         Self::remove_system_show_all_tabs(&win_menu);
+        self.refresh_language();
         app.setMainMenu(Some(&main_menu));
     }
 
     fn add_edit_menu(&self, mtm: MainThreadMarker) -> Retained<NSMenu> {
         let menu = NSMenu::new(mtm);
-        menu.setTitle(ns_string!("Edit"));
+        menu.setTitle(&menu_title(MenuLabel::Edit));
 
-        let copy_item = NSMenuItem::new(mtm);
-        copy_item.setTitle(ns_string!("Copy"));
+        let copy_item = self.localized_item(mtm, MenuLabel::Copy);
         copy_item.setKeyEquivalent(ns_string!("c"));
         copy_item.setKeyEquivalentModifierMask(NSEventModifierFlags::Command);
         unsafe {
@@ -1494,13 +1537,12 @@ impl Menu {
     ) -> Retained<NSMenu> {
         unsafe {
             let menu = NSMenu::new(mtm);
-            menu.setTitle(ns_string!("Window"));
+            menu.setTitle(&menu_title(MenuLabel::Window));
             let delegate: &ProtocolObject<dyn NSMenuDelegate> =
                 ProtocolObject::from_ref::<WindowMenuDelegate>(self.window_menu_delegate.as_ref());
             menu.setDelegate(Some(delegate));
 
-            let full_screen_item = NSMenuItem::new(mtm);
-            full_screen_item.setTitle(ns_string!("Enter Full Screen"));
+            let full_screen_item = self.localized_item(mtm, MenuLabel::FullScreen);
             apply_menu_item_hotkey(
                 &full_screen_item,
                 &settings.system_fullscreen_hotkey,
@@ -1509,8 +1551,7 @@ impl Menu {
             full_screen_item.setAction(Some(sel!(toggleFullScreen:)));
             menu.addItem(&full_screen_item);
 
-            let create_new_window = NSMenuItem::new(mtm);
-            create_new_window.setTitle(ns_string!("New Window"));
+            let create_new_window = self.localized_item(mtm, MenuLabel::NewWindow);
             apply_menu_item_hotkey(
                 &create_new_window,
                 &settings.system_new_window_hotkey,
@@ -1520,8 +1561,7 @@ impl Menu {
             create_new_window.setTarget(Some(&self.new_window_handler));
             menu.addItem(&create_new_window);
 
-            let show_all_tabs_item = NSMenuItem::new(mtm);
-            show_all_tabs_item.setTitle(ns_string!("Editors"));
+            let show_all_tabs_item = self.localized_item(mtm, MenuLabel::Editors);
             apply_menu_item_hotkey(
                 &show_all_tabs_item,
                 &settings.system_show_all_tabs_hotkey,
@@ -1531,8 +1571,7 @@ impl Menu {
             show_all_tabs_item.setTarget(Some(&self.editor_switcher_menu_handler));
             menu.addItem(&show_all_tabs_item);
 
-            let min_item = NSMenuItem::new(mtm);
-            min_item.setTitle(ns_string!("Minimize"));
+            let min_item = self.localized_item(mtm, MenuLabel::Minimize);
             apply_menu_item_hotkey(
                 &min_item,
                 &settings.system_minimize_hotkey,
@@ -1547,22 +1586,19 @@ impl Menu {
     fn add_help_menu(&self, mtm: MainThreadMarker) -> Retained<NSMenu> {
         unsafe {
             let menu = NSMenu::new(mtm);
-            menu.setTitle(ns_string!("Help"));
+            menu.setTitle(&menu_title(MenuLabel::Help));
 
-            let create_issue_item = NSMenuItem::new(mtm);
-            create_issue_item.setTitle(ns_string!("Create Issue Report"));
+            let create_issue_item = self.localized_item(mtm, MenuLabel::IssueReport);
             create_issue_item.setAction(Some(sel!(createIssueReport:)));
             create_issue_item.setTarget(Some(&self.help_menu_handler));
             menu.addItem(&create_issue_item);
 
-            let website_item = NSMenuItem::new(mtm);
-            website_item.setTitle(ns_string!("Documentation"));
+            let website_item = self.localized_item(mtm, MenuLabel::Documentation);
             website_item.setAction(Some(sel!(openNeovideWebsite:)));
             website_item.setTarget(Some(&self.help_menu_handler));
             menu.addItem(&website_item);
 
-            let sponsor_item = NSMenuItem::new(mtm);
-            sponsor_item.setTitle(ns_string!("Sponsor"));
+            let sponsor_item = self.localized_item(mtm, MenuLabel::Sponsor);
             sponsor_item.setAction(Some(sel!(openSponsorPage:)));
             sponsor_item.setTarget(Some(&self.help_menu_handler));
             menu.addItem(&sponsor_item);
@@ -1646,7 +1682,7 @@ pub fn register_file_handler() {
         let mtm = MainThreadMarker::new().expect("Dock menu must be built on main thread.");
         let menu = NSMenu::new(mtm);
         let create_new_window = NSMenuItem::new(mtm);
-        create_new_window.setTitle(ns_string!("New Window"));
+        create_new_window.setTitle(&menu_title(MenuLabel::NewWindow));
         unsafe {
             create_new_window.setAction(Some(sel!(neovideCreateWindow:)));
             create_new_window.setTarget(Some(this));

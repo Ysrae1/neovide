@@ -140,5 +140,10 @@ pub async fn setup_neovide_specific_state(
         .await
         .context("Error when configuring composed floating-window shadows")?;
 
+    #[cfg(target_os = "macos")]
+    nvim.exec_lua(include_str!("../../lua/native_menu.lua"), call_args![])
+        .await
+        .context("Error when configuring native menu language")?;
+
     Ok(())
 }

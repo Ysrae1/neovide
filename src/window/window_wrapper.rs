@@ -283,6 +283,8 @@ pub struct WinitWindowWrapper {
     // The destruction order has to be correct
     pub routes: FxHashMap<WindowId, Route>,
     route_cores: FxHashMap<RouteId, RouteCore>,
+    #[cfg(target_os = "macos")]
+    native_menu_languages: FxHashMap<RouteId, crate::platform::macos::menu_locale::MenuLanguage>,
     pending_window_creation_route: Option<RouteId>,
     pub runtime: Option<NeovimRuntime>,
     pub runtime_tracker: RunningTracker,
@@ -323,6 +325,8 @@ impl WinitWindowWrapper {
         Self {
             routes: Default::default(),
             route_cores: FxHashMap::default(),
+            #[cfg(target_os = "macos")]
+            native_menu_languages: FxHashMap::default(),
             pending_window_creation_route: None,
             runtime,
             runtime_tracker,
@@ -548,6 +552,20 @@ impl WinitWindowWrapper {
 
     pub fn handle_window_command(&mut self, target: EventTarget, command: WindowCommand) {
         tracy_zone!("handle_window_commands", 0);
+        // A route can announce its language before its native window exists.
+        // Background startup must not overwrite the active editor's menu.
+        #[cfg(target_os = "macos")]
+        if let WindowCommand::NativeMenuLanguage(language) = command {
+            if let EventTarget::Route(route_id) = target {
+                self.native_menu_languages.insert(route_id, language);
+                let focused_route =
+                    self.get_focused_route().and_then(|id| self.route_id_for_window(id));
+                if focused_route.is_none() || focused_route == Some(route_id) {
+                    crate::platform::macos::set_native_menu_language(language);
+                }
+            }
+            return;
+        }
         if let EventTarget::Route(route_id) = target
             && self.window_id_for_route(route_id).is_none()
         {
@@ -560,6 +578,8 @@ impl WinitWindowWrapper {
         };
 
         match command {
+            #[cfg(target_os = "macos")]
+            WindowCommand::NativeMenuLanguage(_) => unreachable!("handled before route resolution"),
             WindowCommand::NativePreview(command) => {
                 #[cfg(any(target_os = "macos", target_os = "windows"))]
                 if let Some(route) = self.routes.get_mut(&target_window_id) {
@@ -971,6 +991,12 @@ impl WinitWindowWrapper {
     }
 
     pub fn handle_focus_gained(&mut self, window_id: WindowId) {
+        #[cfg(target_os = "macos")]
+        if let Some(route_id) = self.route_id_for_window(window_id) {
+            crate::platform::macos::set_native_menu_language(
+                self.native_menu_languages.get(&route_id).copied().unwrap_or_default(),
+            );
+        }
         {
             let Some(route) = self.routes.get(&window_id) else {
                 return;
@@ -2233,6 +2259,8 @@ impl WinitWindowWrapper {
         }
 
         if let Some(route) = self.routes.remove(&window_id) {
+            #[cfg(target_os = "macos")]
+            self.native_menu_languages.remove(&route.route_id);
             let window = route.window.winit_window.clone();
             window.set_visible(false);
 
@@ -2272,6 +2300,8 @@ impl WinitWindowWrapper {
         }
 
         self.route_cores.remove(&route_id);
+        #[cfg(target_os = "macos")]
+        self.native_menu_languages.remove(&route_id);
         unregister_route_handler(route_id);
         if self.pending_window_creation_route == Some(route_id) {
             self.pending_window_creation_route = None;

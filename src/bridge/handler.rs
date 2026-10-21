@@ -227,6 +227,15 @@ impl Handler for NeovimHandler {
         trace!("Neovim notification: {:?}", event_name);
 
         match event_name.as_ref() {
+            #[cfg(target_os = "macos")]
+            "neovide.native_menu.language" => {
+                match crate::platform::macos::menu_locale::MenuLanguage::parse(&arguments) {
+                    Ok(language) => {
+                        self.send_window_command(WindowCommand::NativeMenuLanguage(language))
+                    }
+                    Err(error) => log::warn!("Invalid native menu language snapshot: {error}"),
+                }
+            }
             "neovide.highlight_roles" => match crate::editor::HighlightRoles::parse(&arguments) {
                 Ok(roles) => {
                     let _ = self.redraw_event_sender.send(RedrawEvent::HighlightRoles(roles));
