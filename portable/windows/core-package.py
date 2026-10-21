@@ -53,7 +53,7 @@ def package_dependency_notices(destination):
     # Reuse the reviewed, offline notice generator; the dependency stage may
     # predate the explicitly supplied frontend and its Rust dependencies.
     root = HERE.parents[1]
-    subprocess.run([sys.executable, "-I", "-B", str(root / "scripts/generate-third-party-notices.py"),
+    subprocess.run([sys.executable, "-I", "-B", "-X", "utf8", str(root / "scripts/generate-third-party-notices.py"),
                     "--output", str(destination / "licenses/THIRD-PARTY-NOTICES.txt")], check=True)
     shutil.copy2(root / "licenses/third-party/manifest.json", destination / "licenses/THIRD-PARTY-NOTICES.json")
 
