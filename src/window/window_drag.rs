@@ -76,7 +76,9 @@ mod input {
             || pointer.y < details.region.min.y
             || pointer.y >= details.region.max.y
             || details.grid_size.width == 0
-            || row != 0.0
+            // Matrix inversion can round the first-row edge just below 1.0.
+            // Test the physical half-open row before flooring grid coordinates.
+            || pointer.y >= details.region.min.y + grid_scale.height()
         {
             log::debug!(
                 "Window drag press rejected: mouse_grid_detection={mouse_grid_detection} grid={} row={row} pointer={pointer:?} region={:?}",
@@ -274,7 +276,10 @@ mod tests {
             PixelPos::new(2.0, 17.0),
             PixelPos::new(803.0, 17.0),
         ] {
-            assert!(tabline_press_from_geometry(true, &root, None, pointer, scale, now).is_none());
+            assert!(
+                tabline_press_from_geometry(true, &root, None, pointer, scale, now).is_none(),
+                "outside top-row pixel: {pointer:?}"
+            );
         }
         let empty_root = WindowDrawDetails { grid_size: GridSize::ZERO, ..root };
         assert!(
