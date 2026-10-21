@@ -35,7 +35,8 @@ use objc2_core_foundation::CGFloat;
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSAttributedString, NSBundle, NSData, NSDictionary, NSInteger,
     NSNotification, NSNotificationCenter, NSObject, NSObjectProtocol, NSPoint, NSProcessInfo,
-    NSRange, NSRect, NSSize, NSString, NSTimer, NSURL, NSUserDefaults, ns_string,
+    NSRange, NSRect, NSRunLoop, NSRunLoopCommonModes, NSSize, NSString, NSTimer, NSURL,
+    NSUserDefaults, ns_string,
 };
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -60,7 +61,9 @@ use crate::window::{
     WindowSettingsChanged,
 };
 
-use self::menu_locale::{MenuLabel, MenuLanguage};
+use self::menu_locale::{
+    MenuLabel, MenuLanguage, system_window_command_title, system_window_section_title,
+};
 use self::scrollbar::WindowScrollbars;
 
 thread_local! {
@@ -1261,8 +1264,8 @@ define_class!(
 
         #[unsafe(method(menuWillOpen:))]
         fn menu_will_open(&self, menu: &NSMenu) {
-            Menu::remove_system_show_all_tabs(menu);
-            refresh_native_menu_language();
+            // AppKit still owns menu validation here; change titles only on the
+            // next tracking-loop turn, after its own items have been inserted.
             unsafe { self.schedule_deferred_prune(menu) };
         }
 
@@ -1289,8 +1292,8 @@ impl WindowMenuDelegate {
     }
 
     unsafe fn schedule_deferred_prune(&self, menu: &NSMenu) {
-        let _: Retained<NSTimer> = unsafe {
-            NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
+        let timer = unsafe {
+            NSTimer::timerWithTimeInterval_target_selector_userInfo_repeats(
                 0.0,
                 self,
                 sel!(neovidePruneWindowMenu:),
@@ -1298,6 +1301,8 @@ impl WindowMenuDelegate {
                 false,
             )
         };
+        // A default-mode timer is suspended while an open menu tracks input.
+        unsafe { NSRunLoop::currentRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes) };
     }
 }
 
@@ -1428,6 +1433,63 @@ impl Menu {
             item.setTitle(&title);
             if let Some(submenu) = item.submenu() {
                 submenu.setTitle(&title);
+                if matches!(label, MenuLabel::Window) {
+                    Self::refresh_system_window_titles(&submenu);
+                }
+            }
+        }
+    }
+
+    fn refresh_system_window_titles(menu: &NSMenu) {
+        let has_layout_commands = menu.itemArray().iter().any(|item| {
+            item.action().is_some_and(|action| {
+                let name = action.name().to_bytes();
+                name.starts_with(b"_zoom") || name.starts_with(b"_tile")
+            })
+        });
+        for item in menu.itemArray() {
+            let action = item.action();
+            // Window-list entries are document names, even if named "Left".
+            if action.is_some_and(|value| value == sel!(makeKeyAndOrderFront:)) {
+                continue;
+            }
+            let current = item.title().to_string();
+            let translated = MENU_LANGUAGE.with(|language| {
+                let language = *language.borrow();
+                let action_title = action.and_then(|action| {
+                    system_window_command_title(
+                        action.name().to_str().unwrap_or(""),
+                        &current,
+                        language,
+                        NSApplication::sharedApplication(menu.mtm()).keyWindow().is_some_and(
+                            |window| window.styleMask().contains(NSWindowStyleMask::FullScreen),
+                        ),
+                    )
+                });
+                if action_title.is_some() {
+                    return action_title;
+                }
+                let layout_submenu = item.submenu().is_some_and(|submenu| {
+                    submenu.itemArray().iter().any(|child| {
+                        child.action().is_some_and(|action| {
+                            let name = action.name().to_bytes();
+                            name.starts_with(b"_zoom") || name.starts_with(b"_tile")
+                        })
+                    })
+                });
+                let section_header = has_layout_commands
+                    && action.is_none()
+                    && item.respondsToSelector(sel!(isSectionHeader))
+                    && item.isSectionHeader();
+                (layout_submenu || section_header)
+                    .then(|| system_window_section_title(&current, language).map(str::to_owned))
+                    .flatten()
+            });
+            if let Some(title) = translated.filter(|title| title != &current) {
+                item.setTitle(&NSString::from_str(&title));
+            }
+            if let Some(submenu) = item.submenu() {
+                Self::refresh_system_window_titles(&submenu);
             }
         }
     }

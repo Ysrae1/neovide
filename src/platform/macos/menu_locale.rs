@@ -89,6 +89,77 @@ impl MenuLabel {
     }
 }
 
+// These selectors were observed on actual AppKit-generated window operations.
+// They are used only as identities, never invoked. Unknown OS actions stay intact.
+pub(super) fn system_window_command_title(
+    action: &str,
+    title: &str,
+    language: MenuLanguage,
+    fullscreen: bool,
+) -> Option<String> {
+    if action == "toggleFullScreen:" {
+        return Some(MenuLabel::FullScreen.title(language, "", fullscreen));
+    }
+    if action == "_toggleIPad:" {
+        // Display/device names are user content, including their whitespace.
+        let name = title.strip_prefix("Move to ").or_else(|| title.strip_prefix("移到 "))?;
+        return Some(format!(
+            "{}{name}",
+            if language == MenuLanguage::Chinese { "移到 " } else { "Move to " }
+        ));
+    }
+    const COMMANDS: &[(&str, &str, &str)] = &[
+        ("_zoomFill:", "Fill", "填充"),
+        ("_zoomCenter:", "Center", "居中"),
+        ("_zoomLeft:", "Left", "左半屏"),
+        ("_zoomRight:", "Right", "右半屏"),
+        ("_zoomTop:", "Top", "上半屏"),
+        ("_zoomBottom:", "Bottom", "下半屏"),
+        ("_zoomTopLeft:", "Top Left", "左上"),
+        ("_zoomTopRight:", "Top Right", "右上"),
+        ("_zoomBottomLeft:", "Bottom Left", "左下"),
+        ("_zoomBottomRight:", "Bottom Right", "右下"),
+        ("_zoomLeftAndRight:", "Left & Right", "左侧与右侧"),
+        ("_zoomLeftThreeUp:", "Left & Quarters", "左侧与四分屏"),
+        ("_zoomRightAndLeft:", "Right & Left", "右侧与左侧"),
+        ("_zoomRightThreeUp:", "Right & Quarters", "右侧与四分屏"),
+        ("_zoomTopAndBottom:", "Top & Bottom", "顶部与底部"),
+        ("_zoomTopThreeUp:", "Top & Quarters", "顶部与四分屏"),
+        ("_zoomBottomAndTop:", "Bottom & Top", "底部与顶部"),
+        ("_zoomBottomThreeUp:", "Bottom & Quarters", "底部与四分屏"),
+        ("_zoomQuarters:", "Quarters", "四分屏"),
+        ("_zoomUntile:", "Return to Previous Size", "恢复上次大小"),
+        ("_tileLeft:", "Left of Screen", "屏幕左侧"),
+        ("_tileRight:", "Right of Screen", "屏幕右侧"),
+        ("_removeWindowFromStageManagerSet:", "Remove Window from Set", "从窗口组移除"),
+        ("miniaturizeAll:", "Minimize All", "最小化所有窗口"),
+        ("selectPreviousTab:", "Show Previous Tab", "显示上一个标签页"),
+        ("selectNextTab:", "Show Next Tab", "显示下一个标签页"),
+        ("moveTabToNewWindow:", "Move Tab to New Window", "将标签页移到新窗口"),
+        ("arrangeInFront:", "Bring All to Front", "全部前置"),
+    ];
+    COMMANDS.iter().find(|(selector, _, _)| *selector == action).map(|(_, en, zh)| {
+        if language == MenuLanguage::Chinese { (*zh).into() } else { (*en).into() }
+    })
+}
+
+pub(super) fn system_window_section_title(
+    title: &str,
+    language: MenuLanguage,
+) -> Option<&'static str> {
+    const SECTIONS: &[(&str, &str)] = &[
+        ("Move & Resize", "移动与调整大小"),
+        ("Full Screen Tile", "全屏拼排"),
+        ("Halves", "半屏"),
+        ("Quarters", "四分屏"),
+        ("Arrange", "排列"),
+    ];
+    SECTIONS
+        .iter()
+        .find(|(en, zh)| title == *en || title == *zh)
+        .map(|(en, zh)| if language == MenuLanguage::Chinese { *zh } else { *en })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,5 +190,51 @@ mod tests {
         assert_eq!(MenuLabel::Quit.title(MenuLanguage::English, "Neovide", false), "Quit Neovide");
         assert_eq!(MenuLabel::FullScreen.title(MenuLanguage::Chinese, "", true), "退出全屏");
         assert_eq!(MenuLabel::FullScreen.title(MenuLanguage::Chinese, "", false), "进入全屏");
+    }
+
+    #[test]
+    fn native_menu_system_actions_preserve_dynamic_names_and_unknown_commands() {
+        assert_eq!(
+            system_window_command_title("_zoomLeft:", "Left", MenuLanguage::Chinese, false)
+                .as_deref(),
+            Some("左半屏")
+        );
+        assert_eq!(
+            system_window_command_title(
+                "miniaturizeAll:",
+                "最小化所有窗口",
+                MenuLanguage::English,
+                false
+            )
+            .as_deref(),
+            Some("Minimize All")
+        );
+        assert_eq!(
+            system_window_command_title(
+                "_toggleIPad:",
+                "Move to User Display 用户",
+                MenuLanguage::Chinese,
+                false
+            )
+            .as_deref(),
+            Some("移到 User Display 用户")
+        );
+        assert_eq!(
+            system_window_command_title(
+                "makeKeyAndOrderFront:",
+                "Left",
+                MenuLanguage::Chinese,
+                false
+            ),
+            None
+        );
+        assert_eq!(
+            system_window_command_title("unknown:", "Left", MenuLanguage::Chinese, false),
+            None
+        );
+        assert_eq!(
+            system_window_section_title("Move & Resize", MenuLanguage::Chinese),
+            Some("移动与调整大小")
+        );
     }
 }
