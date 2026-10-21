@@ -52,17 +52,44 @@ local function finish(label)
   flush()
 end
 
+-- Entering a pre-created named Notebook resets the option before attachment.
+fresh(); vim.wo.winbar = 'notebook-origin-title'
+local direct = api.nvim_create_buf(true, false)
+api.nvim_buf_set_name(direct, vim.fn.tempname() .. '.ipynb')
+api.nvim_buf_set_lines(direct, 0, -1, false, {'# %%', 'value = 42'})
+vim.bo[direct].filetype = 'python'
+api.nvim_win_set_buf(0, direct)
+api.nvim_exec_autocmds('BufWinEnter', {buffer=direct})
+flush(); assert(managed(vim.wo.winbar), 'Notebook API entry missing title')
+open('pdf'); flush()
+vim.cmd.edit(vim.fn.fnameescape(vim.fn.tempname() .. '.tex')); flush()
+assert(vim.wo.winbar == 'notebook-origin-title', 'Notebook API entry lost original local title')
+finish('named_notebook_entry_to_media_restores_prior_local')
+
 -- Every directed pair, including Notebook, shares the same lifetime boundary.
 for _, from in ipairs(kinds) do for _, to in ipairs(kinds) do if from ~= to then
-  fresh(); local a = open(from); flush(); local b = open(to); flush()
+  fresh(); vim.wo.winbar = 'original-local-title'
+  local a = open(from); flush(); local b = open(to); flush()
   assert(managed(vim.wo.winbar), "active " .. to .. " lost its title")
   vim.cmd.edit(vim.fn.fnameescape(vim.fn.tempname() .. ".tex")); flush()
   assert(not managed(vim.wo.winbar), from .. " -> " .. to .. " leaked into text")
+  assert(vim.wo.winbar == 'original-local-title', from .. ' -> ' .. to .. ' lost original local title')
   preserved(a); preserved(b)
   finish(from .. "_to_" .. to .. "_to_text")
 end end end
 
 for _, kind in ipairs({ "image", "pdf", "web", "audio", "video" }) do
+  fresh(); vim.go.winbar = 'global-title'; vim.wo.winbar = 'local-title'
+  open(kind); flush()
+  vim.cmd.edit(vim.fn.fnameescape(vim.fn.tempname() .. '.tex')); flush()
+  assert(api.nvim_get_option_value('winbar', {win=0,scope='local'}) == 'local-title', kind .. ' lost prior local title')
+  vim.wo.winbar = ''
+  flush()
+  assert(api.nvim_get_option_value('winbar', {win=0,scope='local'}) == '', 'retired owner overwrote explicit global inheritance')
+  assert(vim.go.winbar == 'global-title', 'modified global title')
+  finish(kind .. '_prior_local_restore_and_retire')
+  vim.go.winbar = ''
+
   local win = fresh(); local item = open(kind); flush()
   local ordinary = api.nvim_create_buf(true, false)
   api.nvim_buf_set_name(ordinary, vim.fn.tempname() .. ".tex")
