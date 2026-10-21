@@ -248,6 +248,23 @@ return {buffers=buffers, windows=windows, layout=vim.fn.winlayout(),
 '''
 
 
+# Deliberately avoids nvim_buf_call/nvim_win_call so the diagnostic can detect
+# whether the fuller document snapshot itself changes window/cursor state.
+CURSORS = r'''
+local windows={}
+for _,win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+  if vim.api.nvim_win_get_config(win).relative=='' then
+    windows[#windows+1]={id=win,buffer=vim.api.nvim_win_get_buf(win),
+      cursor=vim.api.nvim_win_get_cursor(win),width=vim.api.nvim_win_get_width(win),
+      height=vim.api.nvim_win_get_height(win)}
+  end
+end
+return {windows=windows,lines=vim.o.lines,columns=vim.o.columns,
+  current_window=vim.api.nvim_get_current_win(),current_buffer=vim.api.nvim_get_current_buf(),
+  mode=vim.api.nvim_get_mode()}
+'''
+
+
 def pynvim_module():
     try:
         import pynvim
@@ -497,21 +514,44 @@ def main():
         def fixture_settled():
             nonlocal stable_since, prior
             editor.exec_lua('local fixture=...;vim.api.nvim_set_current_win(fixture.window)', fixture)
-            snapshot = editor.exec_lua(SNAPSHOT)
+            snapshot = {'documents': editor.exec_lua(SNAPSHOT), 'geometry': editor.exec_lua(CURSORS)}
             if snapshot != prior:
                 stable_since, prior = time.monotonic(), snapshot
                 return False
-            return time.monotonic() - stable_since >= .4
+            return time.monotonic() - stable_since >= 2
 
-        wait(fixture_settled, 'stable named document fixture after startup')
-        baseline = editor.exec_lua(SNAPSHOT)
+        wait(fixture_settled, 'document and UI/font geometry stable for two seconds after startup')
+
+        def diagnostic_snapshot(phase):
+            start = time.monotonic()
+            result = editor.exec_lua(
+                'local function cursors()\n' + CURSORS + '\nend\n'
+                'local function snapshot()\n' + SNAPSHOT + '\nend\n'
+                'local before=cursors();local documents=snapshot();'
+                'return {cursors_before=before,documents=documents,cursors_after=cursors()}')
+            result['monotonic_start'], result['monotonic_end'] = start, time.monotonic()
+            write_json(work / ('phase-' + phase + '.json'), result)
+            return result['documents']
+
+        baseline = diagnostic_snapshot('baseline')
         write_json(work / 'documents-before.json', baseline)
         assert any(buffer['modified'] for buffer in baseline['buffers']), 'fixture must contain unsaved edits'
         english_shortcuts, native_windows, registrations, item_semantics = None, None, None, None
         request_sequence = 0
         for index, language in enumerate(('en', 'zh', 'en')):
-            editor.exec_lua('require("config.platform.locale").set_lang(...,{silent=true,save=false})', language)
+            phase = f'{index}-{language}'
+            diagnostic_snapshot(phase + '-before-set-lang')
+            start = time.monotonic()
+            immediate = editor.exec_lua(
+                'local function cursors()\n' + CURSORS + '\nend\n'
+                'local language=...;local before=cursors();'
+                'require("config.platform.locale").set_lang(language,{silent=true,save=false});'
+                'return {before=before,after=cursors()} ', language)
+            immediate['monotonic_start'], immediate['monotonic_end'] = start, time.monotonic()
+            write_json(work / ('phase-' + phase + '-set-lang-immediate.json'), immediate)
+            diagnostic_snapshot(phase + '-after-set-lang')
             time.sleep(.2)
+            diagnostic_snapshot(phase + '-after-sleep')
             observed = {}
 
             def menus_ready():
@@ -558,7 +598,7 @@ def main():
             if native_windows is None:
                 native_windows = observed['windows']
             assert observed['windows'] == native_windows, ('native document windows changed', language)
-            snapshot = editor.exec_lua(SNAPSHOT)
+            snapshot = diagnostic_snapshot(phase + '-after-observer')
             write_json(work / f'documents-{index}-{language}.json', snapshot)
             assert snapshot == baseline, ('language switch changed document/cursor/layout/undo state', language)
             receipt['checks'][f'{index}-{language}'] = {'actual_menu_labels': True, 'shortcuts_unchanged': True,
