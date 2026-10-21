@@ -81,8 +81,10 @@ public static class GlowPythonProbeFixture {
         string directory=Path.GetDirectoryName(self);
         string version=mode=="incompatible" ? "[3,11,9]" : "[3,12,8]";
         string missing=mode=="missing" ? "[\"pynvim\"]" : "[]";
+        string importsChecked=mode=="incompatible" ? "false" : "true";
         Console.Out.WriteLine("{\"python\":"+Json(self)+",\"version\":"+version+
-            ",\"platform\":\"win-amd64\",\"bits\":64,\"missing\":"+missing+
+            ",\"implementation\":\"cpython\",\"platform\":\"win-amd64\",\"bits\":64,\"missing\":"+missing+
+            ",\"imports_checked\":"+importsChecked+
             ",\"jupytext\":"+Json(Path.Combine(directory,"jupytext.exe"))+
             ",\"latex2text\":"+Json(Path.Combine(directory,"latex2text.exe"))+"}");
         Console.Out.Flush();
@@ -138,25 +140,32 @@ public static class GlowPythonProbeFixture {
 }
 '@
 
-function Invoke-ProbeCase([string]$Name) {
+function Invoke-ProbeCase([string]$Name,[Nullable[int]]$TimeoutSeconds=$null) {
     $script:PythonProbeDiagnostics=@()
     $watch=[Diagnostics.Stopwatch]::StartNew()
-    $selected=Probe-Python (Join-Path $WorkRoot ($Name+'.exe'))
+    if ($null -eq $TimeoutSeconds) {
+        $selected=Probe-Python (Join-Path $WorkRoot ($Name+'.exe'))
+        $expectedBudget=60
+    } else {
+        $selected=Probe-Python (Join-Path $WorkRoot ($Name+'.exe')) -TimeoutSeconds $TimeoutSeconds
+        $expectedBudget=[int]$TimeoutSeconds
+    }
     $watch.Stop()
     Require ($script:PythonProbeDiagnostics.Count -eq 1) ($Name+': expected exactly one diagnostic.')
     $diagnostic=$script:PythonProbeDiagnostics[0]
-    foreach ($field in @('status','pid','exit_code','timed_out','seconds','error','stdout','stderr','output_drain_complete','python')) {
+    foreach ($field in @('status','pid','exit_code','timed_out','timeout_seconds','seconds','error','stdout','stderr','output_drain_complete','python')) {
         Require ([bool]$diagnostic.PSObject.Properties[$field]) ($Name+': missing diagnostic field '+$field)
     }
     Require ($diagnostic.pid -gt 0) ($Name+': lost the native process identity.')
-    Require ($diagnostic.seconds -ge 0 -and $diagnostic.seconds -le 40) ($Name+': invalid or unbounded recorded duration.')
-    Require ($watch.Elapsed.TotalSeconds -le 40) ($Name+': probe exceeded the bounded deadline.')
+    Require ($diagnostic.timeout_seconds -eq $expectedBudget) ($Name+': configured timeout budget was not recorded accurately.')
+    Require ($diagnostic.seconds -ge 0 -and $diagnostic.seconds -le ($expectedBudget+15)) ($Name+': invalid or unbounded recorded duration.')
+    Require ($watch.Elapsed.TotalSeconds -le ($expectedBudget+15)) ($Name+': probe exceeded the bounded deadline.')
     Require ($diagnostic.stderr -like ('*probe fixture stderr: '+$Name+'*')) ($Name+': lost standard-error evidence.')
     [IO.File]::WriteAllText((Join-Path $WorkRoot ($Name+'.json')),($diagnostic|ConvertTo-Json -Depth 10),$utf8)
     return [pscustomobject]@{selected=$selected;diagnostic=$diagnostic;seconds=$watch.Elapsed.TotalSeconds}
 }
 function New-SyntheticDiagnostic([string]$Status) {
-    return [pscustomobject]@{status=$Status;pid=0;exit_code=$null;timed_out=$false;seconds=0;
+    return [pscustomobject]@{status=$Status;pid=0;exit_code=$null;timed_out=$false;timeout_seconds=60;seconds=0;
         error='Controlled synthetic probe state';stdout='';stderr='';output_drain_complete=$true;
         python=(Join-Path $WorkRoot 'synthetic-python.exe')}
 }
@@ -195,6 +204,7 @@ try {
     $ready=Invoke-ProbeCase 'ready'
     Require ([bool]$ready.selected -and $ready.selected.ready -and $ready.selected.compatible) 'Complete compatible Python no longer passes.'
     Require ($ready.diagnostic.status -eq 'ready' -and $ready.diagnostic.exit_code -eq 0 -and -not $ready.diagnostic.timed_out -and $ready.diagnostic.output_drain_complete) 'Complete Python diagnostic changed.'
+    Require ($ready.diagnostic.timeout_seconds -eq 60 -and $ready.selected.imports_checked -and $ready.diagnostic.imports_checked) 'Default probe budget or completed-import evidence changed.'
     Require ($ready.selected.python -eq (Join-Path $WorkRoot 'ready.exe') -and $ready.selected.version -eq '3.12.8' -and @($ready.selected.missing).Count -eq 0) 'Complete Python lost its selection fields.'
     Require ($ready.selected.jupytext -eq (Join-Path $WorkRoot 'jupytext.exe') -and $ready.selected.latex2text -eq (Join-Path $WorkRoot 'latex2text.exe')) 'Complete Python lost its helper paths.'
     Pass 'ready Python retains selection fields and complete diagnostics'
@@ -206,6 +216,7 @@ try {
 
     $incompatible=Invoke-ProbeCase 'incompatible'
     Require ([bool]$incompatible.selected -and -not $incompatible.selected.compatible -and -not $incompatible.selected.ready -and $incompatible.diagnostic.status -eq 'incompatible') 'Known incompatible Python was not distinguished from unknown.'
+    Require (-not $incompatible.selected.imports_checked -and -not $incompatible.diagnostic.imports_checked) 'Incompatible Python was incorrectly reported as having checked imports.'
     Pass 'incompatible Python remains a known result'
 
     foreach ($name in @('exit','invalid')) {
@@ -219,10 +230,10 @@ try {
         Pass ($name+' probe records unknown status and original evidence')
     }
 
-    $timeout=Invoke-ProbeCase 'timeout'
+    $timeout=Invoke-ProbeCase 'timeout' -TimeoutSeconds 2
     Require (-not $timeout.selected -and $timeout.diagnostic.status -eq 'unknown' -and $timeout.diagnostic.timed_out -and [bool]$timeout.diagnostic.error) 'Timed-out Python was treated as missing or lost its timeout evidence.'
-    Require ($timeout.seconds -ge 18 -and $timeout.seconds -le 40 -and $timeout.diagnostic.stdout -like '*probe fixture before timeout*') 'The real 20-second timeout lost partial output or exceeded its bound.'
-    Pass 'real 20-second Python timeout is bounded and retains partial output'
+    Require ($timeout.seconds -ge 1.8 -and $timeout.seconds -le 20 -and $timeout.diagnostic.timeout_seconds -eq 2 -and $timeout.diagnostic.stdout -like '*probe fixture before timeout*') 'The explicit 2-second timeout lost partial output, its budget or the bounded deadline.'
+    Pass 'explicit 2-second Python timeout is bounded and retains partial output'
 
     $orphan=Invoke-ProbeCase 'orphan'
     Require (Test-Path -LiteralPath (Join-Path $WorkRoot 'orphan-child.pid')) 'Orphan fixture failed to create its inherited-handle child.'

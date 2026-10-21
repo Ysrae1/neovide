@@ -38,18 +38,32 @@ function Quote-Argument([string]$Value) {
     return $quoted.ToString()
 }
 
-function Probe-Python([string]$Executable) {
+function Probe-Python([string]$Executable,[ValidateRange(1,120)][int]$TimeoutSeconds=60) {
     if (-not $Executable -or -not [IO.Path]::IsPathRooted($Executable) -or
         -not (Test-Path -LiteralPath $Executable -PathType Leaf) -or
         $Executable -like '*\Microsoft\WindowsApps\*') { return $null }
     $program = @'
-import importlib, json, pathlib, sys, sysconfig, struct
+import json, pathlib, sys, sysconfig, struct
+implementation=sys.implementation.name
+version=list(sys.version_info[:3])
+platform=sysconfig.get_platform()
+bits=8*struct.calcsize('P')
+compatible=implementation=='cpython' and version[:2]==[3,12] and platform=='win-amd64' and bits==64
 missing=[]
-for module in ['pynvim','jupyter_client','ipykernel','jupytext','nbformat','PIL','matplotlib','pylatexenc']:
-    try: importlib.import_module(module)
-    except Exception: missing.append(module)
+imports_checked=False
+if compatible:
+    import importlib
+    for module in ['pynvim','jupyter_client','ipykernel','jupytext','nbformat','PIL','matplotlib','pylatexenc']:
+        print('starting '+module,file=sys.stderr,flush=True)
+        try:
+            importlib.import_module(module)
+            print('imported '+module,file=sys.stderr,flush=True)
+        except Exception as error:
+            missing.append(module)
+            print('failed '+module+': '+type(error).__name__,file=sys.stderr,flush=True)
+    imports_checked=True
 scripts=pathlib.Path(sysconfig.get_path('scripts'))
-print(json.dumps({'python':sys.executable,'version':list(sys.version_info[:3]),'platform':sysconfig.get_platform(),'bits':8*struct.calcsize('P'),'missing':missing,'jupytext':str(scripts/'jupytext.exe'),'latex2text':str(scripts/'latex2text.exe')}))
+print(json.dumps({'python':sys.executable,'implementation':implementation,'version':version,'platform':platform,'bits':bits,'missing':missing,'imports_checked':imports_checked,'jupytext':str(scripts/'jupytext.exe'),'latex2text':str(scripts/'latex2text.exe')}))
 '@
     $start = New-Object Diagnostics.ProcessStartInfo
     $start.FileName = $Executable
@@ -64,7 +78,7 @@ print(json.dumps({'python':sys.executable,'version':list(sys.version_info[:3]),'
     $watch=[Diagnostics.Stopwatch]::StartNew()
     $channels=@()
     $diagnostic=[ordered]@{python=$Executable;status='unknown';seconds=0;pid=$null;exit_code=$null;
-        timed_out=$false;timeout_seconds=20;output_drain_complete=$false;stdout='';stderr='';
+        timed_out=$false;timeout_seconds=$TimeoutSeconds;imports_checked=$false;output_drain_complete=$false;stdout='';stderr='';
         stdout_truncated=$false;stderr_truncated=$false;error=$null}
     if (-not (Get-Variable PythonProbeDiagnostics -Scope Script -ErrorAction SilentlyContinue)) { $script:PythonProbeDiagnostics=@() }
     try {
@@ -95,7 +109,7 @@ print(json.dumps({'python':sys.executable,'version':list(sys.version_info[:3]),'
                 }
             }
         }
-        $deadline=[DateTime]::UtcNow.AddSeconds(20)
+        $deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
         while (-not $process.HasExited) {
             & $readOutput
             if ([DateTime]::UtcNow -ge $deadline) { $diagnostic.timed_out=$true; break }
@@ -132,19 +146,21 @@ print(json.dumps({'python':sys.executable,'version':list(sys.version_info[:3]),'
         $readErrors=@($channels|Where-Object {$_.failed}|ForEach-Object {$_.error})
         if ($readErrors.Count) { $diagnostic['output_error']=$readErrors -join '; ' }
         if ($process.HasExited) { $diagnostic.exit_code=$process.ExitCode }
-        if ($diagnostic.timed_out) { throw 'Python probe exceeded its 20-second budget; interpreter availability is unknown.' }
+        if ($diagnostic.timed_out) { throw ('Python probe exceeded its '+$TimeoutSeconds+'-second budget; interpreter availability is unknown.') }
         if (-not $diagnostic.output_drain_complete) { throw 'Python output handles did not drain within 2 seconds; interpreter availability is unknown.' }
         if ($diagnostic.exit_code -ne 0) { throw ('Python probe exited with code '+$diagnostic.exit_code+'.') }
         if ($diagnostic.stdout_truncated) { throw 'Python probe output exceeded 32 KiB; its result could not be verified.' }
         $result=$diagnostic.stdout|ConvertFrom-Json
         # This release's Windows wheels are validated with CPython 3.12.
-        $compatible = $result.version[0] -eq 3 -and $result.version[1] -eq 12 -and $result.platform -eq 'win-amd64' -and $result.bits -eq 64
-        $ready = $compatible -and @($result.missing).Count -eq 0 -and
+        $compatible = $result.implementation -eq 'cpython' -and $result.version[0] -eq 3 -and $result.version[1] -eq 12 -and $result.platform -eq 'win-amd64' -and $result.bits -eq 64
+        $diagnostic.imports_checked=[bool]$result.imports_checked
+        if ($compatible -and -not $diagnostic.imports_checked) { throw 'Compatible Python did not complete its dependency imports; interpreter availability is unknown.' }
+        $ready = $compatible -and $diagnostic.imports_checked -and @($result.missing).Count -eq 0 -and
             (Test-Path -LiteralPath $result.jupytext -PathType Leaf) -and
             (Test-Path -LiteralPath $result.latex2text -PathType Leaf)
         $diagnostic.status=if (-not $compatible) {'incompatible'} elseif ($ready) {'ready'} else {'missing'}
         return [pscustomobject]@{ python = $result.python; version = ($result.version -join '.');
-            compatible = $compatible; ready = [bool]$ready; missing = @($result.missing);
+            compatible = $compatible; ready = [bool]$ready; missing = @($result.missing); imports_checked = $diagnostic.imports_checked;
             jupytext = $result.jupytext; latex2text = $result.latex2text }
     }
     catch { $diagnostic.error=$_.Exception.Message;return $null }
