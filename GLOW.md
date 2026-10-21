@@ -7,8 +7,18 @@
 > 2026-10-22，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据实际回执，不将源码／协议检查写成实际界面验收。用户本轮明确恢复 Windows 未闭合范围；2026-10-21 停止／归档记录仍作历史保留，Linux 原生开发继续暂缓。
 
 - 已安装Mac为 `nightly-139+g955e75f`，Mac菜单及PDF真实界面验收、runtime签名／安装已完成。Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留；后续Windows增量按下表分别交付。
-- Windows Telescope 已独立通过并部署；拖窗 `f5e1e78` 已完成原生合成输入验收。用户随后实测发现小窗与无法边缘缩放，`0093ece` 已修复、原生验证并部署桌面入口，实际用户窗口已打开为 1576×1600。实体硬件输入与首帧仍未验，范围见下节；既有独立交付结论保留。
+- Windows Telescope、顶部空白拖窗、小窗／边缘缩放及透明圆角修复已分别交付；最新实时缩放源码为 `1dbe658`，x64／ARM64 release 均已编译完成。桌面及终端下次启动使用 x64 修复版，用户睡前明确跳过本轮追加验收；实际状态与双架构范围见紧邻下节，既有独立通过结论保留。
 - 既有冻结版 `glow-stack-20261020-gm1` 保留；Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1)／网站第17版不变。新 Windows 精简包本轮完成构建及基础安装／卸载验收，公开下载入口仍未开放；TeX 真实登录用户父入口已在后续授权下通过，实体输入与首帧仍未验。旧 Candidate5／Core94 不作为新包通过凭据。
+
+### 2026-10-22 Windows 实时缩放、终端入口与双架构（Codex）
+
+- 用户截图中的右侧／下方空白在隔离原生输入中复现：旧 Capsule110 连续六次拉宽时，Neovim 始终停留在 70 列，松手后才更新。`1dbe6589de1296269d82518090718e02c116c7c0` 在 Windows 原生 sizing 期间由 `RedrawRequested` 准备网格、处理异步绘制并呈现，不再等待被系统缩放循环阻塞的 `AboutToWait`；普通移动和 Mac／Linux 沿用原调度，无新增 timer。
+- x64／ARM64 release 均以同一源码编译完成、cargo exit0。x64 EXE 36,210,688 字节，SHA256 `63f1c0da363626467e1409f7813faed50192ba6e2bbf1ce75e299547c4f23a24`；`target/glow-windows-live-resize113-20261022/build/receipt.json`。ARM64 EXE 34,071,552 字节，PE 0xaa64，SHA256 `163b5ca8d5157612e85d332e2d35fa3101d0b3511b62951a9479236172a16bc2`；独立缓存及匹配的官方 Skia 0.153.3，新增 Rust ARM64 标准库、既有工具不升级，`target/glow-windows-arm64-20261022/build/{receipt.json,artifact.json}`。编译进程均已退出，ARM64 未启动或部署。
+- 用户睡前明确要求两架构编译完即结束、不再验证；未将本轮写为 GUI 验收通过。早期 112 候选新增 `GetWindowSubclass` 导入，因缺少 Comctl32 v6 manifest 在启动前退出（0xC0000139）；已撤掉该导入，改为 UI 线程内按 HWND 追踪／销毁清理。113 的隔离探针在 fresh 工作目录前置检查即退出，尚未启动前端或发送输入；按用户要求不再重试。原失败材料及 `acceptance-deferred.json` 保留，旧 shared Mac 38 项结果只复用于未变的共享路径。
+- 按用户跳过验收要求，将 x64 修复版并排放入 `C:\\GlowDev\\GraphicsQA\\LiveResize113Hardware20261022`，桌面和终端设备指针均改为下次启动使用，旧入口／原字节备份保留；未启动、重启或关闭用户编辑器，未改窗口保存尺寸／配置／主题。`target/glow-windows-live-resize113-20261022/{deployment-authority.json,deployment.json}` 明确记录 GUI／launcher 检查跳过，不沿用旧版通过状态。
+- Windows `nvidec` 默认传 `--opengl --frame none`，直接调用包内 `Glow.exe`，修正旧硬件包装器固定工作目录导致的路径问题；重开 Git zsh 后 `nvidec .` 生效。独立配置仓库提交 `6897e3412a6521eaeea91e5a9405f3224c29b8a2`，只改三份 shell/zsh-port 源文件；用户收敛前已完成原生 stub 的 cwd／中文空格参数／退出码检查，四份 shell 启动／主题文件未改。证据 `target/glow-windows-nvidec-entry-20261022/receipt.json`；随后只换设备指针到 113，未再次启动检查。
+- 系统独立 Neovim 0.12.6 ARM64 已通过官方 MSI 安装至 `C:\\Program Files\\Neovim`，machine PATH 仅追加其 bin；旧 PATH 及旧 AppData init 原字节均备份。`%LOCALAPPDATA%\\nvim\\init.lua` 桥接到 `C:\\Users\\ysrae1\\.config\\nvim`，仅进程内调整 XDG，data／state／cache 使用独立 nvim-arm64 树，不改 Glow profile 或旧插件数据。用户收敛前的一次实际配置 headless 检查已结束，中文路径／70 个插件 Lua／架构及 config 路径正确；未复制 x64 原生模块，FFF／Avante 等 ARM64 native 功能不作通过声明。证据 `target/glow-windows-system-nvim-20261022/{installation.json,config-deployment.json,actual-config-candidate2.json}`；重开终端可用 `nvim`。
+- 后续 Windows 发布须同时提供 x64、ARM64；本轮仅两架构前端编译，不重封旧 Core 安装器、不发布新资产，Mac 已安装 App 不变。各平台性能优化明确留待下一阶段，NeoTree 分段计时探针只准备未运行；不调材质／刷新率。本轮编译、部署及配置事务均已结束，无自有后台工作、standby 或自动唤醒。
 
 ### 2026-10-22 Windows 小窗与无边框缩放修复（用户验收反馈，Codex）
 
