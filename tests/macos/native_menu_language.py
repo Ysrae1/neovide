@@ -302,6 +302,8 @@ def main():
     parser.add_argument('--nvim', default=shutil.which('nvim'))
     parser.add_argument('--plugin-root', type=Path, default=Path.home() / '.local/share/nvim/lazy')
     parser.add_argument('--timeout', type=float, default=25)
+    parser.add_argument('--visual-hold', type=float, default=0,
+                        help='after automatic checks, hold Chinese UI for 0..60 seconds or until output/visual-done exists')
     args = parser.parse_args()
     if sys.platform != 'darwin':
         parser.error('requires native macOS')
@@ -318,6 +320,8 @@ def main():
             parser.error('missing existing plugin: ' + name)
     if not 1 <= args.timeout <= 60:
         parser.error('--timeout must be between 1 and 60 seconds')
+    if not 0 <= args.visual_hold <= 60:
+        parser.error('--visual-hold must be between 0 and 60 seconds')
     pynvim = pynvim_module()
     work = args.output.expanduser().resolve()
     work.mkdir(parents=True, exist_ok=False)
@@ -351,7 +355,7 @@ def main():
                 process.wait(timeout=2)
 
     def watchdog():
-        if not done.wait(120):
+        if not done.wait(120 + args.visual_hold):
             receipt['watchdog_timeout'] = True
             stop_owned()
 
@@ -455,13 +459,45 @@ def main():
         wait(lambda: editor.exec_lua('return vim.g.neovide_native_menu_version==1 and type(neovide)=="table" and type(neovide.set_native_menu_language)=="function"'),
              'real native menu capability')
         assert editor.eval('getpid()') == processes[0].pid, 'connected to an unowned Neovim'
-        editor.exec_lua('''
-          local second=...
-          vim.cmd('split '..vim.fn.fnameescape(second));vim.cmd('wincmd p')
-          vim.api.nvim_buf_set_lines(0,1,1,false,{'Unsaved user content 保留'})
-          vim.api.nvim_win_set_cursor(0,{2,4})
-        ''', str(second))
-        time.sleep(.2)
+        fixture = editor.exec_lua('''
+          local first,second=...
+          local firstbuf=vim.fn.bufnr(first)
+          local firstwin
+          if firstbuf >= 0 then
+            for _,win in ipairs(vim.fn.win_findbuf(firstbuf)) do
+              if vim.api.nvim_win_get_config(win).relative=='' then firstwin=win;break end
+            end
+          end
+          if not firstwin then
+            for _,win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+              if vim.api.nvim_win_get_config(win).relative=='' then firstwin=win;break end
+            end
+            assert(firstwin,'fixture needs a normal editing window')
+            vim.api.nvim_set_current_win(firstwin)
+            vim.cmd('edit '..vim.fn.fnameescape(first))
+            firstbuf=vim.api.nvim_get_current_buf()
+          end
+          vim.api.nvim_set_current_win(firstwin)
+          vim.cmd('split '..vim.fn.fnameescape(second))
+          vim.api.nvim_set_current_win(firstwin)
+          vim.api.nvim_buf_set_lines(firstbuf,1,1,false,{'Unsaved user content 保留'})
+          vim.api.nvim_win_set_cursor(firstwin,{2,4})
+          return {window=firstwin,buffer=firstbuf}
+        ''', str(first), str(second))
+        # Startup notifications can temporarily own focus. Establish the
+        # baseline only after scheduled startup work has stopped moving it.
+        stable_since, prior = time.monotonic(), None
+
+        def fixture_settled():
+            nonlocal stable_since, prior
+            editor.exec_lua('local fixture=...;vim.api.nvim_set_current_win(fixture.window)', fixture)
+            snapshot = editor.exec_lua(SNAPSHOT)
+            if snapshot != prior:
+                stable_since, prior = time.monotonic(), snapshot
+                return False
+            return time.monotonic() - stable_since >= .4
+
+        wait(fixture_settled, 'stable named document fixture after startup')
         baseline = editor.exec_lua(SNAPSHOT)
         write_json(work / 'documents-before.json', baseline)
         assert any(buffer['modified'] for buffer in baseline['buffers']), 'fixture must contain unsaved edits'
@@ -524,6 +560,17 @@ def main():
             save()
         assert first.read_text() == original, 'unsaved fixture was unexpectedly written to disk'
         assert second.read_text() == 'Independent second document\n'
+        if args.visual_hold:
+            editor.exec_lua('require("config.platform.locale").set_lang("zh",{silent=true,save=false})')
+            receipt['status'] = 'verified_waiting_visual'
+            receipt['visual_done_file'] = str(work / 'visual-done')
+            save()
+            print('Automatic checks passed; owned Chinese UI available for visual inspection: ' + str(work), flush=True)
+            deadline = time.monotonic() + args.visual_hold
+            while time.monotonic() < deadline and not (work / 'visual-done').exists():
+                assert all(process.poll() is None for process in processes), 'owned process exited during visual hold'
+                time.sleep(.1)
+            receipt['visual_hold_ended_by'] = 'visual-done' if (work / 'visual-done').exists() else 'timeout'
         receipt['status'] = 'passed'
         print('PASS native menus en -> zh -> en; real config, shortcuts and unsaved documents preserved: ' + str(work))
     except BaseException as error:
