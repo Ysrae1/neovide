@@ -7,7 +7,7 @@
 > 2026-10-21，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据负责对话与已有回执，不将源码／协议检查写成实际界面验收。
 
 - 已编产物基线为源码 `3724db9`、配置 `d41a02f6`；`41a1a88` 仅为文档提交。后续安装器提交 `dc9be70`／`19a53e7`，原生菜单源码 `f687c7f`／配置 `6fe9273e`，尚不在旧 Mac 二进制中。Windows 配置迁移已完成，Mac 默认 80%／Windows 默认 60% 及用户主题、未保存内容保留；新菜单不阻塞已编 Mac 产物交付。
-- 已完成的迁移、提交和既有回归不再作为待办。Mac `mac78-3724db9` 已编译，正在封装；Windows Commit82 尚未构建，需先恢复承载虚拟机的外置盘实际空间并达到脚本的 3 GiB 门槛。
+- 已完成的迁移、提交和既有回归不再作为待办。Mac `mac78-3724db9` 已实际安装，PDF白栏交付完成；原生菜单新版另行构建。Windows Commit82 尚未构建，需先恢复承载虚拟机的外置盘实际空间并达到脚本的 3 GiB 门槛。
 - 公开冻结版仍为 `glow-stack-20261020-gm1`。旧 tag／发行资产保留；新精简包、下载清单及发布页待本轮产物验收后统一发布。旧 Candidate5 健康检查失败，不能沿用其发布脚本或把旧候选视为本轮完成。
 
 ### 剩余交付、负责人和验收依赖
@@ -16,17 +16,17 @@
 
 | 状态 | 交付／唯一负责人 | 当前证据与下一项必要验收 |
 | --- | --- | --- |
-| 执行中 | Mac App 更新、PDF 白栏：[Mac 前端更新与 PDF 白栏修复交付](codex://threads/01a15e0d-c1a7-7753-9d75-7777301cfa21) | `mac78-3724db9/receipt.json` 编译成功；`mac-delivery83-3724db9` 已暂存 App／CLI，未重编。正在补齐 447→477 项许可索引，随后签名、独立 PDF 实际界面验收及可回滚安装。 |
-| 等待空间；验收准备中 | Windows 蓝框、原生 PDF、无系统标题栏：[Windows 蓝框与原生 PDF 构建交付](codex://threads/01a15e0d-c5ad-7b91-8d59-a48eb54f56c7) | `commit82-manifest.json`／归档已绑定 `3724db9`；未解包或启动 cargo。空间恢复后构建，实测高亮名称与引用框、PDF 页面像素／交互、`--frame none` 新窗口，再部署硬件 OpenGL 入口。 |
+| 已交付；负责人本轮已结束 | Mac App 更新、PDF 白栏：[Mac 前端更新与 PDF 白栏修复交付](codex://threads/01a15e0d-c1a7-7753-9d75-7777301cfa21) | `mac-delivery83-3724db9/receipt.json`／`gui-checks.json`／`pdf-top-edge.png`：App与CLI已安装为 `nightly-118+g3724db9`，签名／架构／hash一致；实际PDF无重复toolbar，胶囊、翻页／缩放通过。旧版在该stage的 `previous-install`，恢复入口已就绪。许可补齐单独提交 `14c3cf0`，477包／14Skia检查通过；未改用户主题与80%缩放。 |
+| 等待空间；准备结束，无构建运行 | Windows 蓝框、原生 PDF、无系统标题栏：[Windows 蓝框与原生 PDF 构建交付](codex://threads/01a15e0d-c5ad-7b91-8d59-a48eb54f56c7) | `commit82-manifest.json`／归档已绑定 `3724db9`；未解包或启动 cargo，负责人已结束本轮等待容量恢复后一次通知。构建后实测引用框、PDF页面像素／交互及无系统标题栏，再重定向桌面入口；用户旧进程与旧overlay保留。新证据入口 `commit82-build-1/receipt.json`／`commit82-native-acceptance.json`。 |
 | 检测修复完成；打包等待新 EXE／空间 | 精简安装器、缺失依赖检测：[Windows 精简安装包与依赖检测交付](codex://threads/01a15e0d-d247-7c73-bcb6-a2d5cbbacd0a) | `dc9be70`／`19a53e7` 已提交 Jupyter 标准内核发现、续装目录保留、TinyTeX 所有权及PS5编码修复；原生脚本10项、core7项、真实 Jupyter 自动发现通过，未重装。新包需绑定新 EXE，并完成安装／卸载／配置保留及健康验收。 |
 | 审阅完成；平台界面验收等待交接 | Lua 中英文菜单、标题／浮窗材质首帧、快捷键：[中英文菜单与跨平台界面修复验收](codex://threads/01a15e0d-df72-7160-9316-fd825b365156) | 审阅未发现需新增补丁；已有 NeoTree 182项、WhichKey 172项、VimTeX 23项及 Snacks／Telescope 中英／深浅主题回归复用。尚需 Windows 新窗口实际菜单、诊断／Notebook、标题与浮窗验收，不能据配置一致宣称全面闭合。 |
-| 执行中 | 三端环境同步、PowerShell 启动：[开发环境同步工作流与 PowerShell 启动提速](codex://threads/01a15e0f-47aa-7d71-818f-b0f160ee299f) | `~/Dev/workstation-config` 为既有工作流；Windows／WSL 已应用。`workstation-profile83-timing.json` 首测 posh-git 1903 ms、OMP 2439 ms、主体160 ms；尚需可维护同步／冲突保护及真实改善后耗时，不能仅禁用 profile 算完成。 |
+| PowerShell优化已应用；工作流分发／审计待完成 | 三端环境同步、PowerShell 启动：[开发环境同步工作流与 PowerShell 启动提速](codex://threads/01a15e0f-47aa-7d71-818f-b0f160ee299f) | 独立仓库 `~/Dev/workstation-config` 提交 `074b9a7`；Mac审计一致，Windows／WSL新分发及audit待短窗口。`workstation-profile87-applied.json`／`88-normal-startup.json` 已确认仅移除重复OMP初始化，主体6625→1762 ms，mojada主题／提示符／按键hash相同、posh-git保留；普通新进程总8.103秒含会话启动，不能宣称总启动1.76秒。原profile字节备份保留，既有非交互PSReadLine提示未归为本轮修复。 |
 | 代码已提交；GUI／构建等待 Mac 交接 | Mac 原生菜单中英切换：[Mac 原生菜单接入中英文切换](codex://threads/01a15e0f-4c6e-75b2-9edb-c9f521ec1b58) | 源码 `f687c7f`／配置 `6fe9273e`，4项定向Lua回归通过，保留动作／快捷键、Dock及前台窗口语言隔离；未编译或实际GUI验收。验收为原位语言切换且当前文档保留，系统Services提供方子项沿OS管理。 |
-| 执行中；原生媒体未实现／GUI环境缺失 | Linux 入口、原生媒体及平台差异：[Linux 端兼容与三平台差异闭合](codex://threads/01a15e0f-5123-7692-b3f5-09de30021a20) | 正补原生启动入口及错误继承的 `buttonless` 窗框；音视频／Web／PDF 后端缺失、能力为空且命令被丢弃，属于未实现，已交该负责人继续评估及推进。Ubuntu22.04 ARM64／WSL1 无显示／Neovim／Rust，不能承担 Linux 原生GUI验收；冻结清单还缺ARM64项。 |
+| 入口已提交；媒体开发中／GUI环境缺失 | Linux 入口、原生媒体及平台差异：[Linux 端兼容与三平台差异闭合](codex://threads/01a15e0f-5123-7692-b3f5-09de30021a20) | `360a2e0` 启动／构建入口及11项回归已完成；媒体后端仍未验收，正补X11独立helper及公共接线，拟复用GTK3/WebKitGTK/Poppler，Wayland跨进程嵌入受限须明确能力。Ubuntu22.04 ARM64／WSL1 无显示／Neovim／Rust，不能承担 Linux 原生GUI验收；冻结清单还缺ARM64项。 |
 | 执行中；外部依赖 | 实际磁盘容量、PowerToys：[排查 Windows C 盘占满与 PowerToys 安装失败](codex://threads/01a15e09-9198-74c3-91b3-97c47d63f6ca) | 已确认 C 盘内部仍有约382 GiB 空闲，来宾可用量受外置盘实际约1.3 GiB限制；Finder约363 GB含未实际释放的可回收空间。继续查长期差额原因；删除／扩容未获新批准，不以1.9 GiB残留清理代替根因解决。 |
-| 执行中；发布等待验收产物 | 唯一状态整合、新版本发布与网站入口：[全部剩余开发事项整合与最终交付](codex://threads/01a15e10-07ad-77f3-b12c-1f312d3b2b1d) | 本对话独占 `GLOW.md` 及最终发布整合；只接收各负责人本轮证据，不重复实现／全量测试。发布需新版本清单、相应产物健康及界面验收、校验一致，最后核对远端资产与线上下载。 |
+| 执行中；发布等待验收产物 | 唯一状态整合、新版本发布与网站入口：[全部剩余开发事项整合与最终交付](codex://threads/01a15e10-07ad-77f3-b12c-1f312d3b2b1d) | 本对话独占 `GLOW.md` 及最终发布整合；只接收本轮证据，不重复实现／全量测试。Sites第16版仅保存、`deployment_id=null`，不能把保存当上线；现有公开范围保持。发布需新版本清单、相应产物健康及界面验收、校验一致，最后核对远端资产与线上下载。 |
 
-共享资源：Mac GUI／共享 target 先归既有白栏交付，结束后交原生菜单；Windows GUI 由前端交付后交 Lua 验收。guest exec 曾报会话失败，后续短 `-File` 调用已成功，不能确证并发是根因；来宾调用仍按容量任务优先、短时显式交接，安装器／容量负责人已释放环境诊断窗口。宿主独立文件工作继续并行，不建常驻锁／轮询。
+共享资源：白栏任务已释放Mac GUI／共享target给原生菜单；菜单编译固定 `f687c7f` 源码快照，避免混入后续Linux公共接线。其编译期间宿主GUI交Lua，菜单就绪后再明确回交。guest exec 曾报会话失败，后续短 `-File` 已成功，不能确证并发是根因；Linux小检查失败未重试，环境优化已应用并释放窗口给UI，工作流audit等待其短时交回。宿主独立文件工作继续并行，不建常驻锁／轮询。
 
 ### 已交付，复用既有证据
 
