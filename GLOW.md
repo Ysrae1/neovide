@@ -24,9 +24,9 @@
 | 已验收并安装；原负责人已结束 | Mac 原生菜单中英切换：[Mac 原生菜单接入中英文切换](codex://threads/01a15e0f-4c6e-75b2-9edb-c9f521ec1b58) | `mac-menu87-955e75f/receipt.json`：实际NSMenu中英往返、Dock、动作／target／快捷键、未保存内容／tick／光标／布局／撤销通过，CUA真实展开系统窗口操作已中文且全屏项唯一。整合者 `mac-delivery88-955e75f/receipt.json` 完成hardened runtime重签与App／CLI安装，旧mac83在该stage的previous-install，恢复入口已备；用户主题与80%缩放hash不变。OS提供方Services仍沿系统语言，全屏进出动画及多编辑器焦点往返未单独验收；旧84／86／85候选不可安装。 |
 | 用户明确暂缓；负责人本轮已结束 | Linux 入口、原生媒体及平台差异：[Linux 端兼容与三平台差异闭合](codex://threads/01a15e0f-5123-7692-b3f5-09de30021a20) | 用户2026-10-21决定“linux开发先暂缓”。保留入口 `360a2e0` 及X11后端 `57a341f`；11项入口／12项helper检查、宿主Rust替身接口检查通过，不是完整Linux编译／桌面GUI／解码验收。未推送或触发LinuxCI，自有宿主任务均结束。仅来宾 `*linux-native-20261021*run-entry-check.ps1*` 是否残留未知，两次有界调用超时后已停；恢复只核对此入口，不动其他进程。Wayland／ARM64清单缺口保留，容量恢复不自动唤醒Linux。 |
 | 执行容量恢复；外部依赖未解除 | 实际磁盘容量、PowerToys：[排查 Windows C 盘占满与 PowerToys 安装失败](codex://threads/01a15e09-9198-74c3-91b3-97c47d63f6ca) | C盘内部约382 GiB空闲，但来宾可用量受外置卷实际余量限制。负责人已定位差额并按用户授权执行数据迁移，校验前不删除源，容量门槛尚未解除；恢复后由其一次唤醒Windows前端与精简包，不唤醒已暂缓Linux。 |
-| Mac通用构建已完成；锁屏阻塞后续GUI／DMG | 唯一状态整合、新版本发布与网站入口：[全部剩余开发事项整合与最终交付](codex://threads/01a15e10-07ad-77f3-b12c-1f312d3b2b1d) | `mac-public89-955e75f/receipt.json`：固定955e75f实际重编generic／arm64／minOS11，App与CLI严格runtime签名、477＋14许可、无observer，未替换本机native版。`gui90/acceptance.json`已确认真实中文窗口菜单及未保存内容保持；之后工具报告Mac锁屏，已请求用户手动解锁，英语往返／通用版PDF及DMG仍待。自有测试进程已请求正常结束；不创建／发布新release。Sites仍是d56237c8／第16版仅保存、未部署。Windows两项由容量负责人恢复后唤醒，整体尚未完成。 |
+| Mac通用构建已完成；GUI优先交容量瓶颈 | 唯一状态整合、新版本发布与网站入口：[全部剩余开发事项整合与最终交付](codex://threads/01a15e10-07ad-77f3-b12c-1f312d3b2b1d) | `mac-public89-955e75f/receipt.json`：955e75f实际重编generic／arm64／minOS11，App与CLI严格runtime签名、477＋14许可、无observer，未替换本机native版。`gui90`真实中文菜单及未保存内容保持已过，自有控制器exit0／进程已清理；用户已手动解锁。当前GUI明确交容量负责人先完成Photos切换验证，回交后继续英语往返／通用版PDF及DMG；未创建／发布新release。Sites仍是d56237c8／第16版仅保存未部署，整体尚未完成。 |
 
-共享资源：菜单／Lua／通用Mac编译均已结束，Mac发行GUI自有进程只做必要清理，当前等待手动解锁；没有cargo运行。环境工作流audit已完成；Linux已暂缓，仅遗留入口状态见上。平台预览release使用各自原生验收回执，release-check-frozen只为一般发行跑Linux源码构建，避免Mac／Windows预览触发已暂缓的Linux工作；其他CI触发保持。容量任务与后续GUI检查先交接，不建常驻锁／轮询。
+共享资源：菜单／Lua／通用Mac编译与整合GUI90均已结束，无cargo或DMG运行；用户已解锁，当前GUI归容量负责人Photos验证，完成后回交整合继续发行。环境工作流audit已完成；Linux已暂缓，仅遗留入口状态见上。平台预览release使用各自原生验收回执，release-check-frozen只为一般发行跑Linux源码构建，避免Mac／Windows预览触发已暂缓Linux工作；其他CI触发保持。不建常驻锁／轮询。
 
 ### 已交付，复用既有证据
 
