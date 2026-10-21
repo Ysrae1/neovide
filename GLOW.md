@@ -10,6 +10,13 @@
 - Windows Telescope修复已于2026-10-21 21:55:30单独部署，冷／暖预览通过，下一次正常启动生效。Python探针后续定向验证已通过；新增拖窗仍未通过Windows实机验收。用户已要求本轮停止并为重启保存交接，见下节；既有独立交付不撤回。
 - 既有冻结版 `glow-stack-20261020-gm1` 保留；新 Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1) 已发布，网站第17版已上线。Windows精简包及其下载入口仍待原生验收，不沿用旧草稿。旧 Candidate5 健康检查失败，不能沿用其发布脚本或把旧候选视为本轮完成。
 
+### Windows Git zsh选择性迁移（新增授权，2026-10-21 Codex）
+
+- 按用户要求以Windows Git zsh为目标；独立仓库 `/Users/ysrae1/Dev/workstation-config` 提交 `fcb8dfda150a9e02399be33ec396241e05f8eba7`，实现见 `shell/zsh-port/`。保留现有Git别名，补历史自动建议、命令高亮、Yazi的`y`和跳过Matrix的`nvidec`；只加入已存在的用户命令目录，Mac专用路径／Homebrew／Logic Pro／构建更新脚本／凭据及Conda绝对路径不迁移。
+- 实际部署至Windows `~/.config/glow-shell/`、`~/.local/share/glow-shell/`，通过已有Oh My Zsh自定义入口新增 `~/.oh-my-zsh/custom/glow-shell-port.zsh`；不写`.zshrc`／`.p10k.zsh`／`.bashrc`／`.bash_profile`，部署前后四文件SHA相同，不覆盖另一会话的主题改动，不改PowerShell。输入插件在完整启动配置之后的首次提示符前加载一次。
+- 实际Git/MSYS zsh5.9定向验证passed：正常用户启动、Git别名、两插件一次加载、中文空格路径与参数、Yazi失败状态／临时文件清理、nvidec父环境保持；函数检查使用隔离stub，未启动真实Yazi／Neovide GUI，不宣称实体输入／像素验收。初次QA把同目录的/tmp与/c/Users/.../Temp别名误判不同，改为比较cygpath原生路径后通过，生产函数无需修改。
+- 现有终端未热重载；下次打开Git终端自动生效。`nvidec`沿用已验收PdfNav92启动器，不换装未验收拖窗。收据 `target/glow-zsh-port-20261021/receipt.json`；禁用本次新增的Oh My Zsh入口即可回滚。此前归档的开发任务不恢复。
+
 ### 2026-10-21 重启前交接（Codex）
 
 - 用户22:05:50要求两个Windows任务无论进展如何，最迟22:10:50停止、总结并交付；随后因Codex图形界面明显迟缓要求立即保存结束。本轮停止新增开发／构建／测试；重启后先读本节及下列收据，不自动恢复或唤醒任务，继续开发需用户明确恢复。Linux仍暂缓。
