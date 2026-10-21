@@ -18,16 +18,16 @@
 - 安装器：`2198bd7488fbc924ff0daf122d2d34beea475ce3`；已实际读取 `target/glow-parallels-20261021-qa/core108-probe/receipt.json`（8边界passed）及 `core108-readonly/receipt.json`（真实只读检测passed）。自动识别science完整环境，8真实导入及CLI通过，探针17.281秒／预算60秒；不兼容Anaconda2.784秒跳过重包导入，总检测57.246秒，无安装、用户及QA选择文件不变、未建dependencyRoot。worker于22:04:53 exit0，探针子进程exit0／drained；测试孤儿已清理，外层supervisor `output_drain_complete=false`如实保留。既有94.6MB／Core94基础包安装卸载9项通过，但旧EXE未含2198；Core106仅准备／未构建，不能当新包。TeX `40b7a3c` 修复独立待验收，Core105停在旧Python前置，不是TeX修复实测失败。
 - 停止／资源状态：两位负责人已交停止总结；安装器已确认停止并处于idle，无新增Windows调用。前端于22:08:38执行结束 `Glow-Drag96` 计划任务，命令自然exit0且系统确认终止；随后严格PID身份核对发现known root identity changed，已保留未知身份进程，不能声称全部后代逐一清零。前端确认无新增工作／自有GUI，GUI6未启动，不再继续；源码、归档及失败proof保留，未验收程序未替换Windows入口。保留用户窗口、主题、文件及他人进程。整合者只保存本交接，不启动新检查、打包、定时器或监控。
 
-### 剩余交付、负责人和验收依赖
+### 本轮交付证据明细（归档后保留）
 
-“执行中”表示负责人正在处理注明步骤；“等待”明确依赖。已结束的一致性审阅不计为仍在执行的开发。
+本轮子任务均已结束；下表保留证据及未闭合项，不表示仍有后台开发或排队任务。归档工作记录和详细反思见后文。
 
 | 状态 | 交付／唯一负责人 | 当前证据与下一项必要验收 |
 | --- | --- | --- |
-| 已交付；负责人本轮已结束 | Mac App 更新、PDF 白栏：[Mac 前端更新与 PDF 白栏修复交付](codex://threads/01a15e0d-c1a7-7753-9d75-7777301cfa21) | `mac-delivery83-3724db9/receipt.json`／`gui-checks.json`／`pdf-top-edge.png`：App与CLI已安装为 `nightly-118+g3724db9`，签名／架构／hash一致；实际PDF无重复toolbar，胶囊、翻页／缩放通过。旧版在该stage的 `previous-install`，恢复入口已就绪。许可补齐单独提交 `14c3cf0`，477包／14Skia检查通过；未改用户主题与80%缩放。 |
-| 新增截图问题；配置层修复中 | 标签关闭取消处理：[Mac 前端更新与 PDF 白栏修复交付](codex://threads/01a15e0d-c1a7-7753-9d75-7777301cfa21) | 用户新截图：TbKillBuf→confirm bd97→E516→E5108。原Mac负责人独占新增 `config/navigation/buffer_close.lua`、base46一行setup及窄回归；先本机验证再同步portable，未改主题／菜单／安装器／Rust，不重编、不占Windows GUI。完成后交提交及取消关闭保持原buffer回执；core继续独立检查，最终封印前再纳入该共享配置修复。已发布Mac包保持原样。 |
-| 媒体顶栏Mac／Windows验收已接收；最终包SHA待核对 | 全媒体顶栏生命周期（提交 `glow-media-winbar-final-v4-20261021`） | 2026-10-21 Codex实际读取 `codex-note-glow-media-winbar-20261021` v4及三份收据；源码 `e8c893b`（含064c55a）、配置 `fbe22c3e`（含4d87551a）。Notebook／图片／PDF／网页及Book／音视频共用窗口owner和原始局部值，拒绝迟到写入／关闭及跨媒体旧栏复活。Mac local／portable各52＋Notebook各8、六类真实GUI通过，用户编辑器已热更，7buffers／2wins内容／输出／session／布局／光标保留。Windows固定fixture旧22/50→50/50，四文件备份部署、SHA与Mac／portable一致，下次启动生效；`gui-acceptance.json=passed_for_media_winbar_lifecycle`确认Notebook／图片／PDF转普通文件顶栏像素及原栏恢复，保存输出42保持、无kernel；owned进程已清理、supervisor exit0、UI回交frontend。Windows PDF自然ready已到，但页面内容像素、物理输入及首帧时序未完整验收；Telescope后续已独立验收并部署（见下行），不阻塞本媒体结论。证据 `target/glow-media-winbar-qa/receipt.json`、`target/glow-media-winbar-windows-qa/{receipt.json,gui-acceptance.json,gui3-output/}`；四新SHA以首份收据production_sha256为准，core94仅证明旧Notebook修复，最终包仍须core独立核对，不作已封包结论。已读回执 `codex-ack-glow-media-winbar-final-v4-20261021`。 |
-| 本轮停止；5项宿主检查通过，Windows实机未验收 | Windows 蓝框、原生 PDF、无系统标题栏及顶部拖窗：[Windows 蓝框与原生 PDF 构建交付](codex://threads/01a15e0d-c5ad-7b91-8d59-a48eb54f56c7) | 最终窄修 `f5e1e78`，`drag96-mac-unit3/receipt.json` 5项全通过；新Windows构建／真实拖窗无通过回执，不能部署或记为已完成。旧95候选真实拖窗失败保留。用户22:05:50要求最迟22:10:50停止并交付，前端已结束Glow-Drag96计划任务，后代逐一清零未确认；版本、证据及停止状态见本页重启交接。Telescope已独立交付，不重复验证。 |
+| 已交付；负责人本轮已结束 | Mac App 更新、PDF 白栏：[Mac 前端更新与 PDF 白栏修复交付](codex://threads/01a15e0d-c1a7-7753-9d75-7777301cfa21) | `mac-delivery83-3724db9/receipt.json`／`gui-checks.json`／`pdf-top-edge.png`：首次交付App与CLI为 `nightly-118+g3724db9`，签名／架构／hash一致；后续已由mac88升级为 `nightly-139+g955e75f`，以原生菜单行及mac-delivery88回执为当前安装结论；实际PDF无重复toolbar，胶囊、翻页／缩放通过。旧版在该stage的 `previous-install`，恢复入口已就绪。许可补齐单独提交 `14c3cf0`，477包／14Skia检查通过；未改用户主题与80%缩放。 |
+| 已修复并热应用；本轮已结束 | 标签关闭取消处理：[Mac 前端更新与 PDF 白栏修复交付](codex://threads/01a15e0d-c1a7-7753-9d75-7777301cfa21) | 最初TbKillBuf→confirm bd97→E516→E5108源于预览标签自动关闭后重复删除。`config/navigation/buffer_close.lua`及base46 setup已修复，local／portable各14项回归通过并热应用；8个buffer内容／修改状态／光标／布局保持，取消关闭保留未保存内容。最终答复定位：轮次01a15e4c-828a-7f31-94fb-7d03ee540013，消息msg_0e29ec9eb2cf912a016ad8a90ce2cc81938fed3d10b79efd3c。未重编Rust或替换已发布Mac包；不再列修复中。 |
+| 媒体顶栏Mac／Windows验收已接收；最终包SHA待核对 | 全媒体顶栏生命周期（提交 `glow-media-winbar-final-v4-20261021`） | 2026-10-21 Codex实际读取 `codex-note-glow-media-winbar-20261021` v4及三份收据；源码 `e8c893b`（含064c55a）、配置 `fbe22c3e`（含4d87551a）。Notebook／图片／PDF／网页及Book／音视频共用窗口owner和原始局部值，拒绝迟到写入／关闭及跨媒体旧栏复活。Mac local／portable各52＋Notebook各8、六类真实GUI通过，用户编辑器已热更，7buffers／2wins内容／输出／session／布局／光标保留。Windows固定fixture旧22/50→50/50，四文件备份部署、SHA与Mac／portable一致，下次启动生效；`gui-acceptance.json=passed_for_media_winbar_lifecycle`确认Notebook／图片／PDF转普通文件顶栏像素及原栏恢复，保存输出42保持、无kernel；owned进程已清理、supervisor exit0、UI回交frontend。此媒体专项的Windows PDF自然ready已到，未另证明该场景页面内容像素、物理输入及首帧时序；原生PDF翻页／缩放的独立通过范围见pdfnav92回执；Telescope后续已独立验收并部署（见下行），不阻塞本媒体结论。证据 `target/glow-media-winbar-qa/receipt.json`、`target/glow-media-winbar-windows-qa/{receipt.json,gui-acceptance.json,gui3-output/}`；四新SHA以首份收据production_sha256为准，core94仅证明旧Notebook修复，最终包仍须core独立核对，不作已封包结论。已读回执 `codex-ack-glow-media-winbar-final-v4-20261021`。 |
+| 本轮停止；5项宿主检查通过，Windows实机未验收 | Windows 蓝框、原生 PDF、无系统标题栏及顶部拖窗：[Windows 蓝框与原生 PDF 构建交付](codex://threads/01a15e0d-c5ad-7b91-8d59-a48eb54f56c7) | 最终窄修 `f5e1e78`，`drag96-mac-unit3/receipt.json` 5项全通过；新Windows构建／真实拖窗无通过回执，不能部署或记为已完成。旧95候选真实拖窗失败保留。用户22:05:50要求最迟22:10:50停止并交付，前端已结束Glow-Drag96计划任务，后代逐一清零未确认；版本、证据及停止状态见本页重启交接。原始蓝框／PDF交付已由pdfnav92两份回执通过并部署，Telescope也已独立交付，均不重验；新增拖窗继续列未完成。 |
 | 已部署；下一次正常启动生效 | Windows Telescope预览超时：[Windows 蓝框与原生 PDF 构建交付](codex://threads/01a15e0d-c5ad-7b91-8d59-a48eb54f56c7) | 源码 `1e04c0d`、配置 `8ea752d0`；`telescope95-acceptance.json=passed`：真实Windows Neovim0.12.3冷／暖中文文件预览内容及像素通过，保留250ms超时策略。`telescope95-config-deployment.json=deployed_next_launch`：21:55:30已向用户配置部署popups／transparency／popup_text三文件，逐文件旧／新SHA核对且备份至 `C:\GlowDev\ConfigQA\Telescope95_1`；主题及其他文件保留，未重启或热重载现有编辑器。此回执不包含新拖窗验收；复用既有检查，不重复部署或整套重跑。两份证据均在 `target/glow-parallels-20261021-qa/`。 |
 | 本轮停止；Python探针已验证，TeX及新包待完成 | 精简安装器、缺失依赖检测：[Windows 精简安装包与依赖检测交付](codex://threads/01a15e0d-d247-7c73-bcb6-a2d5cbbacd0a) | `2198bd7`：Core108 8边界及一次真实只读生产检测passed，现有science环境8包／CLI可用，用户选择不变、无安装。`core108-probe/receipt.json`／`core108-readonly/receipt.json`已读；完整时间、进程排空限制与停止状态见本页重启交接。94.6MB／Core94基础包安装卸载9项通过保留，但未含2198新修；TeX `40b7a3c` 待验收，新包尚未重打，不当作完整依赖／最终发行通过。按用户要求停止新增工作，不等待拖窗。 |
 | 代码／实际数据验收与部署完成；物理键／像素未验收 | Lua 中英文菜单、标题／浮窗材质首帧、快捷键及终端样式：[中英文菜单与跨平台界面修复验收](codex://threads/01a15e0d-df72-7160-9316-fd825b365156) | `40e4a29`／`7eb12cd`（配置 `584ee281`／`5687116f`）补输入标题刷新及12组Mini.ai中英／内外语义；local＋portable窄回归通过。`language-ui84/receipt.json`：实际Windows隔离实例的NeoTree、VimTeX22n＋1x、真实LuaLS同浮窗/raw不变、Notebook两输出无内核、Snacks／Telescope／Scratch深浅标题／配色／留白数据通过；3文件按旧hash备份部署用户配置，未热改／重启用户窗口，下次启动加载。自有进程已结束；当时物理键、实际像素及首帧因 `noWindowsAvailable` 未验收，现已交唯一Windows GUI负责人随新EXE闭合，尚不算完整GUI验收。 |
@@ -38,6 +38,91 @@
 | Mac已公开发布；Windows发布等两项验收 | 唯一状态整合、新版本发布与网站入口：[全部剩余开发事项整合与最终交付](codex://threads/01a15e10-07ad-77f3-b12c-1f312d3b2b1d) | `mac-public89-955e75f/receipt.json`：generic／arm64／minOS11、runtime签名／477＋14许可，无observer。GUI已由容量任务回交；`gui91/acceptance.json`及checks确认真实中英文菜单、PDF实际页面／无重复白栏／彩色胶囊、翻页缩放fit、未保存内容保持，消息空，自有进程已退出。DMG只读挂载核验通过，17,929,958B；单文件37,720,054B／ZIP37,827,820B各222文件SHA核对通过。新source tag固定c5d1f2b、config tag固定5687116f，7发行资产远端大小／digest一致；SH／ZIP／DMG／部署说明公开HTTP200。`target/releases/glow-macos-20261021-preview1/publication-state.json`记录发行419485657及收据；网站第17版／910ed570已部署成功，实际线上下载区及Windows禁用下载确认。旧tag／包保留；整体Windows交付尚未完成。 |
 
 共享资源：本轮按用户要求停止新增工作，为Codex重启保存交接；Windows前端已结束Glow-Drag96计划任务并停止，后代逐一清零未确认；安装器已结束探针验证并停止，无新增安装／guest调用。最终进程状态以本页重启交接及负责人停止回执为准；用户／他人进程保留。Mac公开发布已完成，Telescope已独立部署，Linux继续暂缓；不自动恢复任务、启动LinuxCI或设常驻轮询。
+
+### 本轮子任务验收、工作记录与归档
+
+> 2026-10-21，Codex；按用户重启后的要求，只读核对已有最终答复及收据，不恢复开发、不重跑测试。下表覆盖9个项目子任务及2个本轮调度规则对话；归档保留聊天全文、源码、产物和证据，不等于所有功能通过。原始发起对话与当前整合对话继续保留。
+
+归档操作状态：11个对话已实际归档；逐项接口均返回archived=true，并已在归档列表中核对11/11。原对话全文可从下表链接或归档列表恢复查阅；本次只归档对话，不删除源码／产物／测试证据，不恢复未闭合开发。证据简写 `Q/` 指 `/Users/ysrae1/Dev/neovide/target/glow-parallels-20261021-qa/`；媒体专项位于同级 `glow-media-winbar-qa/`、`glow-media-winbar-windows-qa/`。
+
+| 子任务对话 | 本轮验收结论 | 简要工作记录、证据与保留事项 |
+| --- | --- | --- |
+| [Mac子任务：前端更新与 PDF 白栏修复交付](codex://threads/01a15e0d-c1a7-7753-9d75-7777301cfa21) | 已交付 | PDF白栏／翻页／缩放通过，首次安装mac83后由原生菜单整合升级mac88；取消关闭标签已修复并热应用，local／portable各14项通过，8个buffer内容／修改状态／光标／布局保留，源消息 `msg_0e29ec9eb2cf912a016ad8a90ce2cc81938fed3d10b79efd3c`（轮次01a15e4c-828a-7f31-94fb-7d03ee540013）。后续全媒体顶栏 `e8c893b`／`fbe22c3e` 的52＋8回归及六类Mac GUI通过；note v4已有整合已读回执。发布包仍为原冻结版本，不冒称新修全部重新封包。 |
+| [Windows子任务：蓝框与原生 PDF 构建交付](codex://threads/01a15e0d-c5ad-7b91-8d59-a48eb54f56c7) | 基础前端与Telescope已交付；新增拖窗未闭合 | `d8cbda3` 的实际蓝框／无系统标题栏／PDF页1→2／125%缩放／fit通过，`Q/pdfnav92-native-acceptance.json`及`pdfnav92-deployment.json`确认20:05桌面入口下次启动生效。Telescope `1e04c0d`／`8ea752d0` 冷暖预览通过、21:55:30配置部署。拖窗 `f5e1e78` 只有5项Mac逻辑检查通过，Windows实机未通过、未部署；停止与详细历史见下节。 |
+| [Windows子任务：Notebook 顶栏串到普通文件查验](codex://threads/01a15e5b-3624-7ec2-9f0c-fd7030c53f96) | 本专项通过；最终包收录待整合 | 固定fixture旧22/50→50/50，Notebook／图片／PDF回普通文件实际顶栏恢复，保存输出42及内容保留，无kernel；`glow-media-winbar-windows-qa/gui-acceptance.json=passed_for_media_winbar_lifecycle`。四文件备份部署、下次启动生效；最终包四新SHA仍须打包方核对，不能以core94旧Notebook修复代替。 |
+| [Windows子任务：精简安装包与依赖检测交付](codex://threads/01a15e0d-d247-7c73-bcb6-a2d5cbbacd0a) | 基础安装／卸载与Python检测通过；TeX及新包未闭合 | Core94 EXE 94,620,158字节，9项安装／卸载通过并保留10,437配置文件。`2198bd7` 的Core108八边界及一次真实只读检测通过，已有science环境8包／CLI识别、无安装、选择未改。旧EXE未含后续修复，TeX完整父入口未验收，外层日志排空未确认；见详细历史。 |
+| [跨平台子任务：照片图库迁移与磁盘空间恢复](codex://threads/01a15e09-9198-74c3-91b3-97c47d63f6ca) | 已交付 | 迁移完成时Windows C盘可用404,421,296,128字节（约376.7 GiB）；PowerToys 0.101.2362.0 ARM64当前用户版安装日志、EXE／登记版本及中文欢迎界面通过，`Q/powertoys-retry1-verification.json` passed、own_task_removed；用户图库及其他程序保留，无待续安装。 |
+| [跨平台子任务：中英文菜单与界面修复验收](codex://threads/01a15e0d-df72-7160-9316-fd825b365156) | 代码／原生数据及部署通过；实机输入／首帧仍有缺口 | `40e4a29`／`7eb12cd`，配置`584ee281`／`5687116f`；实际LuaLS、12组Mini.ai、NeoTree、VimTeX、Notebook两输出及浮窗数据通过，3文件备份部署，`Q/language-ui84/receipt.json`。后续`popup93-pixel-findings.json`补Snacks／Scratch浅深色画面，Telescope由95独立通过；物理键／鼠标、PDF Escape焦点、原生首帧时序不能据截图补判通过。 |
+| [Linux子任务：兼容性与三平台差异闭合](codex://threads/01a15e0f-5123-7692-b3f5-09de30021a20) | 用户暂缓；保留部分成果 | `360a2e0`入口及`57a341f` X11原生后端保留，11＋12项Python检查通过；宿主替身检查不等于完整Linux构建／原生GUI。当前仅WSL1无图形服务，完整桌面、解码、Wayland／ARM64等未验；来宾遗留入口是否存在未确认，不自动恢复。 |
+| [Mac子任务：原生菜单中英文切换](codex://threads/01a15e0f-4c6e-75b2-9edb-c9f521ec1b58) | 已交付 | `955e75f`；真实系统菜单／Dock／动作／快捷键中英往返及未保存内容保护通过，`Q/mac-menu87-955e75f/receipt.json`。整合者后续完成runtime重签和App＋CLI安装，`Q/mac-delivery88-955e75f/receipt.json=installed_and_verified`；Services沿系统语言，全屏动画／多编辑器焦点未单独验收。 |
+| [跨平台子任务：开发环境同步与 PowerShell 启动提速](codex://threads/01a15e0f-47aa-7d71-818f-b0f160ee299f) | 同步与启动修复已交付；终端视觉属界面续接 | 独立仓库`/Users/ysrae1/Dev/workstation-config`的`074b9a7`／`31f2292`，14测试、Windows／WSL六步审计及Python＋11包版本匹配；`Q/workstation-sync89-receipt.json`六步exit0、0设置写入／0安装。去重复OMP初始化，profile主体6.625→1.762秒，普通新进程总8.103秒，两种口径保留；原profile备份、主题／按键及Git补全保留。 |
+| [完善并行任务调度准则](codex://threads/01a15e08-319b-7382-81d2-bd2d512a9d63) | 已交付并并入统一规则 | 全局`/Users/ysrae1/.codex/AGENTS.md`新增整体依赖、快速独立交付、并发排队、职责、资源冲突及真实状态六项规则，已含作者／日期记录；后续系统整理合并，旧行号不再作为当前定位。 |
+| [全局 AGENTS.md 系统整理与子代理调度优化](codex://threads/01a15eb4-50d9-7440-9514-c052f799854e) | 已交付 | 全局正文36,431→28,156字节的系统整理完成；保留偏好、作者、隐私边界，补上下文健康及迁移建议；备份与差异在`/Users/ysrae1/Documents/Codex/2026-10-21/global-agents-system-review/outputs/`。本整合对话随后按用户要求追加超时砍支，现文件30,836字节；未建立后台强制计时器，Claude入口实际导入本轮未验证。 |
+
+### 未闭合工作历史与流程反思（保留材料）
+
+> 实际整理者：Codex，2026-10-21。用户明确要求在简要交接之外保留较详细的历史用于自我审查。以下仅来自已保存对话／收据；时间为北京时间，不构造完整并发利用率，不把图形界面迟缓或长上下文直接归为根因。原始工具日志仍在原位置，不复制全部日志。
+
+#### Windows前端：初始交付、新增范围与拖窗未闭合
+
+来源对话：01a15e0d-c5ad-7b91-8d59-a48eb54f56c7；初始PDF轮次01a15e39-51b4-7391-b8d0-8199351a99db；新增需求消息01a15e6d-8b33-78d1-9e1e-97454b0502bd；后续执行轮次01a15e6d-89c7-70e3-9127-ae0e4f47339b。
+
+| 阶段／时间 | 实际动作、结果和证据 |
+| --- | --- |
+| 18:42开始，19:09仍等待 | 初始目标是构建`3724db9`并验收引用蓝框、无系统标题栏和原生PDF。起初容量不足，未解包／构建，属真实外部依赖。19:29容量恢复后继续，不能将此等待计为已运行的构建。 |
+| 容量恢复后的PDF构建与修复 | 首次构建约4分40秒；QA曾错选13×13的Winit辅助窗，校正后蓝框和隐藏标题栏实际像素通过。PDF真实画面却仍第一页，虽然协议已回报第二页；提交`d8cbda3`修正原生加载／导航事件后再构建约7分11秒。此处包含真实产品缺陷及一次辅助窗识别问题，不能混为同类失败。 |
+| 20:05–20:16，原范围阶段交付 | `pdfnav92-native-acceptance.json`20:05:19 passed，页1→2、125%缩放／fit、协议生命周期及引用框像素通过；20:05:59 `pdfnav92-deployment.json`确认桌面入口下次启动生效，未重启用户编辑器。20:16:31 `popup93-pixel-findings.json`补Snacks／Scratch浅深色画面，但Telescope超时、物理输入和首帧仍缺。 |
+| 20:26:39，用户新增范围 | 明确要求继续修Telescope，并新增顶部Tab空白拖窗。此后耗时并非原PDF目标持续未交付；应当为新增拖窗单列交付及检查点。 |
+| 20:26–21:25，性能诊断与拖窗构建 | 诊断捕捉事件循环3–12秒停顿；普通浮窗事件触发每次2–4秒的全局外观刷新，短文件回调后还排队约2.2秒。修普通事件刷新及Base46重复主题查找，最终源码`1e04c0d`、配置`8ea752d0`。初版拖窗`351feee`／`5ce01630`等待安装器资源后构建约17分58秒，三项测试通过；包装脚本读未关闭日志失败后只补导出，未重编／重测，见`drag95-finalized-1/receipt.json`。 |
+| 21:25–21:53，GUI1–5反复 | 曾遇前台焦点保护、DPI坐标、预览器未就绪、等待移动标志才移动、请求前已松手等QA问题；去日志延迟并换C盘本地程序后，GUI5仍`moved=false`／`native_move_loop_observed=false`／`nativeGUIAccepted=false`。该次左键确实持续按下、窗口未移动，见`drag95-gui5/state.json`；因此不能继续仅用“没按住／共享路径慢”解释。该隔离实例21:52:59退出并核对自身PID清零。 |
+| 21:46–21:55，Telescope独立交付 | `telescope95-acceptance.json`21:46:30确认中文文件冷暖预览内容与像素通过、250ms策略不改；冷态回调107.5ms＋排队47.8ms，暖态229.4ms＋3.9ms。21:55:30 `telescope95-config-deployment.json`三个模块备份部署，下次启动生效。此通过范围不扩为任意负载保证。 |
+| 21:55–22:05，最后逻辑修复 | 根网格／顶部边界修正中出现5项检查4通过1失败；最终`f5e1e78`在`drag96-mac-unit3/receipt.json`5项逻辑检查全通过，但不是Windows原生GUI验收。`drag96-dispatch.json`22:05:34才实际派发新构建，不可把“已准备”说成构建已完成。 |
+| 停止与期限 | 用户22:05:50要求最迟22:10:50停止、总结并交付；22:08:38系统确认终止`Glow-Drag96`。随后后代PID身份改变，未强杀未知进程，不能声称整树清零。该轮实际结束22:11:23，超过总结交付期限约33秒；只能确认构建任务提前终止，不能宣称五分钟内全部收尾达成。GUI6未启动，拖窗未部署。最终消息`msg_01bd7b7e632c376c016ad8c80564408197a44a60f9a8b03996`。 |
+
+**流程反思与改进（据上述事实提出）：** 原PDF与Telescope应在各自验收后及时结项，新增拖窗单独计时；真实HWND／焦点／DPI／按住→移动→松开及窗口位移观测应先做一次最小校准，QA入口失败与产品失败分别记录，同路径两次无新证据就停止改脚本；GUI、guest短调用、共享Cargo缓存及性能计时的所有权分别协调，不能把短冲突扩大为整项互等。停止预算应提前留出必要清理与最终答复时间，不能等到最后才汇总；此次最终答复超过用户期限是实际收尾不足。
+
+**最小续接接口（未执行）：** 用户明确恢复后，先核对`Glow-Drag96`自有后代身份及是否有`f5e1e78`有效Windows构建回执；缺失才决定续建一次。保持已部署PDF／Telescope，随后只做一次空白区按住移动的真实验收，定位请求接收→根网格判定→Windows移动调用→窗口坐标的唯一断点；失败即交断点，不扩成主题／媒体／安装器全套回归。
+
+#### Windows安装器：基础包完成，依赖复用／TeX与新包未闭合
+
+来源对话：01a15e0d-d247-7c73-bcb6-a2d5cbbacd0a；前置轮次01a15e0d-d603-7390-9bbd-8e9a28ba3e51；关键收据均在`Q/`。收据证明的行为与尚未证明的原因分别保留。
+
+| 阶段／时间 | 实际动作、结果和证据 |
+| --- | --- |
+| 18:42–18:51 | `dc9be70`／`19a53e7`修标准Jupyter环境发现、选定工具路径保留及测试编码。当时约1.3 GiB剩余空间及可验收前端是真实封包前提。 |
+| 20:29:54构建；20:42:50安装验收 | Core94 EXE 94,620,158字节，SHA256 `aba9728986ea6ec119e0d6d017048c44711cf7ff2d7384cce92c63790ad734c0`；默认／中文空格撇号路径、启动、封印、运行时剔除及卸载共9项通过，保留10,437配置文件，见`core94-build/receipt.json`及`core94-installer-acceptance/receipt.json`。基础安装测试跳过可选依赖，不证明完整TeX／科学环境安装。 |
+| 20:44:59–20:46:26，依赖复用被挡 | Core94前置检测未找到完整Python，保护条件停止，0下载、用户选择未改；后续确认注册和解释器存在，单次导入曾13.3秒成功。原始漏检原因未证实，不能追认为超时、环境损坏或编译负载。 |
+| 21:15:58，未知状态保护 | `28a5cab`记录失败原因／耗时／unknown，阻止未知探针结果触发新装，8项原生探针回归通过。保护行为有效，不代表漏检根因已解决。 |
+| 21:38:46，原子写入缺陷 | `419e7a2`修PowerShell把备份参数`$null`转空字符串导致原子替换失败、掩盖原TeX异常；8项原子写入回归通过。这是实际安装器脚本问题。 |
+| 21:44:43，TeX调用作用域 | `40b7a3c`修子脚本改变日志目录变量作用域，导致TeX进程尚未启动就失败。完整父入口尚未通过；不能归咎TinyTeX环境，也不能用单独TeX脚本曾成功代替集成验收。 |
+| 21:46:15–21:47:43，Core105 | `core105-dependencies/receipt.json`显示真实Python探针触发20秒上限，记录unknown并停止，0下载、选择未改，检查列表为空，尚未走到TeX；不是该TeX修复的实测失败。 |
+| 21:52:49–21:53:09，Core107 | 拆模块只读诊断8包全部导入，累计10.031秒／整进程15.140秒，exit0、输出排空；确认环境可用，但不撤销Core105已发生超时，也不追认Core94原因。 |
+| 21:58:17提交；22:03:48–22:04:47验证 | `2198bd7`先读metadata跳过不兼容环境重包导入，兼容环境仍实导8包，默认60秒有界预算、逐模块进度。`core108-probe/receipt.json`8边界passed；`core108-readonly/receipt.json`一次生产只读检测自动识别science，探针17.281秒／总57.246秒，不兼容Anaconda2.784秒且imports_checked=false。无安装、用户／QA选择未改、未建依赖目录，无并行compiler。 |
+| 22:04:53退出；22:07:48停止交付 | worker与探针子进程exit0，测试孤儿已清理；`core108-probe-supervisor.result.json`外层`output_drain_complete=false`保留。无新增Windows调用、无重打包；Core94旧EXE未含后续原子写入、作用域及探针修复，Core106仅准备／未构建。TeX和最终新包继续待办。 |
+
+**流程反思与改进（据上述事实提出）：** 短只读Python正确性诊断曾等待前端长构建，后来已确认可并行采集并记录负载；只有真正要求空载的性能计时应独占，不应扩大为全部检测的前置。诊断辅助脚本括号错误、过期压缩器路径造成额外往返；首次执行前应核对语法和现存路径，真实父入口验证作用域与写入生命周期。每次失败先保存原异常／阶段／耗时，下一次压缩到最小失败路径，避免TeX入口失败又重复扫描Python；独立基础包先交，最终包绑定准确源码／配置清单。早期容量不足、新前端封包依赖及实际guest短入口冲突不能一概称人为等待，尚无证据证明负载导致Core94漏检或Core105超时。
+
+**最小续接接口（未执行）：** 用户明确恢复后，从`2198bd7`的已保存输入，针对真实父入口定向验证现有TeX复用及选定路径保留；通过后再决定打包含后续修复及媒体四SHA的新包，并只对新包做必要安装／卸载和清单核验。Core94保持原封印，旧测试不作新包通过凭据；无需先等待新增拖窗才能验证TeX正确性。
+
+#### 界面语言／快捷键：已部署数据，物理输入与首帧未闭合
+
+- **已做阶段：** `40e4a29`／`7eb12cd`及配置`584ee281`／`5687116f`完成输入标题刷新、12组Mini.ai语义；local／portable回归后，`language-ui84/receipt.json`真实Windows数据验证LuaLS同一浮窗、NeoTree55行、VimTeX22n＋1x、Notebook两输出无内核及浅深浮窗标题／配色／留白，3文件备份部署。自有进程按PID身份清理，用户窗口未重启。
+- **受阻及补验历史：** CUA明确报`noWindowsAvailable`，新绑定及显示方式转换后仍不能可靠操作来宾窗口；没有盲发物理输入。数据首flush不是原生首帧。后续前端`popup93-pixel-findings.json`补Snacks／Scratch静态画面，Telescope95补冷暖预览；这两次后续通过只关闭各自缺口，不能补判物理键、PDF Escape焦点或合成器首帧时序。最后轮次明确仍待验，无运行工作。
+- **流程反思：** 将代码回归、原生数据、静态像素、物理输入和首帧时序分别列验收项；控制面故障已有重复证据后停止反复切窗口，先交已通过数据，不让截图或状态查询代替输入／时序证据。后续若仅需要静态材质验收，不增加高成本首帧承诺。
+- **最小续接接口：** 用户恢复且已有可靠的来宾控制后，针对现有配置只补物理键／鼠标和明确要求的首帧场景；复用上述静态画面和数据，不重跑语言／媒体全套。终端视觉从workstation任务移交的部分在同一界面范围核对，不另重装环境。
+
+#### Linux：用户暂缓后的保留与反思
+
+- **已做阶段：** 保留`360a2e0`入口和`57a341f` X11原生预览后端；11项入口＋12项helper检查通过，宿主Rust替身接口仅证明对应接口。完整Linux编译、真实X11桌面／解码、Wayland及ARM64支持未验收。
+- **停止经过与资源：** 当前实际只有无显示服务的WSL1，无法满足原生GUI验收；用户明确“linux开发先暂缓”，已停止新增开发／CI。自有宿主任务结束；两次有界来宾入口调用超时后未继续追查，`*linux-native-20261021*run-entry-check.ps1*`是否仍存在未确认。Mac发布误触发的GitHub Linux run39593705298已取消，非Linux通过，也非恢复开发。
+- **流程反思：** 平台原生GUI前提应先核对；WSL命令行、宿主替身和X11目标源码分别记证据边界。缺少必要环境时及时交阶段成果与明确缺口，不能继续堆测试替身并扩大为平台支持承诺。
+- **最小续接接口：** 只有用户明确恢复并提供真实Linux图形环境后，再先核对遗留入口归属、工具链／后端能力和准确源码版本，随后选择一次必要构建与GUI验收；不自动启动CI，不影响用户或其他任务进程。
+
+#### 整合者自身的记录与调度反思
+
+- 总记录曾保留旧PDF“待构建”和标签关闭“修复中”，未及时反映20:05 PDF交付及Mac取消关闭修复；本次只读核对补正。通过项应在自然交付阶段批量登记，未读结论明确标待整合，不能让旧状态持续代表当前事实。
+- “两个任务进行了约三小时”跨越容量等待、原目标交付、用户新增范围、真实产品问题和QA返工；本次已分段保留时间和证据。既不能用编译概括全部耗时，也不能据此认定上下文是根因或生成未经测量的并行率。
+- 已按用户要求把阶段预算、约5分钟无信息／两次同路径不推进的决策、停低收益分支和独立成果先交写入全局AGENTS；这是提示词约束，非后台强制计时器。此轮归档不重新开发，未闭合目标在用户明确恢复后才接续；应用图形界面迟缓的根因本轮未诊断。
 
 ### 已交付，复用既有证据
 
