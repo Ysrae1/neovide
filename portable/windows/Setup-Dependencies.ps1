@@ -61,25 +61,110 @@ print(json.dumps({'python':sys.executable,'version':list(sys.version_info[:3]),'
     $start.EnvironmentVariables['PYTHONNOUSERSITE'] = '1'
     $process = New-Object Diagnostics.Process
     $process.StartInfo = $start
+    $watch=[Diagnostics.Stopwatch]::StartNew()
+    $channels=@()
+    $diagnostic=[ordered]@{python=$Executable;status='unknown';seconds=0;pid=$null;exit_code=$null;
+        timed_out=$false;timeout_seconds=20;output_drain_complete=$false;stdout='';stderr='';
+        stdout_truncated=$false;stderr_truncated=$false;error=$null}
+    if (-not (Get-Variable PythonProbeDiagnostics -Scope Script -ErrorAction SilentlyContinue)) { $script:PythonProbeDiagnostics=@() }
     try {
-        if (-not $process.Start()) { return $null }
-        $stdout = $process.StandardOutput.ReadToEndAsync()
-        $stderr = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit(20000)) { $process.Kill(); $process.WaitForExit(); return $null }
-        if ($process.ExitCode -ne 0) { return $null }
-        $result = $stdout.GetAwaiter().GetResult() | ConvertFrom-Json
-        $null = $stderr.GetAwaiter().GetResult()
+        if (-not $process.Start()) { throw 'Python probe could not start.' }
+        $diagnostic.pid=$process.Id
+        # Poll bounded reads on this runspace. Keep partial output even when a
+        # child inherits a pipe; neither output storage nor handle drain is unbounded.
+        $channels=@($process.StandardOutput,$process.StandardError)|ForEach-Object {
+            $buffer=New-Object char[] 8192
+            @{reader=$_;buffer=$buffer;text=(New-Object Text.StringBuilder);
+                task=$_.ReadAsync($buffer,0,$buffer.Length);ended=$false;failed=$false;truncated=$false}
+        }
+        $readOutput={
+            foreach ($channel in $channels) {
+                for ($round=0; $round -lt 16 -and -not $channel.ended -and $channel.task.IsCompleted; $round++) {
+                    try {
+                        $count=$channel.task.GetAwaiter().GetResult()
+                        if ($count -eq 0) { $channel.ended=$true; continue }
+                        $null=$channel.text.Append($channel.buffer,0,$count)
+                        if ($channel.text.Length -gt 32KB) {
+                            $null=$channel.text.Remove(0,$channel.text.Length-32KB);$channel.truncated=$true
+                        }
+                        $channel.task=$channel.reader.ReadAsync($channel.buffer,0,$channel.buffer.Length)
+                    } catch {
+                        $channel.ended=$true;$channel.failed=$true
+                        $channel['error']=$_.Exception.Message
+                    }
+                }
+            }
+        }
+        $deadline=[DateTime]::UtcNow.AddSeconds(20)
+        while (-not $process.HasExited) {
+            & $readOutput
+            if ([DateTime]::UtcNow -ge $deadline) { $diagnostic.timed_out=$true; break }
+            $null=$process.WaitForExit(50)
+        }
+        if ($diagnostic.timed_out -and -not $process.HasExited) {
+            # Only this probe's new process tree; do not touch existing kernels.
+            $killer=New-Object Diagnostics.Process
+            $killer.StartInfo.FileName=Join-Path $env:WINDIR 'System32\taskkill.exe'
+            $killer.StartInfo.Arguments='/PID '+$diagnostic.pid+' /T /F'
+            $killer.StartInfo.UseShellExecute=$false;$killer.StartInfo.CreateNoWindow=$true
+            $killer.StartInfo.RedirectStandardOutput=$true;$killer.StartInfo.RedirectStandardError=$true
+            try {
+                if (-not $killer.Start()) { throw 'Could not start owned-tree termination.' }
+                $killOut=$killer.StandardOutput.ReadToEndAsync();$killErr=$killer.StandardError.ReadToEndAsync()
+                if (-not $killer.WaitForExit(2000)) { $killer.Kill();$null=$killer.WaitForExit(1000) }
+                if ($killer.HasExited -and $killer.ExitCode -ne 0) { $diagnostic['stop_error']='Owned-tree termination returned '+$killer.ExitCode }
+            } catch { $diagnostic['stop_error']=$_.Exception.Message }
+            finally { $killer.Dispose() }
+            if (-not $process.WaitForExit(5000)) {
+                try { $process.Kill();$null=$process.WaitForExit(1000) }
+                catch { $diagnostic['stop_error']=$_.Exception.Message }
+            }
+        }
+        $drainDeadline=[DateTime]::UtcNow.AddSeconds(2)
+        do {
+            & $readOutput
+            $diagnostic.output_drain_complete=@($channels|Where-Object {-not $_.ended -or $_.failed}).Count -eq 0
+            if (@($channels|Where-Object {-not $_.ended}).Count -eq 0 -or [DateTime]::UtcNow -ge $drainDeadline) { break }
+            Start-Sleep -Milliseconds 25
+        } while ($true)
+        $diagnostic.stdout=$channels[0].text.ToString();$diagnostic.stderr=$channels[1].text.ToString()
+        $diagnostic.stdout_truncated=$channels[0].truncated;$diagnostic.stderr_truncated=$channels[1].truncated
+        $readErrors=@($channels|Where-Object {$_.failed}|ForEach-Object {$_.error})
+        if ($readErrors.Count) { $diagnostic['output_error']=$readErrors -join '; ' }
+        if ($process.HasExited) { $diagnostic.exit_code=$process.ExitCode }
+        if ($diagnostic.timed_out) { throw 'Python probe exceeded its 20-second budget; interpreter availability is unknown.' }
+        if (-not $diagnostic.output_drain_complete) { throw 'Python output handles did not drain within 2 seconds; interpreter availability is unknown.' }
+        if ($diagnostic.exit_code -ne 0) { throw ('Python probe exited with code '+$diagnostic.exit_code+'.') }
+        if ($diagnostic.stdout_truncated) { throw 'Python probe output exceeded 32 KiB; its result could not be verified.' }
+        $result=$diagnostic.stdout|ConvertFrom-Json
         # This release's Windows wheels are validated with CPython 3.12.
         $compatible = $result.version[0] -eq 3 -and $result.version[1] -eq 12 -and $result.platform -eq 'win-amd64' -and $result.bits -eq 64
         $ready = $compatible -and @($result.missing).Count -eq 0 -and
             (Test-Path -LiteralPath $result.jupytext -PathType Leaf) -and
             (Test-Path -LiteralPath $result.latex2text -PathType Leaf)
+        $diagnostic.status=if (-not $compatible) {'incompatible'} elseif ($ready) {'ready'} else {'missing'}
         return [pscustomobject]@{ python = $result.python; version = ($result.version -join '.');
             compatible = $compatible; ready = [bool]$ready; missing = @($result.missing);
             jupytext = $result.jupytext; latex2text = $result.latex2text }
     }
-    catch { return $null }
-    finally { $process.Dispose() }
+    catch { $diagnostic.error=$_.Exception.Message;return $null }
+    finally {
+        $diagnostic.seconds=[Math]::Round($watch.Elapsed.TotalSeconds,3)
+        $script:PythonProbeDiagnostics+=@([pscustomobject]$diagnostic)
+        foreach ($channel in $channels) { try { $channel.reader.Close() } catch {} }
+        $process.Dispose()
+    }
+}
+
+function Assert-NotebookProbeKnown($Selected,[bool]$Requested) {
+    if (-not $Requested -or ($Selected -and $Selected.ready)) { return }
+    $unknown=@($script:PythonProbeDiagnostics|Where-Object {$_.status -eq 'unknown'})
+    if ($unknown.Count) {
+        $details=@($unknown|ForEach-Object {$_.python+': '+$_.error}) -join [Environment]::NewLine
+        throw ('Existing Python inspection was inconclusive; no dependencies were installed. '+
+            'Inspect python_probes in detection JSON or python-probes.json in the setup run before retrying. '+
+            [Environment]::NewLine+$details)
+    }
 }
 
 function Save-Selection($Selected) {
@@ -111,7 +196,7 @@ $manifest=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'dependencies.json')
 $assetLock=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'system-assets.lock.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($manifest.schema_version -ne 1 -or $assetLock.schema_version -ne 1) { throw 'Unsupported dependency manifest.' }
 $script:SelectedToolPaths=@(Get-DependencySelectedPaths (Join-Path $SelectionRoot 'selected.json'))
-$script:DependencyChecks=@(); $script:DependencyRun=$null
+$script:DependencyChecks=@(); $script:DependencyRun=$null; $script:PythonProbeDiagnostics=@()
 $dependencyMutex=$null; $mutexAcquired=$false
 $mutating=$InstallBase -or $InstallNotebook -or $SelectPython -or $InstallLatex -or $InstallTool.Count -gt 0
 $mapping=@{search='rg';find='fd';yazi='yazi';fzf='fzf';git='git'}
@@ -213,9 +298,11 @@ $base=$interpreters|Where-Object {$_.compatible}|Select-Object -First 1
 # Always show the detection result before any network request or installation.
 $tools|Format-Table role,available,@{Label='Download';Expression={if ($_.available) {'reuse'} elseif ($_.download_bytes) {'{0:N1} MiB' -f ($_.download_bytes/1MB)} else {'provider size'}}},path -AutoSize|Out-Host
 $interpreters|Format-Table version,compatible,ready,python -AutoSize|Out-Host
+$script:PythonProbeDiagnostics|Where-Object {$_.status -eq 'unknown'}|Format-Table status,seconds,exit_code,timed_out,python,error -AutoSize|Out-Host
 if ($InstallBase) { Write-Host 'Base: reuse working tools; download only missing search, find, Yazi, fzf, Git and WebView2.' }
 if ($InstallNotebook) {
     if ($selected) { Write-Host ('Notebook: reusing complete environment '+$selected.python) }
+    elseif (@($script:PythonProbeDiagnostics|Where-Object {$_.status -eq 'unknown'}).Count) { Write-Host 'Notebook: existing Python inspection is unknown; setup will stop before installing dependencies.' }
     elseif ($base) { Write-Host ('Notebook: reuse CPython '+$base.version+'; download packages into a separate environment (package size is resolved by pip).') }
     else { Write-Host ('Notebook: download official CPython 3.12 x64 ('+[Math]::Round($assetLock.assets.python.download_size/1MB,1)+' MiB), then packages into a separate environment.') }
 }
@@ -228,7 +315,9 @@ try {
         $script:DependencyRun=Join-Path $DependencyRoot ('runs\'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffff'))
         $null=New-Item -ItemType Directory -Path $script:DependencyRun -Force
         Write-Host ('Setup log: '+$script:DependencyRun)
+        Write-DependencyJson (Join-Path $script:DependencyRun 'python-probes.json') @($script:PythonProbeDiagnostics)
     }
+    Assert-NotebookProbeKnown $selected ([bool]($InstallNotebook -or $SelectPython))
     $roles=@($InstallTool)
     if ($InstallBase) { $roles+=@('search','find','yazi','fzf','git','webview2') }
     if ($InstallLatex) { $roles+=@('git') }
@@ -314,8 +403,11 @@ try {
         }
         Write-DependencyJson $selection $record
     }
-    $report=[pscustomobject]@{schema_version=1;status='passed';tools=$tools;python=$interpreters;notebook_ready=[bool]$selected;selection_saved=[bool]$mutating;webview2=$webview2;latex_checked=[bool]$InstallLatex;latex_ready=[bool]$InstallLatex;checks=$script:DependencyChecks}
-    if ($mutating) { Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') $report }
+    $report=[pscustomobject]@{schema_version=1;status='passed';tools=$tools;python=$interpreters;python_probes=@($script:PythonProbeDiagnostics);notebook_ready=[bool]$selected;selection_saved=[bool]$mutating;webview2=$webview2;latex_checked=[bool]$InstallLatex;latex_ready=[bool]$InstallLatex;checks=$script:DependencyChecks}
+    if ($mutating) {
+        Write-DependencyJson (Join-Path $script:DependencyRun 'python-probes.json') @($script:PythonProbeDiagnostics)
+        Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') $report
+    }
     if ($Json) { $report|ConvertTo-Json -Depth 8 }
     else {
         if ($mutating) { Write-Host 'Selected dependencies passed. Reopen Glow to use them.' }
@@ -323,7 +415,10 @@ try {
         Write-Host 'Existing Python/Conda environments are preserved. No global PATH or file associations were rewritten.'
     }
 } catch {
-    if ($script:DependencyRun) { Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') @{schema_version=1;status='failed';error=$_.Exception.Message;checks=$script:DependencyChecks} }
+    if ($script:DependencyRun) {
+        Write-DependencyJson (Join-Path $script:DependencyRun 'python-probes.json') @($script:PythonProbeDiagnostics)
+        Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') @{schema_version=1;status='failed';error=$_.Exception.Message;python_probes=@($script:PythonProbeDiagnostics);checks=$script:DependencyChecks}
+    }
     Write-Error $_
     throw
 } finally {
