@@ -34,8 +34,6 @@ impl WindowDragRequest {
 mod input {
     use std::time::{Duration, Instant};
 
-    use glamour::Contains;
-
     use crate::{
         renderer::WindowDrawDetails,
         units::{GridScale, PixelPos, PixelRect},
@@ -73,7 +71,10 @@ mod input {
         let position = ((pointer - details.region.min).to_point() / grid_scale).floor();
         let row = position.y;
         if (!mouse_grid_detection && details.id > 1)
-            || !details.region.contains(&pointer)
+            || pointer.x < details.region.min.x
+            || pointer.x >= details.region.max.x
+            || pointer.y < details.region.min.y
+            || pointer.y >= details.region.max.y
             || details.grid_size.width == 0
             || row != 0.0
         {
