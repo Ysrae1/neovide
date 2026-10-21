@@ -251,12 +251,8 @@ impl GridRenderer {
 
         let foreground = style.foreground(&self.default_style.colors).to_color();
         let shape_opacity = self.background_opacity(foreground, style.blend, opacity);
-        #[cfg(target_os = "macos")]
-        let shape_opacity = if style.avante_solid_cap
-            && style.blend > 0
-            && self.settings.get::<WindowSettings>().liquid_glass
-        {
-            // These endcaps are solid title shapes over a translucent panel.
+        let shape_opacity = if style.avante_solid_cap && style.blend > 0 {
+            // Explicit solid caps keep the body's opacity on every platform.
             // Their cell background still follows its explicit highlight blend.
             opacity
         } else {
@@ -609,12 +605,12 @@ mod tests {
         assert!((renderer.background_opacity(normal, 0, 1.0) - 0.78).abs() < 0.001);
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
-    fn avante_solid_caps_keep_panel_corners_glass_and_match_title_body() {
+    fn solid_title_caps_keep_blended_corners_and_match_solid_body() {
         let settings = Arc::new(Settings::new());
+        settings.set(&WindowSettings::default());
         settings.set(&RendererSettings::default());
-        let mut renderer = GridRenderer::new(1.0, settings.clone());
+        let mut renderer = GridRenderer::new(1.0, settings);
         let cell_size = crate::units::PixelSize::new(16.0, 32.0);
         renderer.grid_scale = GridScale::new(cell_size);
         renderer.box_char_renderer.update_dimensions(cell_size, 32.0);
@@ -623,17 +619,11 @@ mod tests {
 
         for panel in [Color::from_rgb(243, 243, 243), Color::from_rgb(32, 36, 43)] {
             for opacity in [1.0, 0.8] {
-                for liquid_glass in [false, true] {
-                    settings.set(&WindowSettings { liquid_glass, ..WindowSettings::default() });
-                    for name in [
-                        "AvanteReversedTitle",
-                        "AvanteReversedSubtitle",
-                        "AvanteReversedThirdTitle",
-                        "StatusLine",
-                    ] {
+                for blend in [80, 15] {
+                    for solid_cap in [false, true] {
                         let cap = Some(Arc::new(
                             Style {
-                                blend: 40,
+                                blend,
                                 ..Style::new(Colors::new(
                                     Some(accent.into()),
                                     Some(panel.into()),
@@ -641,8 +631,7 @@ mod tests {
                                 ))
                             }
                             .with_roles(
-                                (name != "StatusLine")
-                                    .then_some(crate::editor::HighlightRole::SolidTitleCap),
+                                solid_cap.then_some(crate::editor::HighlightRole::SolidTitleCap),
                             ),
                         ));
                         let body = Some(Arc::new(Style::new(Colors::new(
@@ -687,22 +676,39 @@ mod tests {
                         let panel_pixel = pixels.get_color((0, 0));
                         assert_eq!(panel_pixel, pixels.get_color((79, 0)));
                         assert!(
-                            (panel_pixel.a() as f32 - 153.0 * opacity).abs() <= 1.0,
-                            "{name} exterior must retain the panel's glass alpha"
+                            (panel_pixel.a() as f32
+                                - 255.0 * (100 - blend) as f32 / 100.0 * opacity)
+                                .abs()
+                                <= 1.0,
+                            "cap exterior must retain blend {blend} at opacity {opacity}"
                         );
                         let left = pixels.get_color((15, 16));
                         let right = pixels.get_color((64, 16));
+                        let body_pixel = pixels.get_color((32, 16));
                         assert_eq!(left, right, "both ends must use the same material");
-                        if liquid_glass && name.starts_with("AvanteReversed") {
+                        assert!(
+                            (body_pixel.a() as f32 - 255.0 * opacity).abs() <= 1.0,
+                            "capsule body must retain only the global opacity"
+                        );
+                        if solid_cap {
                             assert_eq!(
-                                left,
-                                pixels.get_color((32, 16)),
-                                "{name} shape must join its solid title body at opacity {opacity}"
+                                left, body_pixel,
+                                "solid cap must join its body at blend {blend}, opacity {opacity}"
                             );
                         } else {
+                            assert_eq!(
+                                left.a(),
+                                panel_pixel.a(),
+                                "unmarked cap must retain blend {blend} at opacity {opacity}"
+                            );
+                        }
+                        for columns in [0..16, 64..80] {
                             assert!(
-                                (left.a() as f32 - 153.0 * opacity).abs() <= 1.0,
-                                "ordinary caps and non-Glass windows keep their original blend"
+                                (0..32).any(|y| columns.clone().any(|x| {
+                                    let pixel = pixels.get_color((x, y));
+                                    pixel != panel_pixel && pixel != left
+                                })),
+                                "both cap contours must retain antialiased edge pixels"
                             );
                         }
                     }
