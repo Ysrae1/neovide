@@ -34,7 +34,12 @@ impl WindowDragRequest {
 mod input {
     use std::time::{Duration, Instant};
 
-    use crate::units::{PixelPos, PixelRect};
+    use glamour::Contains;
+
+    use crate::{
+        renderer::WindowDrawDetails,
+        units::{GridScale, PixelPos, PixelRect},
+    };
 
     use super::WindowDragRequest;
 
@@ -47,6 +52,48 @@ mod input {
         pub column: u32,
         pub bounds: PixelRect<f32>,
         pub at: Instant,
+    }
+
+    pub fn tabline_press_from_geometry(
+        mouse_grid_detection: bool,
+        full_region: &WindowDrawDetails,
+        raw_region: Option<&WindowDrawDetails>,
+        pointer: PixelPos<f32>,
+        grid_scale: GridScale,
+        now: Instant,
+    ) -> Option<TablinePress> {
+        // Neovim 0.12 resolves grid 0 input itself. Match the root coordinates
+        // sent with that press; a renderer overlay is not its input target.
+        // Older versions still use the topmost rendered grid for input.
+        let details = if mouse_grid_detection { Some(full_region) } else { raw_region };
+        let Some(details) = details else {
+            log::debug!("Window drag press rejected: no input region");
+            return None;
+        };
+        let position = ((pointer - details.region.min).to_point() / grid_scale).floor();
+        let row = position.y;
+        if (!mouse_grid_detection && details.id > 1)
+            || !details.region.contains(&pointer)
+            || details.grid_size.width == 0
+            || row != 0.0
+        {
+            log::debug!(
+                "Window drag press rejected: mouse_grid_detection={mouse_grid_detection} grid={} row={row} pointer={pointer:?} region={:?}",
+                details.id,
+                details.region
+            );
+            return None;
+        }
+        let column = (position.x as u32).min(details.grid_size.width - 1);
+        let bounds = PixelRect::from_min_max(
+            details.region.min,
+            (details.region.max.x, details.region.min.y + grid_scale.height()),
+        );
+        log::debug!(
+            "Window drag press recorded: mouse_grid_detection={mouse_grid_detection} grid={} column={column} pointer={pointer:?} bounds={bounds:?}",
+            details.id
+        );
+        Some(TablinePress { column, bounds, at: now })
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -88,20 +135,48 @@ mod input {
             conditions: DragConditions,
             now: Instant,
         ) -> bool {
-            let Some(press) = self.press else { return false };
-            if !conditions.frameless
-                || !conditions.focused
-                || !conditions.left_down
-                || !conditions.no_modifiers
-                || request.column != press.column
-                || pointer.x < press.bounds.min.x
+            let Some(press) = self.press else {
+                log::debug!(
+                    "Window drag request rejected: no recorded press request={request:?} pointer={pointer:?} conditions={conditions:?}"
+                );
+                return false;
+            };
+            let age = now.saturating_duration_since(press.at);
+            let outside = pointer.x < press.bounds.min.x
                 || pointer.x >= press.bounds.max.x
                 || pointer.y < press.bounds.min.y
-                || pointer.y >= press.bounds.max.y
-                || now.saturating_duration_since(press.at) > MAX_REQUEST_AGE
-            {
+                || pointer.y >= press.bounds.max.y;
+            let rejected = if !conditions.frameless {
+                Some("not frameless or fullscreen")
+            } else if !conditions.focused {
+                Some("not focused")
+            } else if !conditions.left_down {
+                Some("primary button or OS modifier state")
+            } else if !conditions.no_modifiers {
+                Some("cached modifiers")
+            } else if request.column != press.column {
+                Some("column mismatch")
+            } else if outside {
+                Some("pointer left tabline")
+            } else if age > MAX_REQUEST_AGE {
+                Some("stale press")
+            } else {
+                None
+            };
+            if let Some(reason) = rejected {
+                log::debug!(
+                    "Window drag request rejected: {reason} request={request:?} press_column={} age_ms={} pointer={pointer:?} bounds={:?} conditions={conditions:?}",
+                    press.column,
+                    age.as_millis(),
+                    press.bounds
+                );
                 return false;
             }
+            log::debug!(
+                "Window drag request accepted: column={} age_ms={} pointer={pointer:?}",
+                request.column,
+                age.as_millis()
+            );
             self.press = None;
             self.native_release_pending = true;
             true
@@ -110,7 +185,7 @@ mod input {
 }
 
 #[cfg(any(target_os = "windows", test))]
-pub use input::{DragConditions, TablinePress, WindowDragState};
+pub use input::{DragConditions, TablinePress, WindowDragState, tabline_press_from_geometry};
 
 #[cfg(target_os = "windows")]
 pub fn plain_left_button_down() -> bool {
@@ -137,7 +212,82 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::*;
-    use crate::units::{PixelPos, PixelRect};
+    use crate::{
+        editor::WindowType,
+        renderer::WindowDrawDetails,
+        units::{GridScale, GridSize, PixelPos, PixelRect, PixelSize},
+    };
+
+    fn root_geometry() -> WindowDrawDetails {
+        WindowDrawDetails {
+            id: 0,
+            region: PixelRect::from_min_max((3.0, 7.0), (803.0, 407.0)),
+            grid_size: GridSize::new(80, 20),
+            window_type: WindowType::Editor,
+        }
+    }
+
+    #[test]
+    fn window_drag_uses_neovim_root_input_geometry_with_mouse_grid_detection() {
+        let now = Instant::now();
+        let root = root_geometry();
+        let overlay = WindowDrawDetails {
+            id: 12,
+            region: PixelRect::from_min_max((103.0, 7.0), (303.0, 107.0)),
+            grid_size: GridSize::new(20, 5),
+            window_type: WindowType::Editor,
+        };
+        let pointer = PixelPos::new(128.0, 17.0);
+        let scale = GridScale::new(PixelSize::new(10.0, 20.0));
+        // Grid 0 input is resolved by Neovim. An overlapping rendered grid
+        // must not change its root column or prevent recording the press.
+        for raw in [Some(&overlay), None] {
+            let press = tabline_press_from_geometry(true, &root, raw, pointer, scale, now).unwrap();
+            assert_eq!(press.column, 12);
+            assert_eq!(press.bounds, PixelRect::from_min_max((3.0, 7.0), (803.0, 27.0)));
+        }
+        // Old Neovim receives grid-local input instead, so that overlay cannot
+        // supply a root-tabline press even though its own first row is hit.
+        assert!(
+            tabline_press_from_geometry(false, &root, Some(&overlay), pointer, scale, now)
+                .is_none()
+        );
+        assert!(tabline_press_from_geometry(false, &root, None, pointer, scale, now).is_none());
+        let legacy_root = WindowDrawDetails { id: 1, ..root.clone() };
+        assert_eq!(
+            tabline_press_from_geometry(false, &root, Some(&legacy_root), pointer, scale, now)
+                .unwrap()
+                .column,
+            12
+        );
+    }
+
+    #[test]
+    fn window_drag_root_input_geometry_excludes_other_rows_and_outside_padding() {
+        let now = Instant::now();
+        let root = root_geometry();
+        let scale = GridScale::new(PixelSize::new(10.0, 20.0));
+        for pointer in [
+            PixelPos::new(128.0, 27.0),
+            PixelPos::new(128.0, 6.0),
+            PixelPos::new(2.0, 17.0),
+            PixelPos::new(803.0, 17.0),
+        ] {
+            assert!(tabline_press_from_geometry(true, &root, None, pointer, scale, now).is_none());
+        }
+        let empty_root = WindowDrawDetails { grid_size: GridSize::ZERO, ..root };
+        assert!(
+            tabline_press_from_geometry(
+                true,
+                &empty_root,
+                None,
+                PixelPos::new(128.0, 17.0),
+                scale,
+                now
+            )
+            .is_none()
+        );
+    }
 
     fn packet(version: i64, row: i64, column: i64) -> Vec<Value> {
         vec![Value::Map(vec![

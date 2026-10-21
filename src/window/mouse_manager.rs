@@ -288,21 +288,18 @@ impl MouseManager {
 
     #[cfg(target_os = "windows")]
     fn tabline_press(&self, state: &EditorState) -> Option<super::window_drag::TablinePress> {
-        let details = self.get_window_details_under_mouse_raw(state)?;
-        // Floats and ordinary editor grids have independent click semantics.
-        // Only the real root grid's first row can supply a tabline press.
-        if !self.enabled || details.id > 1 || !details.region.contains(&self.window_position) {
+        if !self.enabled {
+            log::debug!("Window drag press rejected: mouse input disabled");
             return None;
         }
-        let position = self.get_relative_position(details, state);
-        if position.y != 0 {
-            return None;
-        }
-        let bounds = PixelRect::from_min_max(
-            details.region.min,
-            (details.region.max.x, details.region.min.y + state.grid_scale.height()),
-        );
-        Some(super::window_drag::TablinePress { column: position.x, bounds, at: Instant::now() })
+        super::window_drag::tabline_press_from_geometry(
+            self.settings.get::<WindowSettings>().has_mouse_grid_detection,
+            &state.full_region,
+            self.get_window_details_under_mouse_raw(state),
+            self.window_position,
+            *state.grid_scale,
+            Instant::now(),
+        )
     }
 
     #[cfg(target_os = "windows")]

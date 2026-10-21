@@ -632,9 +632,12 @@ impl WinitWindowWrapper {
                         .prepare_window_drag(request, conditions);
                     // Release the mouse-manager borrow before entering native
                     // windowing code, which can dispatch Windows messages.
-                    if accepted && let Err(error) = window.drag_window() {
-                        route.window.mouse_manager.borrow_mut().cancel_window_drag();
-                        log::warn!("Could not start native window drag: {error}");
+                    if accepted {
+                        log::debug!("Starting native window drag: window={target_window_id:?}");
+                        if let Err(error) = window.drag_window() {
+                            route.window.mouse_manager.borrow_mut().cancel_window_drag();
+                            log::warn!("Could not start native window drag: {error}");
+                        }
                     }
                 }
                 #[cfg(not(target_os = "windows"))]
