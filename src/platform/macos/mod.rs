@@ -1175,6 +1175,43 @@ define_class!(
     #[derive(Debug)]
     #[unsafe(super = NSObject)]
     #[thread_kind = MainThreadOnly]
+    struct FullScreenMenuHandler;
+
+    impl FullScreenMenuHandler {
+        #[unsafe(method(toggleFullScreen:))]
+        fn toggle_full_screen(&self, sender: &AnyObject) {
+            let app = NSApplication::sharedApplication(self.mtm());
+            if let Some(window) = app.keyWindow().or_else(|| app.mainWindow()) {
+                unsafe { window.toggleFullScreen(Some(sender)) };
+            }
+        }
+
+        #[unsafe(method(validateMenuItem:))]
+        fn validate_menu_item(&self, item: &NSMenuItem) -> bool {
+            let app = NSApplication::sharedApplication(self.mtm());
+            let enabled = if let Some(window) = app.keyWindow().or_else(|| app.mainWindow()) {
+                // Preserve AppKit's enablement decision; its validator also
+                // writes an OS-language title, so localize after it returns.
+                unsafe { msg_send![&window, validateMenuItem: item] }
+            } else {
+                false
+            };
+            item.setTitle(&menu_title(MenuLabel::FullScreen));
+            enabled
+        }
+    }
+);
+
+impl FullScreenMenuHandler {
+    fn new(mtm: MainThreadMarker) -> Retained<Self> {
+        unsafe { msg_send![Self::alloc(mtm), init] }
+    }
+}
+
+define_class!(
+    #[derive(Debug)]
+    #[unsafe(super = NSObject)]
+    #[thread_kind = MainThreadOnly]
     struct HelpMenuHandler;
 
     impl HelpMenuHandler {
@@ -1398,6 +1435,7 @@ impl WindowMenuNotificationHandler {
 struct Menu {
     localized_items: RefCell<Vec<(Retained<NSMenuItem>, MenuLabel)>>,
     quit_handler: Retained<QuitHandler>,
+    full_screen_handler: Retained<FullScreenMenuHandler>,
     help_menu_handler: Retained<HelpMenuHandler>,
     new_window_handler: Retained<NewWindowHandler>,
     editor_switcher_menu_handler: Retained<EditorSwitcherMenuHandler>,
@@ -1410,6 +1448,7 @@ impl Menu {
         let menu = Menu {
             localized_items: RefCell::new(Vec::new()),
             quit_handler: QuitHandler::new(mtm),
+            full_screen_handler: FullScreenMenuHandler::new(mtm),
             help_menu_handler: HelpMenuHandler::new(mtm),
             new_window_handler: NewWindowHandler::new(mtm),
             editor_switcher_menu_handler: EditorSwitcherMenuHandler::new(mtm),
@@ -1434,10 +1473,30 @@ impl Menu {
             if let Some(submenu) = item.submenu() {
                 submenu.setTitle(&title);
                 if matches!(label, MenuLabel::Window) {
+                    self.remove_duplicate_full_screen_items(&submenu);
                     Self::refresh_system_window_titles(&submenu);
                 }
             }
         }
+    }
+
+    fn remove_duplicate_full_screen_items(&self, menu: &NSMenu) {
+        let items = self.localized_items.borrow();
+        let Some((owned, _)) =
+            items.iter().find(|(_, label)| matches!(label, MenuLabel::FullScreen))
+        else {
+            return;
+        };
+        for item in menu.itemArray() {
+            if item.action().is_some_and(|action| action == sel!(toggleFullScreen:))
+                && !ptr::eq(item.as_ref(), owned.as_ref())
+            {
+                // The retained item owns the user's configured key equivalent.
+                // AppKit can append another OS-language item while opening.
+                menu.removeItem(&item);
+            }
+        }
+        owned.setHidden(false);
     }
 
     fn refresh_system_window_titles(menu: &NSMenu) {
@@ -1611,6 +1670,7 @@ impl Menu {
                 "system_fullscreen_hotkey",
             );
             full_screen_item.setAction(Some(sel!(toggleFullScreen:)));
+            full_screen_item.setTarget(Some(&self.full_screen_handler));
             menu.addItem(&full_screen_item);
 
             let create_new_window = self.localized_item(mtm, MenuLabel::NewWindow);

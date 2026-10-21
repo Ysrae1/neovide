@@ -10,6 +10,8 @@
 
 原位修改应用自建菜单、Dock“新建窗口”，以及注册窗口菜单内已确认动作的系统项；不重建菜单，不修改 selector、target、快捷键或 Services／Windows／Help 注册。系统窗口操作以实际 selector 白名单识别，未知动作保留；布局分节另要求已知布局子树／分节头上下文。`menuWillOpen` 只安排一次 common-mode 延后刷新，等 AppKit 完成插入与验证后，在菜单跟踪期间补齐标题。所有全屏操作标题随实际窗口状态更新。应用名、文档名、设备名后缀和系统提供的 Services 子项保留原值；后者仍由 macOS 自身的语言和服务提供方管理。桥接回归见 `tests/navigation/native_menu_locale.lua`，真实菜单与文档保护验收使用独立测试 App。
 
+全屏项由专用 target 转发同一个 `toggleFullScreen:`，验证时保留 NSWindow 的可用性决定，然后回写当前语言标题，防止 AppKit 再次覆盖。仅移除同一窗口菜单内后来追加的重复全屏项，保留自建项及其用户配置快捷键；语言切换不更换该 target。
+
 ## 图片传输与编号
 
 `neovide.image.load/show/hide/close` 使用同一个编辑器 route 内的正整数 ID；不同 route 独立。图片、Molten 和嵌入式 Yazi 共用该命名空间，不能各自从 1 开始计数。配套配置的 `config.media.image_transport` 是编号分配及状态分发入口：
