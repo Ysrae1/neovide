@@ -49,13 +49,15 @@ fn resize_edge(point: (i32, i32), bounds: [i32; 4], border: (i32, i32)) -> Optio
 
 #[cfg(target_os = "windows")]
 mod native {
+    use std::{cell::RefCell, collections::HashSet};
+
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use windows::Win32::{
         Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
         UI::{
             HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi},
             Input::KeyboardAndMouse::GetCapture,
-            Shell::{DefSubclassProc, GetWindowSubclass, RemoveWindowSubclass, SetWindowSubclass},
+            Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
             WindowsAndMessaging::{
                 GWL_STYLE, GetWindowLongW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT,
                 HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, SM_CXPADDEDBORDER,
@@ -70,7 +72,13 @@ mod native {
 
     const SUBCLASS_ID: usize = 0x474c4f57;
     const FRAMELESS_HIT_TEST: usize = 1;
-    const LIVE_RESIZE: usize = 2;
+
+    thread_local! {
+        // The subclass and Application query both run on the HWND's Winit UI
+        // thread. Track each window independently and drop it on destruction,
+        // without adding GetWindowSubclass's Comctl32 v6 manifest requirement.
+        static LIVE_RESIZES: RefCell<HashSet<usize>> = RefCell::new(HashSet::new());
+    }
 
     pub fn install(window: &Window, frameless: bool) {
         let Ok(handle) = window.window_handle() else {
@@ -97,17 +105,7 @@ mod native {
     pub fn is_resizing(window: &Window) -> bool {
         let Ok(handle) = window.window_handle() else { return false };
         let RawWindowHandle::Win32(handle) = handle.as_raw() else { return false };
-        let mut flags = 0;
-        unsafe {
-            GetWindowSubclass(
-                HWND(handle.hwnd.get() as _),
-                Some(subclass),
-                SUBCLASS_ID,
-                Some(&mut flags),
-            )
-            .as_bool()
-                && flags & LIVE_RESIZE != 0
-        }
+        LIVE_RESIZES.with(|windows| windows.borrow().contains(&(handle.hwnd.get() as usize)))
     }
 
     unsafe extern "system" fn subclass(
@@ -120,13 +118,14 @@ mod native {
     ) -> LRESULT {
         unsafe {
             if message == WM_NCDESTROY {
+                LIVE_RESIZES.with(|windows| windows.borrow_mut().remove(&(hwnd.0 as usize)));
                 let _ = RemoveWindowSubclass(hwnd, Some(subclass), subclass_id);
             } else if message == WM_ENTERSIZEMOVE || message == WM_EXITSIZEMOVE {
                 // WM_ENTERSIZEMOVE also covers title-bar moves. Only WM_SIZING
                 // enables the redraw path; ordinary moves keep their pacing.
-                let _ = SetWindowSubclass(hwnd, Some(subclass), subclass_id, data & !LIVE_RESIZE);
+                LIVE_RESIZES.with(|windows| windows.borrow_mut().remove(&(hwnd.0 as usize)));
             } else if message == WM_SIZING {
-                let _ = SetWindowSubclass(hwnd, Some(subclass), subclass_id, data | LIVE_RESIZE);
+                LIVE_RESIZES.with(|windows| windows.borrow_mut().insert(hwnd.0 as usize));
             } else if message == WM_NCHITTEST
                 && data & FRAMELESS_HIT_TEST != 0
                 && GetWindowLongW(hwnd, GWL_STYLE) as u32 & WS_THICKFRAME.0 != 0
