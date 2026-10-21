@@ -1182,7 +1182,7 @@ define_class!(
         fn toggle_full_screen(&self, sender: &AnyObject) {
             let app = NSApplication::sharedApplication(self.mtm());
             if let Some(window) = app.keyWindow().or_else(|| app.mainWindow()) {
-                unsafe { window.toggleFullScreen(Some(sender)) };
+                window.toggleFullScreen(Some(sender));
             }
         }
 
@@ -1489,7 +1489,7 @@ impl Menu {
         };
         for item in menu.itemArray() {
             if item.action().is_some_and(|action| action == sel!(toggleFullScreen:))
-                && !ptr::eq(item.as_ref(), owned.as_ref())
+                && !ptr::eq::<NSMenuItem>(item.as_ref(), owned.as_ref())
             {
                 // The retained item owns the user's configured key equivalent.
                 // AppKit can append another OS-language item while opening.
