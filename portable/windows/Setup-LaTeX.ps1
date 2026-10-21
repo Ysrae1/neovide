@@ -25,7 +25,12 @@ try {
                 if (-not (Test-Path -LiteralPath (Join-Path $project 'fixture.pdf')) -or -not (Test-Path -LiteralPath (Join-Path $project 'fixture.synctex.gz'))) { throw 'Existing TeX did not create PDF and SyncTeX.' }
                 $null=Invoke-DependencyProcess $synctex @('help') 'probe-existing-SyncTeX' 20
                 $reused=$true; Write-Host 'Reusing existing TeX after Chinese XeLaTeX / latexmk / SyncTeX checks.'
-            } catch { Write-Warning 'Existing TeX did not pass the selected feature checks. It is preserved; setup will use a separate owned TinyTeX.' }
+            } catch {
+                if ($_.Exception.GetBaseException() -is [TimeoutException]) {
+                    throw ('Existing TeX validation did not finish. No replacement was installed; inspect its phase log and retry when the environment is ready. '+$_.Exception.Message)
+                }
+                Write-Warning 'Existing TeX did not pass the selected feature checks. It is preserved; setup will use a separate owned TinyTeX.'
+            }
         }
     }
     if (-not $reused) {

@@ -85,22 +85,87 @@ function Invoke-Bounded {
     $process = New-Object Diagnostics.Process; $process.StartInfo = $start
     try {
         if (-not $process.Start()) { throw ('Cannot start ' + $Name) }
-        $stdout = $process.StandardOutput.ReadToEndAsync(); $stderr = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            # This tree was created by this call; never terminate other TeX/editor jobs.
-            & (Join-Path $env:WINDIR 'System32\taskkill.exe') /PID $process.Id /T /F | Out-Null
-            $process.WaitForExit()
-            throw ('Timed out after ' + $TimeoutSeconds + ' seconds: ' + $Name)
+        $ownedPid = $process.Id; $timedOut = $false; $terminationNotes = @()
+        # Read incrementally so a timed-out command retains output even when a
+        # descendant keeps a redirected handle open. Poll on this runspace.
+        $channels = @($process.StandardOutput,$process.StandardError) | ForEach-Object {
+            $buffer = New-Object char[] 8192
+            @{reader=$_;buffer=$buffer;text=(New-Object Text.StringBuilder);
+                task=$_.ReadAsync($buffer,0,$buffer.Length);ended=$false;failed=$false}
         }
-        $output = $stdout.GetAwaiter().GetResult() + $stderr.GetAwaiter().GetResult()
+        $readOutput = {
+            foreach ($channel in $channels) {
+                # Bound each poll as well, so continuous output cannot hide the
+                # process deadline; drain more than one buffered block per poll.
+                for ($round=0; $round -lt 16 -and -not $channel.ended -and $channel.task.IsCompleted; $round++) {
+                    try {
+                        $count = $channel.task.GetAwaiter().GetResult()
+                        if ($count -eq 0) { $channel.ended = $true; continue }
+                        $null = $channel.text.Append($channel.buffer,0,$count)
+                        $channel.task = $channel.reader.ReadAsync($channel.buffer,0,$channel.buffer.Length)
+                    } catch {
+                        $channel.ended = $true; $channel.failed = $true
+                        $null = $channel.text.Append([Environment]::NewLine+'[Output read failed: '+$_.Exception.Message+']')
+                    }
+                }
+            }
+        }
+        $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+        while (-not $process.HasExited) {
+            & $readOutput
+            if ([DateTime]::UtcNow -ge $deadline) { $timedOut = $true; break }
+            $null = $process.WaitForExit(50)
+        }
+        if ($timedOut -and -not $process.HasExited) {
+            # This tree was created by this call; never terminate other TeX/editor jobs.
+            $killer = New-Object Diagnostics.Process
+            $killer.StartInfo.FileName = Join-Path $env:WINDIR 'System32\taskkill.exe'
+            $killer.StartInfo.Arguments = '/PID '+$ownedPid+' /T /F'
+            $killer.StartInfo.UseShellExecute = $false; $killer.StartInfo.CreateNoWindow = $true
+            $killer.StartInfo.RedirectStandardOutput = $true; $killer.StartInfo.RedirectStandardError = $true
+            try {
+                if ($killer.Start()) {
+                    $killOut = $killer.StandardOutput.ReadToEndAsync(); $killErr = $killer.StandardError.ReadToEndAsync()
+                    if (-not $killer.WaitForExit(5000)) {
+                        $killer.Kill(); $null = $killer.WaitForExit(1000)
+                        $terminationNotes += 'Owned-tree termination command exceeded 5 seconds.'
+                    }
+                    if ($killOut.IsCompleted -and -not $killOut.IsFaulted -and -not $killOut.IsCanceled) { $terminationNotes += $killOut.GetAwaiter().GetResult() }
+                    if ($killErr.IsCompleted -and -not $killErr.IsFaulted -and -not $killErr.IsCanceled) { $terminationNotes += $killErr.GetAwaiter().GetResult() }
+                } else { $terminationNotes += 'Owned-tree termination command could not be started.' }
+            } catch { $terminationNotes += 'Owned-tree termination error: '+$_.Exception.Message }
+            finally { $killer.Dispose() }
+            if (-not $process.WaitForExit(5000)) {
+                try { $process.Kill(); $null = $process.WaitForExit(1000) }
+                catch { $terminationNotes += 'Owned-process termination error: '+$_.Exception.Message }
+            }
+        }
+        $drainDeadline = [DateTime]::UtcNow.AddSeconds(5)
+        do {
+            & $readOutput
+            $outputDrainComplete = @($channels | Where-Object {-not $_.ended -or $_.failed}).Count -eq 0
+            if ($outputDrainComplete -or [DateTime]::UtcNow -ge $drainDeadline) { break }
+            Start-Sleep -Milliseconds 25
+        } while ($true)
+        $output = $channels[0].text.ToString() + $channels[1].text.ToString()
         if ($output.Length -gt 2 * 1024 * 1024) { $output = '[log truncated to final 2 MiB]' + $output.Substring($output.Length-2*1024*1024) }
+        $exitCode = $null
+        if ($process.HasExited) { $exitCode = $process.ExitCode }
         $log = Join-Path $logs ($Name + '.log')
-        [IO.File]::WriteAllText($log,$output,$utf8)
-        $receipt.checks += @{name=$Name;exit_code=$process.ExitCode;log=$log}
+        $logOutput = $output
+        if ($timedOut -or -not $outputDrainComplete) {
+            $logOutput += [Environment]::NewLine+'[Glow command state: pid='+$ownedPid+'; timed_out='+$timedOut+'; output_drain_complete='+$outputDrainComplete+'; exit_code='+$exitCode+']'
+            if ($terminationNotes.Count) { $logOutput += [Environment]::NewLine+($terminationNotes -join [Environment]::NewLine) }
+        }
+        [IO.File]::WriteAllText($log,$logOutput,$utf8)
+        $receipt.checks += @{name=$Name;exit_code=$exitCode;log=$log;pid=$ownedPid;
+            timed_out=$timedOut;output_drain_complete=$outputDrainComplete}
         Save-Receipt
-        if ($process.ExitCode -ne 0) {
+        if ($timedOut) { throw (New-Object TimeoutException ('Timed out after ' + $TimeoutSeconds + ' seconds: ' + $Name + '. Output and process state saved: ' + $log)) }
+        if (-not $outputDrainComplete) { throw ('Output did not drain within 5 seconds: ' + $Name + '. Partial output saved: ' + $log) }
+        if ($exitCode -ne 0) {
             if ($output) { Write-Host $output.Substring([Math]::Max(0,$output.Length-3500)) }
-            throw ('Command failed (' + $process.ExitCode + '): ' + $Name)
+            throw ('Command failed (' + $exitCode + '): ' + $Name)
         }
         return $output
     }

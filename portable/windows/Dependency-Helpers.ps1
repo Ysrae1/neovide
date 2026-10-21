@@ -67,28 +67,48 @@ function Invoke-DependencyProcess {
     $start.UseShellExecute=$false; $start.CreateNoWindow=$false; $start.WorkingDirectory=$Directory
     $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
     $process=New-Object Diagnostics.Process; $process.StartInfo=$start
+    $stdout=$null; $stderr=$null
+    $log=Join-Path $script:DependencyRun ($Name+'.log')
+    $check=@{name=$Name;pid=$null;exit_code=$null;timed_out=$false;output_drain_complete=$false;log=$log}
+    $script:DependencyChecks+=@($check)
     try {
         if (-not $process.Start()) { throw ('Cannot start '+$Name) }
+        $check.pid=$process.Id
         $stdout=$process.StandardOutput.ReadToEndAsync(); $stderr=$process.StandardError.ReadToEndAsync()
         $deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
         while (-not $process.WaitForExit(1000)) {
             Write-Progress -Activity 'Neovide Glow setup' -Status $Name
             if ([DateTime]::UtcNow -ge $deadline) {
-                & (Join-Path $env:WINDIR 'System32\taskkill.exe') /PID $process.Id /T /F | Out-Null
-                $process.WaitForExit(); throw ('Timed out: '+$Name)
+                $check.timed_out=$true
+                try { & (Join-Path $env:WINDIR 'System32\taskkill.exe') /PID $process.Id /T /F 2>&1 | Out-Null }
+                catch { $check['stop_error']=$_.Exception.Message }
+                $null=$process.WaitForExit(5000)
+                break
             }
         }
-        $output=$stdout.GetAwaiter().GetResult()+$stderr.GetAwaiter().GetResult()
+        try { $check.output_drain_complete=[Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($stdout,$stderr),2000) }
+        catch { $check['output_error']=$_.Exception.Message }
+        $output=''
+        foreach ($stream in @($stdout,$stderr)) {
+            if ($stream.Status -eq [Threading.Tasks.TaskStatus]::RanToCompletion) { $output+=$stream.GetAwaiter().GetResult() }
+            else { $output+='[Output pipe did not close within the drain deadline.]' }
+        }
         if ($output.Length -gt 2MB) { $output='[final 2 MiB]'+$output.Substring($output.Length-2MB) }
-        $log=Join-Path $script:DependencyRun ($Name+'.log')
         [IO.File]::WriteAllText($log,$output,(New-Object Text.UTF8Encoding($false)))
-        $script:DependencyChecks+=@{name=$Name;exit_code=$process.ExitCode;log=$log}
+        if ($process.HasExited) { $check.exit_code=$process.ExitCode }
+        if ($check.timed_out) { throw [TimeoutException]::new(('Timed out: '+$Name+'. Logs and partial owned output preserved: '+$log)) }
+        if (-not $check.output_drain_complete) { throw [TimeoutException]::new(('Output handles did not close: '+$Name+'. Inspect the recorded PID/log before retrying: '+$log)) }
         if ($process.ExitCode -notin @(0,3010)) {
             Write-Host $output.Substring([Math]::Max(0,$output.Length-2500))
             throw ($Name+' failed ('+$process.ExitCode+'). Partial owned output and logs were preserved.')
         }
         return $output
-    } finally { Write-Progress -Activity 'Neovide Glow setup' -Completed; $process.Dispose() }
+    } finally {
+        Write-Progress -Activity 'Neovide Glow setup' -Completed
+        if ($stdout) { try { $process.StandardOutput.Close() } catch {} }
+        if ($stderr) { try { $process.StandardError.Close() } catch {} }
+        $process.Dispose()
+    }
 }
 function Get-DependencyAsset($Asset) {
     if ($Asset.url -notmatch '^https://' -or $Asset.sha256 -notmatch '^[0-9a-f]{64}$' -or
