@@ -378,7 +378,8 @@ try {
         $interpreters+=@($selected)
     }
     if ($InstallLatex) {
-        & (Join-Path $PSScriptRoot 'Setup-LaTeX.ps1') -DependencyRoot $DependencyRoot -RunRoot (Join-Path $script:DependencyRun 'tex') -ToolPaths $script:SelectedToolPaths
+        # Keep the process helper's script-scoped run/checks in this setup scope.
+        . (Join-Path $PSScriptRoot 'Setup-LaTeX.ps1') -DependencyRoot $DependencyRoot -RunRoot (Join-Path $script:DependencyRun 'tex') -ToolPaths $script:SelectedToolPaths
         if (-not $?) { throw 'LaTeX setup did not pass.' }
         $texBin=Join-Path $env:APPDATA 'TinyTeX\bin\windows'
         $texSelection=Join-Path $script:DependencyRun 'tex\selected.json'
