@@ -6,7 +6,7 @@
 
 > 2026-10-21，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据负责对话与已有回执，不将源码／协议检查写成实际界面验收。
 
-- 已安装Mac／待构建Windows产物基线为源码 `3724db9`，基础配置 `d41a02f6`。后续安装器 `dc9be70`／`19a53e7`，Lua修复 `40e4a29`／`7eb12cd`（配置 `584ee281`／`5687116f`）已提交；菜单新版仍待实际展开验收，不在已安装Mac二进制中。Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留。
+- 已安装Mac为 `nightly-139+g955e75f`，Windows待构建源码仍固定 `3724db9`；当前配置 `5687116f`，对应Lua补修 `40e4a29`／`7eb12cd`。Mac菜单修正版真实展开验收及正式签名／安装已完成；Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留。
 - 已完成的迁移、提交和既有回归不再作为待办。Mac `mac78-3724db9` 已实际安装，PDF白栏交付完成；原生菜单新版另行构建。Windows Commit82 尚未构建，需先恢复承载虚拟机的外置盘实际空间并达到脚本的 3 GiB 门槛。
 - 公开冻结版仍为 `glow-stack-20261020-gm1`。旧 tag／发行资产保留；新精简包、下载清单及发布页待本轮产物验收后统一发布。旧 Candidate5 健康检查失败，不能沿用其发布脚本或把旧候选视为本轮完成。
 
@@ -21,12 +21,12 @@
 | 检测修复完成；打包等待新 EXE／空间 | 精简安装器、缺失依赖检测：[Windows 精简安装包与依赖检测交付](codex://threads/01a15e0d-d247-7c73-bcb6-a2d5cbbacd0a) | `dc9be70`／`19a53e7` 的发现／续装修复经原生脚本10项、core7项及真实Jupyter自动发现通过，未重装。最终固定输入 `core85-source=7eb12cd`／配置 `5687116f`，250项SHA见 `core85-source-manifest.json`，其中3份Lua与language-ui84实际文件hash匹配；旧core83／84保留。新包等待EXE，仍须安装／卸载／配置保留及健康验收，物理像素／首帧未验边界保留。 |
 | 代码／实际数据验收与部署完成；物理键／像素未验收 | Lua 中英文菜单、标题／浮窗材质首帧、快捷键及终端样式：[中英文菜单与跨平台界面修复验收](codex://threads/01a15e0d-df72-7160-9316-fd825b365156) | `40e4a29`／`7eb12cd`（配置 `584ee281`／`5687116f`）补输入标题刷新及12组Mini.ai中英／内外语义；local＋portable窄回归通过。`language-ui84/receipt.json`：实际Windows隔离实例的NeoTree、VimTeX22n＋1x、真实LuaLS同浮窗/raw不变、Notebook两输出无内核、Snacks／Telescope／Scratch深浅标题／配色／留白数据通过；3文件按旧hash备份部署用户配置，未热改／重启用户窗口，下次启动加载。自有进程已结束；物理键、实际像素及首帧仍受 `noWindowsAvailable` 阻塞，不是完整GUI验收。 |
 | 已交付；负责人本轮已结束 | 三端环境同步、PowerShell profile优化：[开发环境同步工作流与 PowerShell 启动提速](codex://threads/01a15e0f-47aa-7d71-818f-b0f160ee299f) | 独立仓库 `~/Dev/workstation-config` 提交 `074b9a7`／`31f2292`，14项测试、Mac三个受管配置一致；`workstation-sync89-receipt.json` 六步全exit0，Windows三项／WSL一项一致、独立Python＋11包exact-match，未重装。`workstation-profile87-applied.json`／`88-normal-startup.json` 已去重复OMP初始化，主体6625→1762 ms，主题／提示符／按键hash相同、posh-git保留；普通新进程总8.103秒含会话启动，不能称总启动1.76秒。原profile字节备份保留；终端视觉由UI任务接续。 |
-| 实际展开菜单发现OS动态英文；修正版验收中 | Mac 原生菜单中英切换：[Mac 原生菜单接入中英文切换](codex://threads/01a15e0f-4c6e-75b2-9edb-c9f521ec1b58) | `f687c7f` 的实际NSMenu往返、Dock、动作／对象及文档状态通过，但展开Window菜单后系统追加英文操作并覆盖全屏标题；其stage及候选85均未安装／发布。后续窄修 `3842036`／`f7f67ed`／`955e75f` 已提交，仍等负责人给修正版完整stage与真实展开菜单回执，不因代码提交宣称通过。系统Services提供方子项仍由OS管理。 |
+| 已验收并安装；原负责人已结束 | Mac 原生菜单中英切换：[Mac 原生菜单接入中英文切换](codex://threads/01a15e0f-4c6e-75b2-9edb-c9f521ec1b58) | `mac-menu87-955e75f/receipt.json`：实际NSMenu中英往返、Dock、动作／target／快捷键、未保存内容／tick／光标／布局／撤销通过，CUA真实展开系统窗口操作已中文且全屏项唯一。整合者 `mac-delivery88-955e75f/receipt.json` 完成hardened runtime重签与App／CLI安装，旧mac83在该stage的previous-install，恢复入口已备；用户主题与80%缩放hash不变。OS提供方Services仍沿系统语言，全屏进出动画及多编辑器焦点往返未单独验收；旧84／86／85候选不可安装。 |
 | 用户明确暂缓；负责人本轮已结束 | Linux 入口、原生媒体及平台差异：[Linux 端兼容与三平台差异闭合](codex://threads/01a15e0f-5123-7692-b3f5-09de30021a20) | 用户2026-10-21决定“linux开发先暂缓”。保留入口 `360a2e0` 及X11后端 `57a341f`；11项入口／12项helper检查、宿主Rust替身接口检查通过，不是完整Linux编译／桌面GUI／解码验收。未推送或触发LinuxCI，自有宿主任务均结束。仅来宾 `*linux-native-20261021*run-entry-check.ps1*` 是否残留未知，两次有界调用超时后已停；恢复只核对此入口，不动其他进程。Wayland／ARM64清单缺口保留，容量恢复不自动唤醒Linux。 |
 | 执行容量恢复；外部依赖未解除 | 实际磁盘容量、PowerToys：[排查 Windows C 盘占满与 PowerToys 安装失败](codex://threads/01a15e09-9198-74c3-91b3-97c47d63f6ca) | C盘内部约382 GiB空闲，但来宾可用量受外置卷实际余量限制。负责人已定位差额并按用户授权执行数据迁移，校验前不删除源，容量门槛尚未解除；恢复后由其一次唤醒Windows前端与精简包，不唤醒已暂缓Linux。 |
-| 状态整合已保存；等待验收产物后续交付 | 唯一状态整合、新版本发布与网站入口：[全部剩余开发事项整合与最终交付](codex://threads/01a15e10-07ad-77f3-b12c-1f312d3b2b1d) | 本对话独占 `GLOW.md` 及最终发布整合，无自有后台任务；菜单修正版完成后一次通知续作安装／发布，Windows两项由容量负责人恢复后唤醒。Sites源码已沿既有checkout打开，仍是 `d56237c8`／第16版仅保存、未部署；旧公开范围不变。发布仍须新版本清单、各产物健康及界面验收、远端资产与线上下载核对，整体尚未完成。 |
+| Mac通用构建已完成；锁屏阻塞后续GUI／DMG | 唯一状态整合、新版本发布与网站入口：[全部剩余开发事项整合与最终交付](codex://threads/01a15e10-07ad-77f3-b12c-1f312d3b2b1d) | `mac-public89-955e75f/receipt.json`：固定955e75f实际重编generic／arm64／minOS11，App与CLI严格runtime签名、477＋14许可、无observer，未替换本机native版。`gui90/acceptance.json`已确认真实中文窗口菜单及未保存内容保持；之后工具报告Mac锁屏，已请求用户手动解锁，英语往返／通用版PDF及DMG仍待。自有测试进程已请求正常结束；不创建／发布新release。Sites仍是d56237c8／第16版仅保存、未部署。Windows两项由容量负责人恢复后唤醒，整体尚未完成。 |
 
-共享资源：当前Mac GUI／共享target归原生菜单修正版验收，Lua自有进程已退出并回交；每次原生编译固定已提交快照，避免共享工作区混入。环境工作流audit已完成，无后台调用；Linux已暂缓，仅遗留入口状态见上。容量任务需短时GUI验证时先交接，不抢焦点；不建常驻锁／轮询。
+共享资源：菜单／Lua／通用Mac编译均已结束，Mac发行GUI自有进程只做必要清理，当前等待手动解锁；没有cargo运行。环境工作流audit已完成；Linux已暂缓，仅遗留入口状态见上。平台预览release使用各自原生验收回执，release-check-frozen只为一般发行跑Linux源码构建，避免Mac／Windows预览触发已暂缓的Linux工作；其他CI触发保持。容量任务与后续GUI检查先交接，不建常驻锁／轮询。
 
 ### 已交付，复用既有证据
 

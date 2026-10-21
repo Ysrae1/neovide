@@ -9,6 +9,9 @@ on:
 
 jobs:
   check-frozen:
+    # Platform previews carry their native build and GUI acceptance receipts.
+    # Keep this Linux source build for general releases, including Glow stacks.
+    if: ${{ !startsWith(github.event.release.tag_name, 'glow-macos-') && !startsWith(github.event.release.tag_name, 'glow-windows-') }}
     runs-on: ubuntu-latest
 
     steps:
