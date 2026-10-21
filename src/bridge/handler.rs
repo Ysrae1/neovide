@@ -242,6 +242,12 @@ impl Handler for NeovimHandler {
                 }
                 Err(error) => log::warn!("Invalid highlight role snapshot: {error}"),
             },
+            "neovide.window.start_drag" => {
+                match crate::window::window_drag::WindowDragRequest::parse(&arguments) {
+                    Ok(request) => self.send_window_command(WindowCommand::StartDrag(request)),
+                    Err(error) => log::warn!("Invalid window-drag request: {error}"),
+                }
+            }
             "neovide.window.shadow_exclusions" => {
                 match super::events::parse_shadow_exclusions(&arguments) {
                     Ok(windows) => {

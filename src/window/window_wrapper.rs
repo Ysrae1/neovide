@@ -613,6 +613,33 @@ impl WinitWindowWrapper {
                 }
             }
             WindowCommand::ListAvailableFonts => self.send_font_names(target_window_id),
+            WindowCommand::StartDrag(request) => {
+                #[cfg(target_os = "windows")]
+                if let Some(route) = self.routes.get(&target_window_id) {
+                    let window = &route.window.winit_window;
+                    let conditions = super::window_drag::DragConditions {
+                        frameless: self.settings.get::<CmdLineSettings>().frame
+                            == crate::frame::Frame::None
+                            && window.fullscreen().is_none(),
+                        focused: window.has_focus(),
+                        left_down: super::window_drag::plain_left_button_down(),
+                        no_modifiers: self.keyboard_manager.current_modifiers().state().is_empty(),
+                    };
+                    let accepted = route
+                        .window
+                        .mouse_manager
+                        .borrow_mut()
+                        .prepare_window_drag(request, conditions);
+                    // Release the mouse-manager borrow before entering native
+                    // windowing code, which can dispatch Windows messages.
+                    if accepted && let Err(error) = window.drag_window() {
+                        route.window.mouse_manager.borrow_mut().cancel_window_drag();
+                        log::warn!("Could not start native window drag: {error}");
+                    }
+                }
+                #[cfg(not(target_os = "windows"))]
+                let _ = request;
+            }
             WindowCommand::FocusWindow => {
                 if let Some(route) = &self.routes.get(&target_window_id) {
                     let window = &route.window.winit_window;

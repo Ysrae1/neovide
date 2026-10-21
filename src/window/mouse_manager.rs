@@ -146,6 +146,8 @@ struct TouchTrace {
 
 pub struct MouseManager {
     drag_details: Option<DragDetails>,
+    #[cfg(target_os = "windows")]
+    window_drag: super::window_drag::WindowDragState,
     grid_position: GridPos<u32>,
 
     has_moved: bool,
@@ -173,6 +175,8 @@ impl MouseManager {
     pub fn new(settings: Arc<Settings>) -> MouseManager {
         MouseManager {
             drag_details: None,
+            #[cfg(target_os = "windows")]
+            window_drag: super::window_drag::WindowDragState::default(),
             has_moved: false,
             window_position: PixelPos::default(),
             grid_position: GridPos::default(),
@@ -280,6 +284,44 @@ impl MouseManager {
         editor_state: &EditorState,
     ) -> GridPos<u32> {
         Self::get_relative_position_at(self.window_position, window_details, editor_state)
+    }
+
+    #[cfg(target_os = "windows")]
+    fn tabline_press(&self, state: &EditorState) -> Option<super::window_drag::TablinePress> {
+        let details = self.get_window_details_under_mouse_raw(state)?;
+        // Floats and ordinary editor grids have independent click semantics.
+        // Only the real root grid's first row can supply a tabline press.
+        if !self.enabled || details.id > 1 || !details.region.contains(&self.window_position) {
+            return None;
+        }
+        let position = self.get_relative_position(details, state);
+        if position.y != 0 {
+            return None;
+        }
+        let bounds = PixelRect::from_min_max(
+            details.region.min,
+            (details.region.max.x, details.region.min.y + state.grid_scale.height()),
+        );
+        Some(super::window_drag::TablinePress { column: position.x, bounds, at: Instant::now() })
+    }
+
+    #[cfg(target_os = "windows")]
+    pub fn prepare_window_drag(
+        &mut self,
+        request: super::window_drag::WindowDragRequest,
+        conditions: super::window_drag::DragConditions,
+    ) -> bool {
+        if !self.window_drag.begin(request, self.window_position, conditions, Instant::now()) {
+            return false;
+        }
+        self.drag_details = None;
+        self.has_moved = false;
+        true
+    }
+
+    #[cfg(target_os = "windows")]
+    pub fn cancel_window_drag(&mut self) {
+        self.window_drag.cancel();
     }
 
     pub fn clear_message_selection(&mut self) -> bool {
@@ -590,6 +632,21 @@ impl MouseManager {
         editor_state: &EditorState,
         neovim_handler: &NeovimHandler,
     ) -> PointerTransitionResult {
+        #[cfg(target_os = "windows")]
+        {
+            if mouse_button == MouseButton::Left {
+                if down {
+                    let press = self.tabline_press(editor_state);
+                    self.window_drag.press(press);
+                } else if self.window_drag.release() {
+                    // Neovim's tabline callback deliberately absorbs this
+                    // interaction. Do not send a release without its drag.
+                    return PointerTransitionResult { overlay_event: OverlayEvent::Unchanged };
+                }
+            } else if down {
+                self.window_drag.cancel();
+            }
+        }
         let message_selection_event =
             self.update_message_selection_on_button(mouse_button, down, editor_state);
         let consume_mouse_input =
@@ -907,8 +964,14 @@ impl MouseManager {
             {
                 self.hide_cursor(window);
             }
-            WindowEvent::Focused(focused_event) if hide_mouse_when_typing => {
-                self.handle_focus_change(window, *focused_event);
+            WindowEvent::Focused(focused_event) => {
+                #[cfg(target_os = "windows")]
+                if !*focused_event {
+                    self.window_drag.cancel();
+                }
+                if hide_mouse_when_typing {
+                    self.handle_focus_change(window, *focused_event);
+                }
             }
             _ => {}
         }

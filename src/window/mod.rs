@@ -5,6 +5,7 @@ mod keyboard_manager;
 pub mod macos;
 mod mouse_manager;
 mod settings;
+pub mod window_drag;
 mod window_wrapper;
 
 #[cfg(target_os = "linux")]
@@ -125,6 +126,7 @@ pub enum WindowCommand {
     SetMouseEnabled(bool),
     ListAvailableFonts,
     FocusWindow,
+    StartDrag(window_drag::WindowDragRequest),
     #[cfg(target_os = "macos")]
     TouchpadPressure {
         col: i64,

@@ -34,6 +34,16 @@ pub async fn setup_neovide_specific_state(
     nvim.set_var("neovide", Value::from(true))
         .await
         .context("Could not communicate with neovim process")?;
+    nvim.exec_lua(
+        "vim.g.neovide_window_drag_supported = ...; \
+         vim.api.nvim_exec_autocmds('User', { pattern = 'NeovideWindowDragReady', modeline = false })",
+        call_args![
+            cfg!(target_os = "windows")
+                && settings.get::<crate::CmdLineSettings>().frame == crate::frame::Frame::None
+        ],
+    )
+    .await
+    .context("Could not advertise frameless tabline dragging")?;
     nvim.set_var("neovide_native_glass", Value::from(cfg!(target_os = "macos")))
         .await
         .context("Could not advertise native macOS glass material")?;
