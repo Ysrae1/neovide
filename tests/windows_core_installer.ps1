@@ -22,6 +22,8 @@ if ($bundle.distribution -cne 'core' -or $bundle.stack_id -cne $build.stack_id) 
 $default=Join-Path $env:LOCALAPPDATA 'Programs\Neovide Glow Core'
 $profile=Join-Path $env:LOCALAPPDATA ('NeovideGlow\profiles\'+$build.stack_id)
 foreach ($path in @($default,$profile)) { if (Test-Path -LiteralPath $path) { throw ('Pre-existing application/profile preserved: '+$path) } }
+$shortcut=Join-Path ([Environment]::GetFolderPath('Programs')) 'Neovide Glow Preview.lnk'
+if (Test-Path -LiteralPath $shortcut) { throw ('Pre-existing Start menu shortcut preserved: '+$shortcut) }
 foreach ($view in @([Microsoft.Win32.RegistryView]::Registry64,[Microsoft.Win32.RegistryView]::Registry32)) {
     $key=[Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::CurrentUser,$view)
     try { $entry=$key.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Uninstall\{2BE1E0A6-180C-4700-8453-FB29359286D9}_is1'); if ($entry) { $entry.Dispose(); throw 'A registered core installation already exists; it was preserved.' } }
@@ -58,6 +60,26 @@ function Check-Preserved {
     if (-not (Test-Path -LiteralPath $script:sentinel) -or [IO.File]::ReadAllText($script:sentinel) -cne 'preserve core profile') { throw 'Core profile was changed or removed by uninstall.' }
     $after=if (Test-Path -LiteralPath $selection) { (Get-FileHash -LiteralPath $selection -Algorithm SHA256).Hash } else { $null }
     if ($after -cne $selectionBefore) { throw 'Silent installer changed the existing dependency selection.' }
+    $actual=Read-ProfileSeal
+    if ($actual.Count -ne $script:profileSeal.Count) { throw 'Uninstall changed the profile file set.' }
+    foreach ($relative in $script:profileSeal.Keys) {
+        if (-not $actual.ContainsKey($relative) -or $actual[$relative] -cne $script:profileSeal[$relative]) { throw ('Uninstall changed a profile file: '+$relative) }
+    }
+    if (Test-Path -LiteralPath $shortcut) { throw 'Uninstall left the task-created Start menu shortcut behind.' }
+}
+function Read-ProfileSeal {
+    # The launcher's versioned profile can have paths longer than the installer.
+    $prefix='\\?\'+$profile.TrimEnd('\')+'\'
+    $seal=@{}
+    $sha=[Security.Cryptography.SHA256]::Create()
+    try {
+        foreach ($file in [IO.Directory]::GetFiles($prefix,'*',[IO.SearchOption]::AllDirectories)) {
+            $stream=[IO.File]::OpenRead($file)
+            try { $seal[$file.Substring($prefix.Length)]=[BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','').ToLowerInvariant() }
+            finally { $stream.Dispose() }
+        }
+    } finally { $sha.Dispose() }
+    return $seal
 }
 function Uninstall-Core([string]$Directory,[string]$Name) {
     $uninstaller=Join-Path $Directory 'unins000.exe'
@@ -77,6 +99,9 @@ try {
     if ((Run-Owned (Join-Path $default 'Glow.exe') @('--initialize-profile') 'initialize-profile' 180) -ne 0) { throw 'Core profile initialization failed.' }
     $script:sentinel=Join-Path $profile 'core-installer-preserve.txt'
     [IO.File]::WriteAllText($script:sentinel,'preserve core profile')
+    $script:profileSeal=Read-ProfileSeal
+    [IO.File]::WriteAllText((Join-Path $WorkRoot 'profile-before-uninstall-sha256.json'),($script:profileSeal|ConvertTo-Json -Depth 4),(New-Object Text.UTF8Encoding($false)))
+    $receipt['profile_preservation_files']=$script:profileSeal.Count
     Pass 'initialize-new-versioned-profile'
     Uninstall-Core $default 'default-uninstall-preserves-profile'
     Install-Core $custom 'unicode-space-apostrophe-install-and-launcher'
