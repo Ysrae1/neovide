@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <# Native core EXE acceptance. Installs only this new core identity, skips external
    dependency installation, and retains its test profile after both uninstalls.
    Run in an interactive Windows user task after the build has been committed. #>
