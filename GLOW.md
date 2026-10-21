@@ -4,11 +4,25 @@
 
 ## 当前维护状态
 
-> 2026-10-21，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据负责对话与已有回执，不将源码／协议检查写成实际界面验收。
+> 2026-10-22，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据实际回执，不将源码／协议检查写成实际界面验收。用户本轮明确恢复 Windows 未闭合范围；2026-10-21 停止／归档记录仍作历史保留，Linux 原生开发继续暂缓。
 
 - 已安装Mac为 `nightly-139+g955e75f`，Mac菜单及PDF真实界面验收、runtime签名／安装已完成。Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留；后续Windows增量按下表分别交付。
-- Windows Telescope修复已于2026-10-21 21:55:30单独部署，冷／暖预览通过，下一次正常启动生效。Python探针后续定向验证已通过；新增拖窗仍未通过Windows实机验收。用户已要求本轮停止并为重启保存交接，见下节；既有独立交付不撤回。
-- 既有冻结版 `glow-stack-20261020-gm1` 保留；新 Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1) 已发布，网站第17版已上线。Windows精简包及其下载入口仍待原生验收，不沿用旧草稿。旧 Candidate5 健康检查失败，不能沿用其发布脚本或把旧候选视为本轮完成。
+- Windows Telescope 已独立通过并部署；拖窗 `f5e1e78` 本轮完成 Windows 构建、原生合成鼠标端到端验收及下次桌面启动部署。实体硬件输入与首帧仍未验，安装器及其他本轮增量见下节；既有独立交付结论保留。
+- 既有冻结版 `glow-stack-20261020-gm1` 保留；Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1)／网站第17版不变。新 Windows 精简包本轮完成构建及基础安装／卸载验收，公开下载入口仍未开放；TeX 父入口、实体输入与首帧边界见下节。旧 Candidate5／Core94 不作为新包通过凭据。
+
+### 2026-10-22 Windows 恢复与收敛（Codex）
+
+本节证据根：`target/glow-windows-20261022/`。本轮未修改产品源码；已保存原失败与中间状态，由下列最终收据限定通过范围。
+
+- 用户再次明确拖窗范围：顶部 tab 栏中，所有可见 buffer 标签右侧至最右侧组件组左侧之间的空白；标签、标签内部空格与右侧组件不拖窗。真实 Neovim local／portable 各 4 场景、共 840 格点击路由通过，含标签溢出、当前标签及右组件宽度变化；`target/glow-windows-20261022/drag/precise-gap-routing.json`。本轮未改产品源码，不重做已通过的媒体／Telescope 专项。
+- `f5e1e78ff64637b2f11be5a169a029dce7a5f107` 的 Windows x64 release 构建完成，实际 EXE SHA256 `4bc2e4205c1eafb002788b409deb9ff2cfda41c0ab5393a6d3c7891530675066`。先在登录用户自建标准窗口校准 192 DPI／按住／移动／松开，再由真实 tabline callback 发 column 81 请求：根网格 press → 4ms 接受 → native move loop，窗口实际移动 80×40；随后标签切换与编辑区点击通过。自有进程及按住状态已清理，用户配置未被测试修改。收据 `drag/{build/receipt.json,input-calibration.json,acceptance.json}`；这是原生合成输入，不冒称实体鼠标或像素首帧通过。
+- 拖窗已向现有 Windows 桌面入口作并排部署：`C:\GlowDev\GraphicsQA\Drag96Hardware20261022`，原 PdfNav92 程序与快捷方式备份保留，launcher 检查 exit0；只新增 `window_drag.lua` 和 chadrc 一行 setup，既有 Telescope 三模块、主题和其他内容保留，未热载／重启编辑器。`drag/{deployment.json,config-deployment.json}` 均为 `deployed_next_launch`；终端里既有硬编码 PdfNav92 入口未在本步改写。
+- 原生合成输入专项已通过：选择／删除／撤销／重做、注释往返、插入／Ctrl+S 磁盘保存；WebView2 child 获焦后第一下 Escape 回编辑器并保留 PDF，第二下关闭预览；单次 Alt 拖选真实调用 press／drag／release，并保留第二行 bytes 0–4 选区。统一收据 `acceptance/native-input-acceptance.json` 绑定同一 96 EXE、三份独立执行与 10 个已验配置 SHA。实体硬件与首帧未验；首次孤立 pipe 断开原因未追定，不用后续通过追认其原因。
+- 验收探针修正：单窗口关闭预览按现行设计 `enew()`，要求恢复原 buffer 的断言不成立；RPC ready 不等于可见大 HWND ready；校准普通点击紧接 Alt 按下会被识别成双击，必须分开手势；原生 termcode 诊断含非 UTF-8 字节，JSON 应转义导出。上述问题均在辅助层修正，未据此改产品、强制插件状态或重跑已通过的键盘／PDF；最后真实单次 Alt 手势与原始失败材料均保留。
+- 新包 `glow-windows-core-20261022-preview1`：94,629,776 字节，SHA256 `94dc384afa102666064f5616551b781d148b019a660c5dc80ff024df95ae1b50`；复用并核对 12,606 个 stage 文件，只换准确绑定的 96 前端，媒体四新 SHA、Telescope／语言共 10 文件及后续安装器修复均实装核对。登录用户／session1 的默认与中文／空格／撇号路径、启动、完整配置、清单／运行时剔除及卸载共 10 项 passed，逐文件保留 10,439 个验收 profile 文件；`installer/{stage-resume-receipt.json,build-receipt.json,install-progress.json,final-receipt.json}`。已导出同 SHA 至 `installer/artifacts/Neovide-Glow-2026.10.22.1-Windows-x64-Core-Setup.exe`，`export-receipt.json` passed。可选依赖安装在基础包验收中跳过，不能据此宣称 TeX 流程通过；未发布或替换旧发行包。
+- TeX 仍未闭合：SYSTEM 下父入口成功不代表登录用户通过。实际登录用户的同参数中文 fixture 窄编译 5.38 秒 exit0／drained，并生成 PDF／SyncTeX；真实 TeX-only 父入口却在原生 Perl 启动后、XeLaTeX 启动前停滞。一次 fresh 父入口 80 秒有界停止；仅换字节流输出 reader 的隔离实验 45 秒仍失败，未将该候选合入产品。stdin 假设也缺依据，成功窄编译同样继承 stdin。`tex-diagnostic/receipt.json` 与 `copy-reader-receipt.json` 保留断点／失败，任务和已知自有进程已清理，用户选择与 QA science 字段保留，零下载／新装。下一动作是比较真实父入口与单独编译的调用上下文，不重复 Python／完整安装或增加超时。
+- 策略变化：先校准控制面和实际登录身份；复用原证据，只补真实断点；TeX 正确性与封包并行。CUA 输入返回 `noWindowsAvailable` 后停止重试，用户明确允许隔离窗口 SendInput 后才继续。封包辅助层的 stderr、换行、UTF-8 和收尾变量问题按实际阶段恢复，未反复重编／压缩或安装。用户要求无需其协助的部分结束后暂停，不设 standby、自动唤醒或常驻监控。
+- 本轮已停止：GUI／编译／安装验收自有进程已结束，本轮创建的无触发器任务已移除（`installer/cleanup.json`、`tex-diagnostic/*cleanup.json`）；保留实际包、失败材料与回滚入口，不强停历史身份不明进程。后续需本人在场的是实体键鼠体验与明确首帧场景；TeX 父入口另属未闭合的调用上下文问题，未写成“只等用户操作”或整体完成。
 
 ### Windows Git zsh选择性迁移（新增授权，2026-10-21 Codex）
 
