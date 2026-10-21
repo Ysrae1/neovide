@@ -35,16 +35,21 @@ $selection=Join-Path $env:LOCALAPPDATA 'NeovideGlow\dependencies\selected.json'
 $selectionBefore=if (Test-Path -LiteralPath $selection) { (Get-FileHash -LiteralPath $selection -Algorithm SHA256).Hash } else { $null }
 $receipt=[ordered]@{schema_version=1;state='running';setup_sha256=$build.artifact.sha256;stack_id=$build.stack_id;frontend=$build.frontend;checks=@();profile=$profile;native_gui_acceptance='not_performed_by_installer_test';dependencies_installation='skipped';error=$null}
 function Save-Receipt { [IO.File]::WriteAllText((Join-Path $WorkRoot 'receipt.json'),($receipt|ConvertTo-Json -Depth 8),(New-Object Text.UTF8Encoding($false))) }
-function Run-Owned([string]$Executable,[string[]]$Arguments,[string]$Name,[int]$Timeout=900) {
+function Run-Owned([string]$Executable,[string[]]$Arguments,[string]$Name,[int]$Timeout=900,[hashtable]$Environment=@{}) {
     $start=New-Object Diagnostics.ProcessStartInfo
     $start.FileName=$Executable;$start.Arguments=(@($Arguments|ForEach-Object {'"'+$_+'"'}) -join ' ')
     $start.UseShellExecute=$false;$start.CreateNoWindow=$true
     $start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
+    foreach($key in $Environment.Keys) {
+        if($null -eq $Environment[$key]){$start.EnvironmentVariables.Remove($key)}
+        else{$start.EnvironmentVariables[$key]=[string]$Environment[$key]}
+    }
     $process=New-Object Diagnostics.Process;$process.StartInfo=$start
     try {
         if (-not $process.Start()) { throw ('Unable to start '+$Name) }
         $stdout=$process.StandardOutput.ReadToEndAsync();$stderr=$process.StandardError.ReadToEndAsync()
         if (-not $process.WaitForExit($Timeout*1000)) { & (Join-Path $env:WINDIR 'System32\taskkill.exe') /PID $process.Id /T /F | Out-Null;throw ('Timed out: '+$Name) }
+        if(-not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($stdout,$stderr),2000)){throw ('Child output handles did not close: '+$Name)}
         [IO.File]::WriteAllText((Join-Path $WorkRoot ($Name+'.log')),($stdout.GetAwaiter().GetResult()+$stderr.GetAwaiter().GetResult()),(New-Object Text.UTF8Encoding($false)))
         return $process.ExitCode
     } finally { $process.Dispose() }
@@ -55,6 +60,32 @@ function Install-Core([string]$Directory,[string]$Name) {
     if ((Run-Owned $setup $arguments $Name) -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $Directory 'Glow.exe'))) { throw ('Core install failed: '+$Name) }
     if ((Run-Owned (Join-Path $Directory 'Glow.exe') @('--launcher-check') ($Name+'-launcher') 60) -ne 0) { throw ('Core launcher check failed: '+$Name) }
     Pass $Name
+}
+function Check-CoreConfig([string]$Directory) {
+    $scriptFile=Join-Path $WorkRoot 'installed-config-health.lua'
+    $lua=@'
+vim.defer_fn(function()
+  local ok, err = xpcall(function()
+    assert(vim.fn.has('win32') == 1, 'Expected native Windows Neovim')
+    assert(vim.fn.stdpath('config'):gsub('\\', '/'):lower() == vim.env.GLOW_CORE_EXPECT_CONFIG:gsub('\\', '/'):lower(), 'Config escaped the task-owned profile')
+    assert(vim.g.neovide_glow_windows_runtime == vim.fs.normalize(vim.env.NEOVIDE_GLOW_ROOT):gsub('/$', ''), 'Installed core runtime hook did not load')
+    assert(vim.fn.exists(':GlowDependencies') == 2, 'Explicit dependency setup command is missing')
+    assert(not require('config.media.runtime').ready(), 'Missing optional Python was silently replaced')
+    assert(vim.fn.filereadable(vim.fn.stdpath('config') .. '/lua/config/navigation/buffer_close.lua') == 1, 'Verified close guard is missing')
+    assert(vim.v.errmsg == '', 'Installed config startup error: ' .. vim.v.errmsg)
+    print('PASS installed full core config without optional Python; no kernel started')
+  end, debug.traceback)
+  if ok then vim.cmd('qa!') else io.stderr:write(err .. '\n');vim.cmd('cquit 1') end
+end, 500)
+'@
+    [IO.File]::WriteAllText($scriptFile,$lua,(New-Object Text.UTF8Encoding($false)))
+    $environment=@{NEOVIDE_GLOW_ROOT=$Directory;NEOVIDE_GLOW_INIT=(Join-Path $Directory 'runtime\lua\WindowsInit.lua');NEOVIDE_GLOW_DISTRIBUTION='core';NEOVIDE_GLOW_DEPENDENCY_SETUP=(Join-Path $Directory 'dependencies\Setup-Dependencies.ps1');
+        GLOW_CORE_HEALTH_SCRIPT=$scriptFile;GLOW_CORE_EXPECT_CONFIG=(Join-Path $profile 'config\nvim');NVIM_APPNAME='nvim';
+        XDG_CONFIG_HOME=(Join-Path $profile 'config');XDG_DATA_HOME=(Join-Path $profile 'data');XDG_STATE_HOME=(Join-Path $profile 'state');XDG_CACHE_HOME=(Join-Path $profile 'cache');
+        JUPYTER_DATA_DIR=(Join-Path $profile 'data\jupyter');JUPYTER_CONFIG_DIR=(Join-Path $profile 'config\jupyter');JUPYTER_RUNTIME_DIR=(Join-Path $profile 'state\jupyter');
+        GLOW_PYTHON=$null;NEOVIDE_GLOW_PYTHON=$null;GLOW_JUPYTEXT=$null;GLOW_LATEX2TEXT=$null;PYTHONHOME=$null;PYTHONPATH=$null;VIM=$null;VIMRUNTIME=$null;NVIM_RPLUGIN_MANIFEST=$null}
+    if((Run-Owned (Join-Path $Directory 'bin\nvim.exe') @('--headless','-i','NONE','-n','-c','lua dofile(vim.env.GLOW_CORE_HEALTH_SCRIPT)') 'installed-full-config' 90 $environment) -ne 0){throw 'Installed full core config failed; see installed-full-config.log'}
+    Pass 'installed-full-config-without-optional-python'
 }
 function Check-Preserved {
     if (-not (Test-Path -LiteralPath $script:sentinel) -or [IO.File]::ReadAllText($script:sentinel) -cne 'preserve core profile') { throw 'Core profile was changed or removed by uninstall.' }
@@ -97,6 +128,7 @@ try {
     Pass 'offline-directory-preserved-and-rejected'
     Install-Core $default 'default-install-and-launcher'
     if ((Run-Owned (Join-Path $default 'Glow.exe') @('--initialize-profile') 'initialize-profile' 180) -ne 0) { throw 'Core profile initialization failed.' }
+    Check-CoreConfig $default
     $script:sentinel=Join-Path $profile 'core-installer-preserve.txt'
     [IO.File]::WriteAllText($script:sentinel,'preserve core profile')
     $script:profileSeal=Read-ProfileSeal
