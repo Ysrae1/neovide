@@ -7,7 +7,7 @@
 > 2026-10-21，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据负责对话与已有回执，不将源码／协议检查写成实际界面验收。
 
 - 已安装Mac为 `nightly-139+g955e75f`，Windows新构建源码固定 `3724db9`；当前配置 `5687116f`，对应Lua补修 `40e4a29`／`7eb12cd`。Mac菜单修正版真实展开验收及runtime签名／安装已完成；Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留。
-- 已完成的迁移、提交和既有回归不再作为待办。Mac PDF与原生菜单已安装；通用发行构建已完成实际菜单／PDF检查，DMG挂载／签名／内容核验通过。容量瓶颈已解除，Windows Commit82构建通过，正做实际GUI验收。
+- 已完成的迁移、提交和既有回归不再作为待办。Mac PDF与原生菜单已安装；通用发行构建已完成实际菜单／PDF检查，DMG挂载／签名／内容核验通过。容量瓶颈已解除，Windows Commit82构建通过；实际GUI已确认PDF翻页画面不更新，前端负责人正在修复，当前EXE不可作为最终PDF发行。
 - 既有冻结版 `glow-stack-20261020-gm1` 保留；新 Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1) 已发布，网站第17版已上线。Windows精简包及其下载入口仍待原生验收，不沿用旧草稿。旧 Candidate5 健康检查失败，不能沿用其发布脚本或把旧候选视为本轮完成。
 
 ### 剩余交付、负责人和验收依赖
@@ -17,7 +17,7 @@
 | 状态 | 交付／唯一负责人 | 当前证据与下一项必要验收 |
 | --- | --- | --- |
 | 已交付；负责人本轮已结束 | Mac App 更新、PDF 白栏：[Mac 前端更新与 PDF 白栏修复交付](codex://threads/01a15e0d-c1a7-7753-9d75-7777301cfa21) | `mac-delivery83-3724db9/receipt.json`／`gui-checks.json`／`pdf-top-edge.png`：App与CLI已安装为 `nightly-118+g3724db9`，签名／架构／hash一致；实际PDF无重复toolbar，胶囊、翻页／缩放通过。旧版在该stage的 `previous-install`，恢复入口已就绪。许可补齐单独提交 `14c3cf0`，477包／14Skia检查通过；未改用户主题与80%缩放。 |
-| 新EXE构建通过；原生GUI验收中 | Windows 蓝框、原生 PDF、无系统标题栏：[Windows 蓝框与原生 PDF 构建交付](codex://threads/01a15e0d-c5ad-7b91-8d59-a48eb54f56c7) | `commit82-build-1/receipt.json` passed／exit0／279.712秒；源码3724db9，新EXE 36,179,456B，SHA256 `217ce184286a24705c23c2903de18416bfad71979982f7d0b1fbd934404cba31`，无cargo残留。前端负责人现独占Windows GUI，正在实测引用框、PDF像素／交互及无系统标题栏，保留用户旧进程／overlay；PD capture尚待实际图像，不把RPC当像素。证据入口 `commit82-build-1/receipt.json`／`commit82-native-acceptance.json`。 |
+| 实机发现PDF翻页缺陷；修复中 | Windows 蓝框、原生 PDF、无系统标题栏：[Windows 蓝框与原生 PDF 构建交付](codex://threads/01a15e0d-c5ad-7b91-8d59-a48eb54f56c7) | `commit82-build-1/receipt.json` passed／exit0／279.712秒；源码3724db9，新EXE 36,179,456B，SHA256 `217ce184286a24705c23c2903de18416bfad71979982f7d0b1fbd934404cba31`，无cargo残留。实际像素已确认LspReferenceText／Read／Write三类蓝框、无系统标题栏及PDF第一页PAGE ONE／蓝色；协议suite／清理通过。但action(page,2)回报ready/page2后，像素仍PAGE ONE、内置页码1/2，等待后可复现，nativeGUIAccepted不能true。前端负责人正查证并修复Windows同URL fragment导航，须先提交再重构建，通知core新前端绑定；保留用户旧进程／overlay。Lua少量按键／首帧像素在PDF闭合后接续。证据入口 `commit82-build-1/receipt.json`／`commit82-native-acceptance.json`。 |
 | 独立原生检查通过；打包等新EXE／GUI | 精简安装器、缺失依赖检测：[Windows 精简安装包与依赖检测交付](codex://threads/01a15e0d-d247-7c73-bcb6-a2d5cbbacd0a) | 依赖复用修复及core85=7eb12cd／配置5687116f的250项SHA保留；`core85-native-validation/receipt.json`：生产launcher编译、两脚本AST、只读体积探针通过。探针保留383,238,559B／排除2,582,106,728B，不是最终EXE大小；测试保护已提交7d3c32d，7728b09只为新core派生frame=none，8项契约通过；Base／Python复用实测通过，TeX中文样例180秒超时且落入新owned备用目录，尚不算复用成功，负责人正在精确终止自己的测试并诊断。仍须绑定新前端，完成安装／卸载／配置保留及健康／实际GUI验收。 |
 | 代码／实际数据验收与部署完成；物理键／像素未验收 | Lua 中英文菜单、标题／浮窗材质首帧、快捷键及终端样式：[中英文菜单与跨平台界面修复验收](codex://threads/01a15e0d-df72-7160-9316-fd825b365156) | `40e4a29`／`7eb12cd`（配置 `584ee281`／`5687116f`）补输入标题刷新及12组Mini.ai中英／内外语义；local＋portable窄回归通过。`language-ui84/receipt.json`：实际Windows隔离实例的NeoTree、VimTeX22n＋1x、真实LuaLS同浮窗/raw不变、Notebook两输出无内核、Snacks／Telescope／Scratch深浅标题／配色／留白数据通过；3文件按旧hash备份部署用户配置，未热改／重启用户窗口，下次启动加载。自有进程已结束；当时物理键、实际像素及首帧因 `noWindowsAvailable` 未验收，现已交唯一Windows GUI负责人随新EXE闭合，尚不算完整GUI验收。 |
 | 已交付；负责人本轮已结束 | 三端环境同步、PowerShell profile优化：[开发环境同步工作流与 PowerShell 启动提速](codex://threads/01a15e0f-47aa-7d71-818f-b0f160ee299f) | 独立仓库 `~/Dev/workstation-config` 提交 `074b9a7`／`31f2292`，14项测试、Mac三个受管配置一致；`workstation-sync89-receipt.json` 六步全exit0，Windows三项／WSL一项一致、独立Python＋11包exact-match，未重装。`workstation-profile87-applied.json`／`88-normal-startup.json` 已去重复OMP初始化，主体6625→1762 ms，主题／提示符／按键hash相同、posh-git保留；普通新进程总8.103秒含会话启动，不能称总启动1.76秒。原profile字节备份保留；终端视觉由UI任务接续。 |
@@ -26,7 +26,7 @@
 | 容量瓶颈已解除；PowerToys结果由原任务续报 | 实际磁盘容量、PowerToys：[排查 Windows C 盘占满与 PowerToys 安装失败](codex://threads/01a15e09-9198-74c3-91b3-97c47d63f6ca) | 2026-10-21 19:28:45迁移完成后的宿主真可用404,418,498,560字节；Windows C盘可用404,421,296,128字节（约376.7 GiB）、Healthy，已远超3 GiB构建门槛。容量负责人已各唤醒一次Windows前端／精简包，整合者不重复唤醒；GUI已回交整合，Linux维持暂停。 |
 | Mac已公开发布；Windows发布等两项验收 | 唯一状态整合、新版本发布与网站入口：[全部剩余开发事项整合与最终交付](codex://threads/01a15e10-07ad-77f3-b12c-1f312d3b2b1d) | `mac-public89-955e75f/receipt.json`：generic／arm64／minOS11、runtime签名／477＋14许可，无observer。GUI已由容量任务回交；`gui91/acceptance.json`及checks确认真实中英文菜单、PDF实际页面／无重复白栏／彩色胶囊、翻页缩放fit、未保存内容保持，消息空，自有进程已退出。DMG只读挂载核验通过，17,929,958B；单文件37,720,054B／ZIP37,827,820B各222文件SHA核对通过。新source tag固定c5d1f2b、config tag固定5687116f，7发行资产远端大小／digest一致；SH／ZIP／DMG／部署说明公开HTTP200。`target/releases/glow-macos-20261021-preview1/publication-state.json`记录发行419485657及收据；网站第17版／910ed570已部署成功，实际线上下载区及Windows禁用下载确认。旧tag／包保留；整体Windows交付尚未完成。 |
 
-共享资源：Mac GUI／DMG任务已退出，整合仅做打包和发布；Windows构建已退出，来宾GUI归前端，core短调用须明确交接。Linux保持暂停。平台预览使用原生验收回执；GitHub曾在发布阶段将新release错误关联临时tag，已纠正到新Mac tag，并取消其自动Linux构建39593705298（completed/cancelled）。不手动启动LinuxCI或常驻轮询。
+共享资源：Mac GUI／DMG任务已退出，整合仅做打包和发布；Windows构建已退出，来宾GUI归前端，短guest调用由各负责人明确交接（容量任务获一次30秒PowerToys后台窗口），core须等待修复后的新前端，不能用当前EXE封最终包。Linux保持暂停。平台预览使用原生验收回执；GitHub曾在发布阶段将新release错误关联临时tag，已纠正到新Mac tag，并取消其自动Linux构建39593705298（completed/cancelled）。不手动启动LinuxCI或常驻轮询。
 
 ### 已交付，复用既有证据
 
