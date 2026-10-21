@@ -1,6 +1,8 @@
 //! Restore Windows' native resize hit targets for `--frame none`. Winit 0.30
 //! retains WS_THICKFRAME but expands its client area over the sizing border.
 //! The system still owns resize cursors, capture and the modal sizing loop.
+//! Track that loop for every frame style so redraws can prepare new grid sizes
+//! while Windows temporarily owns the event loop.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ResizeEdge {
@@ -53,11 +55,12 @@ mod native {
         UI::{
             HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi},
             Input::KeyboardAndMouse::GetCapture,
-            Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
+            Shell::{DefSubclassProc, GetWindowSubclass, RemoveWindowSubclass, SetWindowSubclass},
             WindowsAndMessaging::{
                 GWL_STYLE, GetWindowLongW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT,
                 HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, SM_CXPADDEDBORDER,
-                SM_CXSIZEFRAME, SM_CYSIZEFRAME, WM_NCDESTROY, WM_NCHITTEST, WS_THICKFRAME,
+                SM_CXSIZEFRAME, SM_CYSIZEFRAME, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_NCDESTROY,
+                WM_NCHITTEST, WM_SIZING, WS_THICKFRAME,
             },
         },
     };
@@ -66,21 +69,44 @@ mod native {
     use super::{ResizeEdge, resize_edge, screen_point};
 
     const SUBCLASS_ID: usize = 0x474c4f57;
+    const FRAMELESS_HIT_TEST: usize = 1;
+    const LIVE_RESIZE: usize = 2;
 
-    pub fn install(window: &Window) {
+    pub fn install(window: &Window, frameless: bool) {
         let Ok(handle) = window.window_handle() else {
-            log::warn!("Could not get window handle for frameless resizing");
+            log::warn!("Could not get window handle for native resizing");
             return;
         };
         let RawWindowHandle::Win32(handle) = handle.as_raw() else { return };
         // create_window calls this on the HWND's owning Winit UI thread. No
         // application pointer is retained; WM_NCDESTROY removes the callback.
         if !unsafe {
-            SetWindowSubclass(HWND(handle.hwnd.get() as _), Some(subclass), SUBCLASS_ID, 0)
+            SetWindowSubclass(
+                HWND(handle.hwnd.get() as _),
+                Some(subclass),
+                SUBCLASS_ID,
+                if frameless { FRAMELESS_HIT_TEST } else { 0 },
+            )
         }
         .as_bool()
         {
-            log::warn!("Could not install frameless resize hit testing");
+            log::warn!("Could not install native resize handling");
+        }
+    }
+
+    pub fn is_resizing(window: &Window) -> bool {
+        let Ok(handle) = window.window_handle() else { return false };
+        let RawWindowHandle::Win32(handle) = handle.as_raw() else { return false };
+        let mut flags = 0;
+        unsafe {
+            GetWindowSubclass(
+                HWND(handle.hwnd.get() as _),
+                Some(subclass),
+                SUBCLASS_ID,
+                Some(&mut flags),
+            )
+            .as_bool()
+                && flags & LIVE_RESIZE != 0
         }
     }
 
@@ -90,12 +116,19 @@ mod native {
         wparam: WPARAM,
         lparam: LPARAM,
         subclass_id: usize,
-        _data: usize,
+        data: usize,
     ) -> LRESULT {
         unsafe {
             if message == WM_NCDESTROY {
                 let _ = RemoveWindowSubclass(hwnd, Some(subclass), subclass_id);
+            } else if message == WM_ENTERSIZEMOVE || message == WM_EXITSIZEMOVE {
+                // WM_ENTERSIZEMOVE also covers title-bar moves. Only WM_SIZING
+                // enables the redraw path; ordinary moves keep their pacing.
+                let _ = SetWindowSubclass(hwnd, Some(subclass), subclass_id, data & !LIVE_RESIZE);
+            } else if message == WM_SIZING {
+                let _ = SetWindowSubclass(hwnd, Some(subclass), subclass_id, data | LIVE_RESIZE);
             } else if message == WM_NCHITTEST
+                && data & FRAMELESS_HIT_TEST != 0
                 && GetWindowLongW(hwnd, GWL_STYLE) as u32 & WS_THICKFRAME.0 != 0
                 && !IsZoomed(hwnd).as_bool()
                 && GetCapture().0.is_null()
@@ -140,7 +173,7 @@ mod native {
 }
 
 #[cfg(target_os = "windows")]
-pub use native::install;
+pub use native::{install, is_resizing};
 
 #[cfg(test)]
 mod tests {

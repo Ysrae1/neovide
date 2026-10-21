@@ -231,15 +231,33 @@ impl Application {
         if let Some(state) = self.render_states.get_mut(&window_id) {
             state.should_render = ShouldRender::Immediately;
         }
+        #[cfg(target_os = "windows")]
+        self.request_redraw_during_resize(window_id);
+    }
+
+    #[cfg(target_os = "windows")]
+    fn is_resizing(&self, window_id: WindowId) -> bool {
+        self.window_wrapper.routes.get(&window_id).is_some_and(|route| {
+            crate::platform::windows::frameless_resize::is_resizing(&route.window.winit_window)
+        })
+    }
+
+    #[cfg(target_os = "windows")]
+    fn request_redraw_during_resize(&self, window_id: WindowId) {
+        if self.is_resizing(window_id)
+            && let Some(route) = self.window_wrapper.routes.get(&window_id)
+        {
+            // A redraw reaches Windows' modal sizing loop. WaitUntil and
+            // AboutToWait only resume once that loop gives control back.
+            route.window.winit_window.request_redraw();
+        }
     }
 
     fn mark_should_render_all(&mut self) {
         self.sync_render_states();
         let window_ids: Vec<WindowId> = self.render_states.keys().copied().collect();
         for window_id in window_ids {
-            if let Some(state) = self.render_states.get_mut(&window_id) {
-                state.should_render = ShouldRender::Immediately;
-            }
+            self.mark_should_render_for_window(window_id);
         }
     }
 
@@ -618,6 +636,20 @@ impl Application {
 
     fn redraw_requested(&mut self, window_id: WindowId) {
         self.ensure_render_state(window_id);
+        #[cfg(target_os = "windows")]
+        if self.is_resizing(window_id) {
+            tracy_zone!("render (native resizing)");
+            // Windows dispatches WM_PAINT while its modal sizing loop owns
+            // the thread, without the outer AboutToWait preparation pass.
+            // Include Neovim's asynchronous resize response in this frame,
+            // even if a compositor redraw was already pending on entry.
+            self.process_buffered_draw_commands(window_id);
+            self.window_wrapper.prepare_frame(window_id);
+            self.reset_animation_period(window_id);
+            self.animate(window_id);
+            self.render(window_id);
+            return;
+        }
         let pending_render =
             self.render_states.get(&window_id).map(|state| state.pending_render).unwrap_or(false);
         if pending_render {
@@ -787,6 +819,8 @@ impl ApplicationHandler<EventPayload> for Application {
                             if let Some(state) = self.render_states.get_mut(&window_id) {
                                 state.pending_draw_commands.push(batch);
                             }
+                            #[cfg(target_os = "windows")]
+                            self.request_redraw_during_resize(window_id);
                         } else {
                             self.window_wrapper.handle_draw_commands(window_id, batch);
                             self.mark_should_render_for_window(window_id);
@@ -804,6 +838,8 @@ impl ApplicationHandler<EventPayload> for Application {
                                 if let Some(state) = self.render_states.get_mut(&window_id) {
                                     state.pending_draw_commands.push(batch);
                                 }
+                                #[cfg(target_os = "windows")]
+                                self.request_redraw_during_resize(window_id);
                             } else {
                                 self.window_wrapper.handle_draw_commands(window_id, batch);
                                 self.mark_should_render_for_window(window_id);

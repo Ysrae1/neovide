@@ -374,9 +374,10 @@ pub fn create_window(
     let window_config = build_window_config(window_attributes, event_loop, settings);
 
     #[cfg(target_os = "windows")]
-    if frame_decoration == Frame::None {
-        crate::platform::windows::frameless_resize::install(&window_config.window);
-    }
+    crate::platform::windows::frameless_resize::install(
+        &window_config.window,
+        frame_decoration == Frame::None,
+    );
 
     #[cfg(target_os = "macos")]
     if let Some(previous_position) = previous_position {
