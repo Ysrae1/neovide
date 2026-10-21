@@ -45,6 +45,7 @@ for platform, theme, glass in [
             order={'left_padding','mode','file','git','%=','lsp_msg','%=','diagnostics','lsp','cwd','cursor'},
             modules={left_padding='%#ST_EmptySpace# '}}}}
           vim.api.nvim_set_hl(0,'Normal',{fg=palette.white,bg=palette.black})
+          vim.api.nvim_set_hl(0,'NeoTreeNormal',{fg=palette.white,bg=palette.one_bg})
           -- Actual pinned Base46 statusline colors and actual pinned NvChad formatter.
           local highlights=dofile(lazy..'/base46/lua/base46/integrations/statusline/minimal.lua')
           for name,attrs in pairs(highlights)do vim.api.nvim_set_hl(0,name,attrs)end
@@ -65,12 +66,15 @@ for platform, theme, glass in [
             assert(vim.deep_equal(actual,attrs),'capsule RGB/style changed '..name)
           end
           if platform=='windows' then
+            local panel_blend=hl('NeoTreeNormal').blend
+            assert(panel_blend==(theme=='light' and 15 or 80),'actual NeoTree material')
             for _,name in ipairs({'St_EmptySpace','St_EmptySpace2','St_gitIcons','St_lspError',
               'St_NormalModeSep','St_TerminalModeSep','St_file_sep','St_Pos_sep','St_cwd_sep','St_sep_r'})do
               local attrs=hl(name)
-              assert(attrs.bg==hl('Normal').bg and (attrs.blend or 0)==0,'Windows outside material '..name)
+              assert(attrs.bg==hl('Normal').bg and attrs.blend==panel_blend,'Windows outside material '..name)
             end
-            assert(vim.g.neovide_bottom_margin_opacity==nil,'Windows fractional edge should use editor default')
+            assert(vim.g.neovide_bottom_margin_opacity==(100-panel_blend)/100,
+              'Windows fractional edge should match NeoTree')
           elseif glass then
             assert(hl('St_EmptySpace').blend==80,'Mac legacy glass material changed')
             assert(vim.g.neovide_bottom_margin_opacity==.2,'Mac fractional edge changed')
@@ -83,7 +87,8 @@ for platform, theme, glass in [
           assert(op==(theme=='light' and .98 or .85),'editor opacity changed')
           vim.cmd.redraw()
           return {normal=hl('Normal').bg,body=hl('St_NormalMode').bg,text=hl('St_NormalModeText').bg,
-            file=hl('St_file_bg').bg,cwd=hl('St_cwd_bg').bg,pos=hl('St_Pos_bg').bg}
+            file=hl('St_file_bg').bg,cwd=hl('St_cwd_bg').bg,pos=hl('St_Pos_bg').bg,
+            panel_blend=hl('NeoTreeNormal').blend}
         ''', config, lazy, platform, theme, glass)
         editor.eval('1')
         attributes, cells = {}, {}
@@ -114,14 +119,15 @@ for platform, theme, glass in [
             for _, highlight in footer:
                 attrs = attributes.get(highlight, {})
                 background = attrs.get('background', expected['normal'])
-                assert attrs.get('blend', 0) == 0, attrs
                 if background in backgrounds:
                     solid += 1
+                    assert attrs.get('blend', 0) == 0, attrs
                 else:
                     outside += 1
                     assert background == expected['normal'], attrs
+                    assert attrs.get('blend', 0) == expected['panel_blend'], attrs
             assert outside > 20 and solid > 20, (outside, solid)
-            print(f'PASS {platform}/{theme}: actual NvChad linegrid {outside} editor-material cells, {solid} solid capsule cells; shared top highlights unchanged')
+            print(f'PASS {platform}/{theme}: actual NvChad linegrid {outside} NeoTree-material cells, {solid} solid capsule cells; shared top highlights unchanged')
         else:
             print(f'PASS {platform}/{theme}/glass={glass}: existing bar policy and capsule RGB preserved')
     finally:

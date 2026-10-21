@@ -12,6 +12,7 @@
 
 ### 2026-10-22 Windows 小窗与无边框缩放修复（用户验收反馈，Codex）
 
+- 用户随后确认缩放／拖窗可用，并要求底部 NORMAL 状态栏背景与其下方区域透明度同 NeoTree。配置 `transparency.lua` 只将 Windows 底栏的显式 blend 改为当前面板材质，并启用既有 `bottom_margin_opacity`；保留 RGB、文字与胶囊主体。local 验证后同步 portable，再以旧 SHA 守卫／原始字节备份部署 Windows 单文件；无需重编 EXE。`tests/media/windows_statusline_material.py` 的真实 NvChad linegrid local／portable 各 5 场景通过，Windows 深浅各 82 格底材与 NeoTree 相同、38 格胶囊保持实心，Mac／terminal 策略不变；既有 Windows material 切主题／用户覆盖检查通过。实际当前用户窗口已通过 RPC 刷新，NeoTree／底栏 blend 均 80、底部余量 alpha 0.20，cmdheight0，内容／modified／光标／当前窗口／字体缩放与主题色前后相同，未发合成输入或重启；`target/glow-windows-footer-material-20261022/{deployment.json,live-acceptance.json}`。画面观感继续由用户确认，未以参数检查宣称像素一致。
 - 实际旧窗口为 500×500／192 DPI，启动参数 `--frame none`，已有 `WS_THICKFRAME`，用户持久化尺寸原为 null。`0093eceafefa4efbea3130ee691d79b7e39db01a` 将缺少保存尺寸时的 fallback 改为 100×50 网格，由真实字体／DPI 换算；显式 size／grid／maximized 和保存像素尺寸仍保留。Windows 无边框窗口增加八方向原生 `WM_NCHITTEST`，只覆盖系统 DPI 缩放边带，内部仍交给原 Winit；最大化、全屏／禁止缩放和已有鼠标 capture 不覆盖。
 - Mac 实际 release 定向测试 34＋4 项通过，含默认尺寸／显式覆盖及八方向几何，格式检查通过；Windows x64 release exit0／输出关闭，EXE 36,205,568 字节，SHA256 `bb0bc93c9f16ed7014adb64ca056c6391d65c58f081896829cd0dd6025c1e15a`。证据根 `target/glow-windows-window-fix-20261022/`，`mac-unit.json`、`build/receipt.json`。Mac 已安装 App 未替换，Linux 原生 GUI 未测。
 - 登录用户独立新 profile 实测：无显式 size／grid 的默认窗口 1576×1600、100×50／192 DPI；八方向系统缩放光标、右边＋80／下边＋60 像素原生缩放、顶部空白区＋60×30 拖窗、标签切换和编辑点击通过。最大化首次探针对包含不可见边框的 outer 直接查询而失败，原材料保留；只补可点击 client／monitor workarea 交集的八方向及 restore 通过。两次均只操作隔离自建窗口，自有 PID／按住状态清零；统一 `resize/native-acceptance.json` 明确绑定两个原始收据，不追认首次错误断言。
