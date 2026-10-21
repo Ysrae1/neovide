@@ -7,12 +7,20 @@
 > 2026-10-22，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据实际回执，不将源码／协议检查写成实际界面验收。用户本轮明确恢复 Windows 未闭合范围；2026-10-21 停止／归档记录仍作历史保留，Linux 原生开发继续暂缓。
 
 - 已安装Mac为 `nightly-139+g955e75f`，Mac菜单及PDF真实界面验收、runtime签名／安装已完成。Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留；后续Windows增量按下表分别交付。
-- Windows Telescope 已独立通过并部署；拖窗 `f5e1e78` 本轮完成 Windows 构建、原生合成鼠标端到端验收及下次桌面启动部署。实体硬件输入与首帧仍未验，安装器及其他本轮增量见下节；既有独立交付结论保留。
+- Windows Telescope 已独立通过并部署；拖窗 `f5e1e78` 已完成原生合成输入验收。用户随后实测发现小窗与无法边缘缩放，`0093ece` 已修复、原生验证并部署桌面入口，实际用户窗口已打开为 1576×1600。实体硬件输入与首帧仍未验，范围见下节；既有独立交付结论保留。
 - 既有冻结版 `glow-stack-20261020-gm1` 保留；Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1)／网站第17版不变。新 Windows 精简包本轮完成构建及基础安装／卸载验收，公开下载入口仍未开放；TeX 真实登录用户父入口已在后续授权下通过，实体输入与首帧仍未验。旧 Candidate5／Core94 不作为新包通过凭据。
+
+### 2026-10-22 Windows 小窗与无边框缩放修复（用户验收反馈，Codex）
+
+- 实际旧窗口为 500×500／192 DPI，启动参数 `--frame none`，已有 `WS_THICKFRAME`，用户持久化尺寸原为 null。`0093eceafefa4efbea3130ee691d79b7e39db01a` 将缺少保存尺寸时的 fallback 改为 100×50 网格，由真实字体／DPI 换算；显式 size／grid／maximized 和保存像素尺寸仍保留。Windows 无边框窗口增加八方向原生 `WM_NCHITTEST`，只覆盖系统 DPI 缩放边带，内部仍交给原 Winit；最大化、全屏／禁止缩放和已有鼠标 capture 不覆盖。
+- Mac 实际 release 定向测试 34＋4 项通过，含默认尺寸／显式覆盖及八方向几何，格式检查通过；Windows x64 release exit0／输出关闭，EXE 36,205,568 字节，SHA256 `bb0bc93c9f16ed7014adb64ca056c6391d65c58f081896829cd0dd6025c1e15a`。证据根 `target/glow-windows-window-fix-20261022/`，`mac-unit.json`、`build/receipt.json`。Mac 已安装 App 未替换，Linux 原生 GUI 未测。
+- 登录用户独立新 profile 实测：无显式 size／grid 的默认窗口 1576×1600、100×50／192 DPI；八方向系统缩放光标、右边＋80／下边＋60 像素原生缩放、顶部空白区＋60×30 拖窗、标签切换和编辑点击通过。最大化首次探针对包含不可见边框的 outer 直接查询而失败，原材料保留；只补可点击 client／monitor workarea 交集的八方向及 restore 通过。两次均只操作隔离自建窗口，自有 PID／按住状态清零；统一 `resize/native-acceptance.json` 明确绑定两个原始收据，不追认首次错误断言。
+- 用户保存并关闭旧窗口后，其退出实际写回 500×500；已保存原始字节备份，只清除此已报告的小尺寸记录，位置保留，`size-migration.json`。桌面原入口并排切至 `C:\GlowDev\GraphicsQA\WindowFix108Hardware20261022`，旧程序／快捷方式备份保留，launcher 检查 exit0；`deployment.json`。已通过该入口为用户打开新版，实际用户 profile 的可见窗口为 1576×1600，四边命中正确、EXE SHA 相同，仅作只读查询，留给用户验收；`actual-user-startup.json`。未向用户窗口发送鼠标／键盘输入。
+- 实体鼠标、首帧与新 EXE 的 PDF 像素不作通过声明；PDF 源码未变。现有未发布 Core preview1 包仍含旧 96 前端，后续封包必须采用新版本号及本修复，不覆盖旧冻结资产；终端硬编码 PdfNav92 入口也未在本次桌面修复中改写。构建／隔离测试均已结束，无 standby 或自动唤醒，只有已打开供用户验收的正常编辑器继续运行。
 
 ### 2026-10-22 Windows 恢复与收敛（Codex）
 
-本节证据根：`target/glow-windows-20261022/`。本轮未修改产品源码；已保存原失败与中间状态，由下列最终收据限定通过范围。
+本节证据根：`target/glow-windows-20261022/`。该恢复阶段未修改产品源码；已保存原失败与中间状态，由下列最终收据限定通过范围。
 
 - 用户再次明确拖窗范围：顶部 tab 栏中，所有可见 buffer 标签右侧至最右侧组件组左侧之间的空白；标签、标签内部空格与右侧组件不拖窗。真实 Neovim local／portable 各 4 场景、共 840 格点击路由通过，含标签溢出、当前标签及右组件宽度变化；`target/glow-windows-20261022/drag/precise-gap-routing.json`。本轮未改产品源码，不重做已通过的媒体／Telescope 专项。
 - `f5e1e78ff64637b2f11be5a169a029dce7a5f107` 的 Windows x64 release 构建完成，实际 EXE SHA256 `4bc2e4205c1eafb002788b409deb9ff2cfda41c0ab5393a6d3c7891530675066`。先在登录用户自建标准窗口校准 192 DPI／按住／移动／松开，再由真实 tabline callback 发 column 81 请求：根网格 press → 4ms 接受 → native move loop，窗口实际移动 80×40；随后标签切换与编辑区点击通过。自有进程及按住状态已清理，用户配置未被测试修改。收据 `drag/{build/receipt.json,input-calibration.json,acceptance.json}`；这是原生合成输入，不冒称实体鼠标或像素首帧通过。
