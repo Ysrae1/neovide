@@ -254,9 +254,22 @@ def main():
             nvim_result = neovim(nvim)
         except LinuxError as error:
             nvim_result = str(error)
-        libraries = {name: ctypes.util.find_library(name) for name in ('GL', 'fontconfig', 'xkbcommon', 'X11', 'wayland-client')}
+        libraries = {name: ctypes.util.find_library(name) for name in (
+            'GL', 'fontconfig', 'xkbcommon', 'X11', 'wayland-client',
+            'gtk-3', 'webkit2gtk-4.1', 'webkit2gtk-4.0', 'poppler-glib')}
+        helper = args.source / 'src/native_preview/linux_helper.py'
+        preview = {'kinds': [], 'reason': 'Helper probe source is unavailable; see the Linux native preview deployment instructions.'}
+        if helper.is_file():
+            interpreter = os.environ.get('NEOVIDE_LINUX_PREVIEW_PYTHON', '/usr/bin/python3')
+            try:
+                probe = subprocess.run([interpreter, '-I', '-B', str(helper), '--probe'],
+                                       text=True, capture_output=True, timeout=5)
+                preview = json.loads(probe.stdout) if probe.returncode == 0 else {'kinds': [], 'error': probe.stderr[-1000:]}
+            except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                preview = {'kinds': [], 'error': str(error)}
         print(json.dumps({'architecture': arch, 'missing_build_prerequisites': missing,
                           'neovim': nvim_result, 'runtime_libraries': libraries,
+                          'native_preview_dependencies': preview,
                           'display_available': bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')),
                           'gui_verified': False, 'host_changes': False}, indent=2))
         return int(bool(missing) or not nvim_result.startswith('NVIM v') or not libraries['GL'] or

@@ -112,6 +112,10 @@ pub use macos::NativePreviews;
 mod windows;
 #[cfg(target_os = "windows")]
 pub use windows::NativePreviews;
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+pub use linux::{NativePreviews, available_kinds as linux_available_kinds};
 
 #[cfg(test)]
 mod tests {

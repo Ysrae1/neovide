@@ -53,20 +53,35 @@ pub async fn setup_neovide_specific_state(
         .await
         .context("Could not advertise owner-anchored native images")?;
 
+    // Linux dependencies and display backend are runtime capabilities. Probe on
+    // a worker so importing system GI typelibs never blocks the bridge/UI loop.
+    #[cfg(target_os = "linux")]
+    let linux_preview_kinds =
+        tokio::task::spawn_blocking(|| crate::native_preview::linux_available_kinds().to_vec())
+            .await
+            .unwrap_or_default();
+    #[cfg(not(target_os = "linux"))]
+    let linux_preview_kinds: Vec<String> = Vec::new();
     nvim.set_var(
         "neovide_native_preview",
-        Value::from(cfg!(any(target_os = "macos", target_os = "windows"))),
+        Value::from(
+            cfg!(any(target_os = "macos", target_os = "windows"))
+                || !linux_preview_kinds.is_empty(),
+        ),
     )
     .await
     .context("Could not advertise native media/web preview")?;
-    // Capabilities are per kind: Windows currently embeds PDF only.
+    // Capabilities are per kind: Windows embeds PDF, Linux reports the installed
+    // WebKitGTK/Poppler kinds only on a compatible X11 session.
     nvim.set_var(
         "neovide_native_preview_kinds",
         Value::Array(
             ["audio", "video", "web", "pdf"]
                 .into_iter()
                 .filter(|kind| {
-                    cfg!(target_os = "macos") || (cfg!(target_os = "windows") && *kind == "pdf")
+                    cfg!(target_os = "macos")
+                        || (cfg!(target_os = "windows") && *kind == "pdf")
+                        || linux_preview_kinds.iter().any(|supported| supported == kind)
                 })
                 .map(Value::from)
                 .collect(),
@@ -74,9 +89,14 @@ pub async fn setup_neovide_specific_state(
     )
     .await
     .context("Could not advertise native preview kinds")?;
-    nvim.set_var("neovide_native_pdf_synctex", Value::from(cfg!(target_os = "macos")))
-        .await
-        .context("Could not advertise PDF coordinate synchronization")?;
+    nvim.set_var(
+        "neovide_native_pdf_synctex",
+        Value::from(
+            cfg!(target_os = "macos") || linux_preview_kinds.iter().any(|kind| kind == "pdf"),
+        ),
+    )
+    .await
+    .context("Could not advertise PDF coordinate synchronization")?;
 
     nvim.exec2("runtime! ginit.vim", nvim_dict!())
         .await

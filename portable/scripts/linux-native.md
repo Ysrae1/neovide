@@ -63,8 +63,21 @@ python3 portable/scripts/linux-native.py package --source . --root "$glow_native
 
 ## 平台差异与验收边界
 
-Linux 使用共用的柔光、图片和 Notebook 渲染路径；原生 PDF／音频／视频／Web 嵌入后端尚未实现，不能用安装依赖代替该实现。macOS 系统玻璃与分层图标也不适用于 Linux。
+Linux 使用共用的柔光、图片和 Notebook 渲染路径。X11 预览后端通过独立 GTK3 子进程嵌入 WebKitGTK（Web／音视频）及 Poppler／Cairo（PDF、页码、缩放和坐标同步）；不在编辑器事件循环内运行第二套 GTK 循环。子进程只属于当前预览，关闭预览或路由即回收。依赖缺失时不宣告相应预览能力，直接调用仍返回错误。
 
-目前尚未完成 Linux 原生 GUI 验收。安装、构建、headless 检查或 WSL 命令行通过，均不证明真实桌面的字体发现、剪贴板、GPU、窗口操作与材质效果通过；应在目标 Linux 桌面运行生成的启动器逐项检查。
+Ubuntu／Debian 的预览运行依赖可在核对后安装：
+
+```sh
+sudo apt install python3-gi python3-cairo python3-gi-cairo gir1.2-gtk-3.0 \
+  gir1.2-webkit2-4.1 gir1.2-poppler-0.18 \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+/usr/bin/python3 -I -B src/native_preview/linux_helper.py --probe
+```
+
+默认使用系统 `/usr/bin/python3` 的 GI 绑定，避免与 Notebook 虚拟环境冲突；可显式设置 `NEOVIDE_LINUX_PREVIEW_PYTHON`。探测只报告绑定可用性，不证明实际解码或 GUI 已通过。媒体格式仍取决于目标发行版的 GStreamer 解码器。
+
+Gtk.Plug 的嵌入接口限 X11；原生 Wayland 不宣告该能力。Wayland 桌面上可仅对本次启动选择 Xwayland：`env -u WAYLAND_DISPLAY -u WAYLAND_SOCKET "$glow_native_root/bin/neovide-glow"`，前提是已有可用的 `DISPLAY`。macOS 系统玻璃与分层图标也不适用于 Linux。平台接口依据 [GTK XEmbed 文档](https://docs.gtk.org/gtk3/class.Plug.html)。
+
+目前尚未完成 Linux 原生 GUI 验收。定向测试覆盖启动和打包契约、后端协议、坐标与遮挡转换；独立手动工作流 `Linux native preview checks` 用于真实 Linux 编译及隔离 X11 集成检查。安装、构建、Xvfb、headless 或 WSL 命令行检查均不证明真实桌面的字体发现、剪贴板、GPU、窗口焦点与材质效果通过；应在目标 Linux 桌面运行生成的启动器逐项检查。
 
 WSLg 可用于单独记录的 WSL GUI 检查，不能代替原生 Linux 桌面验收。[微软说明](https://learn.microsoft.com/windows/wsl/tutorials/gui-apps)要求 WSL2、兼容 Windows 版本与 GPU 驱动；WSL1 不支持这条 GUI 路径。没有可用显示会话时只做计划、检查、构建或打包，不声称 GUI 已验证。

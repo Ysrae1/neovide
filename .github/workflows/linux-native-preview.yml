@@ -1,0 +1,46 @@
+name: Linux native preview checks
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x11:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select the shared pinned Rust toolchain
+        id: toolchain
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          print('version=' + json.load(open('portable/manifest.json'))['neovide']['rust_toolchain'])
+          PY
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.toolchain.outputs.version }}
+      - name: Install Linux build and preview dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev ninja-build cmake \
+            pkg-config libssl-dev libfreetype6-dev libasound2-dev libexpat1-dev \
+            libxcb-composite0-dev libbz2-dev freeglut3-dev libxi-dev \
+            libfontconfig1-dev libxcursor-dev libxkbcommon-x11-dev \
+            python3-gi python3-cairo python3-gi-cairo gir1.2-gtk-3.0 \
+            gir1.2-webkit2-4.1 gir1.2-poppler-0.18 \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good xvfb xauth
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: linux-native-preview
+      - name: Compile the Linux application and run native preview contracts
+        run: cargo test --locked --release native_preview
+      - name: Check core packaging and helper protocol
+        run: |
+          /usr/bin/python3 -B tests/portable_linux.py
+          /usr/bin/python3 -B tests/linux_native_helper.py
+          /usr/bin/python3 -B src/native_preview/linux_helper.py --probe
+      - name: Exercise X11 embedding with distribution GTK and Poppler
+        run: xvfb-run -a /usr/bin/python3 -B tests/linux_native_integration.py --require-runtime

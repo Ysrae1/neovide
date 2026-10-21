@@ -158,7 +158,7 @@ impl RouteLaunchConfig {
 }
 
 pub struct RouteWindow {
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
     pub native_previews: crate::native_preview::NativePreviews,
     pub skia_renderer: Rc<RefCell<Box<dyn SkiaRenderer>>>,
     pub winit_window: Rc<Window>,
@@ -581,7 +581,7 @@ impl WinitWindowWrapper {
             #[cfg(target_os = "macos")]
             WindowCommand::NativeMenuLanguage(_) => unreachable!("handled before route resolution"),
             WindowCommand::NativePreview(command) => {
-                #[cfg(any(target_os = "macos", target_os = "windows"))]
+                #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
                 if let Some(route) = self.routes.get_mut(&target_window_id) {
                     let scale = route.window.renderer.borrow().grid_renderer.grid_scale;
                     let padding = (route.state.window_padding.left, route.state.window_padding.top);
@@ -600,7 +600,7 @@ impl WinitWindowWrapper {
                             .spawn(crate::native_preview::report_status(nvim, id, json));
                     }
                 }
-                #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+                #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
                 let _ = command;
             }
             WindowCommand::TitleChanged(new_title) => {
@@ -1388,7 +1388,7 @@ impl WinitWindowWrapper {
 
     pub fn clear_renderer(&mut self, window_id: WindowId) {
         if let Some(route) = self.routes.get_mut(&window_id) {
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
             route.window.native_previews.clear();
             let mut renderer = route.window.renderer.borrow_mut();
             renderer.clear();
@@ -1598,7 +1598,7 @@ impl WinitWindowWrapper {
             let mut renderer = route.window.renderer.borrow_mut();
             let mut skia_renderer = route.window.skia_renderer.borrow_mut();
             renderer.draw_frame(skia_renderer.canvas(), &content_rect, dt);
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
             {
                 // Native child views sit above the GPU surface. Cut out every editor
                 // floating grid using this frame's actual animated geometry so floats
@@ -2008,7 +2008,7 @@ impl WinitWindowWrapper {
         let route = Route {
             route_id,
             window: RouteWindow {
-                #[cfg(any(target_os = "macos", target_os = "windows"))]
+                #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
                 native_previews: crate::native_preview::NativePreviews::default(),
                 renderer,
                 skia_renderer: skia_renderer.clone(),
