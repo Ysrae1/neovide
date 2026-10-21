@@ -8,7 +8,7 @@
 
 - 已安装Mac为 `nightly-139+g955e75f`，Mac菜单及PDF真实界面验收、runtime签名／安装已完成。Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留；后续Windows增量按下表分别交付。
 - Windows Telescope 已独立通过并部署；拖窗 `f5e1e78` 本轮完成 Windows 构建、原生合成鼠标端到端验收及下次桌面启动部署。实体硬件输入与首帧仍未验，安装器及其他本轮增量见下节；既有独立交付结论保留。
-- 既有冻结版 `glow-stack-20261020-gm1` 保留；Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1)／网站第17版不变。新 Windows 精简包本轮完成构建及基础安装／卸载验收，公开下载入口仍未开放；TeX 父入口、实体输入与首帧边界见下节。旧 Candidate5／Core94 不作为新包通过凭据。
+- 既有冻结版 `glow-stack-20261020-gm1` 保留；Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1)／网站第17版不变。新 Windows 精简包本轮完成构建及基础安装／卸载验收，公开下载入口仍未开放；TeX 真实登录用户父入口已在后续授权下通过，实体输入与首帧仍未验。旧 Candidate5／Core94 不作为新包通过凭据。
 
 ### 2026-10-22 Windows 恢复与收敛（Codex）
 
@@ -23,6 +23,13 @@
 - TeX 仍未闭合：SYSTEM 下父入口成功不代表登录用户通过。实际登录用户的同参数中文 fixture 窄编译 5.38 秒 exit0／drained，并生成 PDF／SyncTeX；真实 TeX-only 父入口却在原生 Perl 启动后、XeLaTeX 启动前停滞。一次 fresh 父入口 80 秒有界停止；仅换字节流输出 reader 的隔离实验 45 秒仍失败，未将该候选合入产品。stdin 假设也缺依据，成功窄编译同样继承 stdin。`tex-diagnostic/receipt.json` 与 `copy-reader-receipt.json` 保留断点／失败，任务和已知自有进程已清理，用户选择与 QA science 字段保留，零下载／新装。下一动作是比较真实父入口与单独编译的调用上下文，不重复 Python／完整安装或增加超时。
 - 策略变化：先校准控制面和实际登录身份；复用原证据，只补真实断点；TeX 正确性与封包并行。CUA 输入返回 `noWindowsAvailable` 后停止重试，用户明确允许隔离窗口 SendInput 后才继续。封包辅助层的 stderr、换行、UTF-8 和收尾变量问题按实际阶段恢复，未反复重编／压缩或安装。用户要求无需其协助的部分结束后暂停，不设 standby、自动唤醒或常驻监控。
 - 本轮已停止：GUI／编译／安装验收自有进程已结束，本轮创建的无触发器任务已移除（`installer/cleanup.json`、`tex-diagnostic/*cleanup.json`）；保留实际包、失败材料与回滚入口，不强停历史身份不明进程。后续需本人在场的是实体键鼠体验与明确首帧场景；TeX 父入口另属未闭合的调用上下文问题，未写成“只等用户操作”或整体完成。
+
+### 2026-10-22 TeX 父入口与 VS Code 配置维护（新增授权，Codex）
+
+- 用户恢复 TeX 修复后，新增唯一验收入口 `tests/windows_latex_parent.ps1`，直接调用未修改的产品 `Setup-Dependencies.ps1 -InstallLatex`；实际登录用户 session1、含中文／空格／单引号的路径、原 180 秒编译期限，整体验收 12.52 秒。两原生子进程 exit0 且输出完整关闭，中文 PDF 43,900 字节、SyncTeX 3,787 字节，分别确认正文中文及源路径映射；用户选择与既有科学字段保留，零下载／新装／Python 导入。证据 `target/glow-windows-20261022/tex-fix-20261022/{receipt.json,final-evidence/receipt.json,final-products.json,cleanup.json}`；自有 PID 已退出、未建计划任务，无需重封精简包。
+- 精确捕获的父入口环境、原 `Invoke-DependencyProcess`、前置检测、transcript 与 progress 均分别通过。旧嵌套并重定向输出的 PowerShell 监督包装仍是失败／通过间的执行边界，内部停滞机理未确认；没有为旧验收包装猜测性修改产品。上节 `tex-diagnostic` 的失败保留历史含义，不再代表当前真实父入口未通过。
+- Mac VS Code 共同设置由 8 项扩为 21 项，Windows 加两项 XeLaTeX 工具／配方共 23 项；实际补齐 9 个设置，8 条快捷键及 16 个 LaTeX 片段已一致。Mac 专用路径、终端环境及 Windows 的外观共享范围保留本机语义；Mac 配置无改动。源仓库 `~/Dev/workstation-config` 提交 `86dba49`，仅含两份本轮源配置；未提交其既有其他改动。Windows 两次本机事务均保存原始备份，三项同步审计通过，证据 `target/glow-vscode-sync-20261022/{config-receipt.json,settings-cleanup-receipt.json}`。
+- 按用户要求对照 Mac，Windows 扩展 54→41，卸载 13 项并清理其 17 个闲置设置键；41 个保留项版本不变、依赖齐全，Mac 独有项未新增。官方 CLI 卸载与最终元数据通过，精确旧版本和恢复命令见 `target/glow-vscode-extensions-audit-20261022/uninstall-result.json`。未重载／关闭用户窗口；VS Code 1.143.0 官方 ARM64 更新包 SHA 与 Microsoft 签名已核对，等待用户保存退出当前编辑器后应用。
 
 ### Windows Git zsh选择性迁移（新增授权，2026-10-21 Codex）
 
