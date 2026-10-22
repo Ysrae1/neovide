@@ -38,7 +38,7 @@ vim.api.nvim_exec_autocmds("User", { pattern = "NeovideWindowDragReady" })
 assert(vim.o.tabline == "%!v:lua.require('config.appearance.window_drag').render()")
 vim.o.showtabline = 0
 drag.attach()
-assert(vim.o.showtabline == 2, "a supported frameless dashboard keeps the top fill and controls")
+assert(vim.o.showtabline == 0, "drag attachment must never reveal a hidden tabline")
 vim.o.tabline = "%!CustomTabline()"
 drag.attach()
 assert(vim.o.tabline == "%!CustomTabline()", "a later custom tabline remains owned by its provider")

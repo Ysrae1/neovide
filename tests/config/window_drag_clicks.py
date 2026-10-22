@@ -16,6 +16,8 @@ CONFIG = Path(os.environ.get("GLOW_TEST_CONFIG", ROOT / "portable/payload/nvim")
 PLUGINS = Path(os.environ.get("GLOW_TEST_PLUGIN_ROOT", Path.home() / ".local/share/nvim/lazy"))
 CASES = [
     {"name": "dashboard_startup", "columns": 80, "buffers": 0, "dashboard": True},
+    {"name": "dashboard_top_content", "columns": 80, "buffers": 0, "dashboard": True, "top_content": True},
+    {"name": "dashboard_custom_mouse", "columns": 80, "buffers": 0, "dashboard": True, "custom_mouse": True},
     {"name": "empty_tabline", "columns": 80, "buffers": 0},
     {"name": "buffer_labels", "columns": 120, "buffers": 2},
     {"name": "overflow_and_wide_buttons", "columns": 80, "buffers": 8, "wide": True},
@@ -60,7 +62,8 @@ local drag=require('config.appearance.window_drag')
 vim.o.tabline="%!v:lua.require('nvchad.tabufline.modules')()"
 drag.setup()
 if case.dashboard then
-  require('snacks').setup({dashboard={enabled=true,sections={{text='Dashboard body'}}}})
+  if case.custom_mouse then vim.keymap.set('n','<LeftMouse>',function() _G.route='custom_mouse' end,{buffer=0,desc='Existing dashboard mouse owner'}) end
+  require('snacks').setup({dashboard={enabled=true,row=case.top_content and 0 or nil,sections={{text='Dashboard body'}}}})
 else
   local buffers={}
   for i=1,case.buffers do
@@ -88,7 +91,7 @@ end
 vim.cmd('redraw!')
 return {showtabline=vim.o.showtabline,filetype=vim.bo.filetype,gap_start=left,gap_end=case.columns-right}
 """, case)
-            assert result["showtabline"] == 2, (case, result, "dashboard must retain the draggable top bar and right controls")
+            assert result["showtabline"] == (0 if case.get("dashboard") else 2), (case, result, "dashboard must keep its tabline hidden")
             if case.get("dashboard"):
                 assert result["filetype"] == "snacks_dashboard", result
                 assert result["gap_start"] == 0, result
@@ -99,16 +102,28 @@ return {showtabline=vim.o.showtabline,filetype=vim.bo.filetype,gap_start=left,ga
                 editor.api.input_mouse("left", "release", "", 0, 0, column)
                 editor.command("sleep 1m")
                 route = editor.exec_lua("return {route=_G.route,packet=_G.last_packet,method=_G.last_method}")
-                expected = result["gap_start"] <= column < result["gap_end"]
+                expected = (not case.get("custom_mouse")) if case.get("dashboard") else result["gap_start"] <= column < result["gap_end"]
+                if case.get("top_content") and (10 <= column < 19 or 20 <= column < 24):
+                    expected = False
                 assert (route["route"] == "drag") == expected, (case, result, column, route)
                 if expected:
                     assert route["packet"] == {"version": 1, "row": 0, "column": column}, route
                     assert route["method"] == "neovide.window.start_drag", route
                 elif route["route"]:
                     controls.add(route["route"])
-            assert {"OpenGitHubProfile", "Toggle_theme", "SaveAndQuit"} <= controls, (case, controls)
+            if not case.get("dashboard"):
+                assert {"OpenGitHubProfile", "Toggle_theme", "SaveAndQuit"} <= controls, (case, controls)
+            if case.get("custom_mouse"):
+                assert controls == {"custom_mouse"}, controls
             if case["buffers"]:
                 assert {"GoToBuf", "KillBuf"} <= controls, (case, controls)
+            if case.get("dashboard") and not case.get("custom_mouse"):
+                for modifiers in ["S", "C", "A"]:
+                    editor.exec_lua("_G.route=''")
+                    editor.api.input_mouse("left", "press", modifiers, 0, 0, 1)
+                    editor.api.input_mouse("left", "release", modifiers, 0, 0, 1)
+                    editor.command("sleep 1m")
+                    assert editor.exec_lua("return _G.route") != "drag", "modified click must keep its normal action"
             editor.exec_lua("_G.route=''")
             editor.api.input_mouse("left", "press", "", 0, 1, 1)
             editor.api.input_mouse("left", "release", "", 0, 1, 1)
