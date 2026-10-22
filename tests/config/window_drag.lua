@@ -36,7 +36,17 @@ vim.o.tabline = "%!v:lua.require('nvchad.tabufline.modules')()"
 drag.setup()
 vim.api.nvim_exec_autocmds("User", { pattern = "NeovideWindowDragReady" })
 assert(vim.o.tabline == "%!v:lua.require('config.appearance.window_drag').render()")
+vim.o.showtabline = 0
+drag.attach()
+assert(vim.o.showtabline == 2, "a supported frameless dashboard keeps the top fill and controls")
 vim.o.tabline = "%!CustomTabline()"
 drag.attach()
 assert(vim.o.tabline == "%!CustomTabline()", "a later custom tabline remains owned by its provider")
+vim.o.showtabline = 0
+drag.attach()
+assert(vim.o.showtabline == 0, "custom tabline visibility remains owned by its provider")
+vim.g.neovide_window_drag_supported = false
+vim.o.tabline = "%!v:lua.require('nvchad.tabufline.modules')()"
+drag.attach()
+assert(vim.o.showtabline == 0 and vim.o.tabline:find("nvchad", 1, true), "unsupported frontends keep their original visibility")
 print("PASS: frameless tabline drag markup, control preservation, capability and click guards")
