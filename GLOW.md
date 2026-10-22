@@ -7,8 +7,17 @@
 > 2026-10-22，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据实际回执，不将源码／协议检查写成实际界面验收。用户本轮明确恢复 Windows 未闭合范围；2026-10-21 停止／归档记录仍作历史保留，Linux 原生开发继续暂缓。
 
 - 已安装Mac为 `nightly-139+g955e75f`，Mac菜单及PDF真实界面验收、runtime签名／安装已完成。Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留；后续Windows增量按下表分别交付。
-- Windows Telescope、顶部空白拖窗、小窗／边缘缩放及透明圆角修复已分别交付；最新实时缩放源码为 `1dbe658`，x64／ARM64 release 均已编译完成。桌面及终端下次启动使用 x64 修复版，用户睡前明确跳过本轮追加验收；实际状态与双架构范围见紧邻下节，既有独立通过结论保留。
+- Windows Telescope、顶部空白拖窗、小窗／边缘缩放及透明圆角修复已分别交付；实时缩放 `1dbe658` 的基础上新增 dashboard 标题上方空白拖窗 `73dcbd1`，x64／ARM64 release 均已编译并切至下次启动。ARM64 动画、缩放／语言继承及桌面无控制台入口已补齐；用户最新要求跳过后续检查，新版多高度 Windows GUI 未验，见紧邻下节。
 - 既有冻结版 `glow-stack-20261020-gm1` 保留；Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1)／网站第17版不变。新 Windows 精简包本轮完成构建及基础安装／卸载验收，公开下载入口仍未开放；TeX 真实登录用户父入口已在后续授权下通过，实体输入与首帧仍未验。旧 Candidate5／Core94 不作为新包通过凭据。
+
+### 2026-10-22 ARM64 继承、动画、无控制台入口与 dashboard 拖窗（Codex）
+
+- 用户最终明确 dashboard 不显示 tab 栏，NEOVIM 大字上方整片空白可拖；当前源码 `73dcbd176f7ff769a04ca9ee3c31077129a0b94d`／配置 `3d55c9faebd7f705962778c628457ec4493c045e` 按实际 Snacks Header extmark 与窗口 screenpos 每次点击计算范围，resize 后随标题更新；标题／正文／浮窗／已有自定义鼠标映射保留。普通编辑页面仍仅 buffer 标签右侧、右侧组件左侧填充区可拖。保留 v1 首行协议，新增 v2 dashboard 明确表面与真实 root 行列、同次按下／物理行／时效校验；旧前端安全回退首行。曾强显 tab 栏的方案已撤回。Mac release 定向 7/7、fmt、local／portable 各9场景通过；早先隐藏栏首行 Windows GUI 通过仅属旧范围，新版多高度 Windows GUI 按用户“不用检查了”跳过，未冒记通过。`target/glow-windows-dashboard-drag-20261022/expanded/`。
+- 同一冻结源码的 x64／ARM64 两个 release 均 cargo exit0、输出关闭、自有进程退出。x64 36,213,248 字节、SHA256 `cd324f69a5544dea8b8b58f42f64fdb030321cefdca5fc762996f0dfb1a1cebc`；ARM64 34,073,088 字节、SHA256 `cf142827c040017b79b5bb894c9a6fea84557ea65b179082cc3d3a04a58eb1b1`；复用各自已核对的缓存与 Skia，不升级依赖／工具链。`target/glow-windows-dashboard-region-20261022/build/{x64,arm64}/receipt.json`。
+- Windows 单文件配置已原 SHA 守卫／原字节备份部署。x64 桌面及 nvidec 指针切至 `DashboardRegion20261022X64/HardwareOpenGLApp`，保留原 runtime／profile 与 shell 其余内容；ARM64 将新前端并排放为原入口目录的 `neovide-dashboard-region.exe`，只更新 PS 的 frontend 选择行，既有 native GUI launcher／图标／Matrix／XDG 均保留。两端下一次启动生效，未关闭／重启已有用户窗口，未自动打开新版。构建与明确跳过验收授权绑定在 `target/glow-windows-dashboard-region-20261022/deployment/{deployment-authority.json,deployment.json}`；回滚字节保留。未发布新包，Mac 已安装 App 未替换；所有本轮自有工作已结束，无 standby／自动唤醒。
+- 原 ARM64 启动错误确认包含缺失 `cmatrix-gm`；三个真实前端当时均可见，version 与脚本语法正常，未据此声称复现硬崩溃。已用项目改过的 Glow Gomatrix 同源编译原生 ARM64，PE 0xaa64、仅 KERNEL32.dll、SHA `cf19d7c6fe28f6b1e153c9abfde59d50676ee7a1a042958790d30ad2c40120cf`；intro／PowerShell dashboard 两个实际 ARM64 Neovim ConPTY 动画 exit0并输出 Unicode 雨。桌面无参数保留动画，带文件／目录或显式 skip 时直入编辑；仅新子进程加入单工具目录。源码 `52600ca` 补 Matrix 双架构构建参数，`ff156d38`／`d723003` 在依赖缺失或明确 skip 时安全跳过。`target/glow-windows-arm64-startup-fix-20261022/result.json` 绑定有效结果及早期探针失败；未把失败探针写成产品失败／GUI通过。
+- 继承核对已补 ARM 缺失的 Windows 0.6 缩放、zh_CN.UTF-8 语言偏好及前端同一图标；三个旧 ARM 用户窗口曾仅热设缩放，字体名／h16不变，退出前均为0.6。zsh 首选原已相同，字体／主题／快捷键／材质共用 home 配置，位置尺寸共用系统保存文件；公共 Zoom 默认、RGB、Mac 缩放未改。ARM 原生 Fzf／Avante、Mason／rplugin／Notebook 等依赖仍未完整准备，不把 x64 DLL 复制过去或声明两版插件完全等价；本轮科学环境迁移不自动等同 Notebook provider 配置完成。`inheritance-audit.json`／`scale-alignment.json` 保存范围。
+- 桌面图标先出现再消失的本机原因是旧 PowerShell 控制台先显示约970ms，再隐藏，之后前端显示；原主窗口观测内未 hide/show 循环。`06f5842` 新增极小原生 ARM64 GUI launcher，以 CREATE_NO_WINDOW 调用同目录 PS；7个参数／中文工作目录／无 console 检查通过，新私有配置对照0个控制台窗口事件、主窗口仅一次 SHOW。桌面 lnk 已备份切换，保留图标与起始目录；前端后续更新不改变该 launcher。`target/glow-windows-native-launcher-20261022/result.json`。未录任务栏像素视频，不宣称启动性能提高；旧对照曾用正常配置自建窗，清理前未查 modified，这一限制留在收据，新对照已改私有配置。
 
 ### 2026-10-22 Windows 软件 ARM64 替换与科学环境重建（Codex）
 
