@@ -2,12 +2,14 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$BuildDirectory,
-    [Parameter(Mandatory = $true)][string]$OutputDirectory
+    [Parameter(Mandatory = $true)][string]$OutputDirectory,
+    [ValidateSet('x64', 'arm64')][string]$Architecture = 'x64'
 )
 $ErrorActionPreference = 'Stop'
 $sourceDirectory = $PSScriptRoot
 $cmake = (Get-Command cmake -ErrorAction Stop).Source
-& $cmake -S $sourceDirectory -B $BuildDirectory -G 'Visual Studio 17 2022' -A x64
+$platform = if ($Architecture -ieq 'arm64') { 'ARM64' } else { 'x64' }
+& $cmake -S $sourceDirectory -B $BuildDirectory -G 'Visual Studio 17 2022' -A $platform
 if ($LASTEXITCODE -ne 0) { throw "CMatrix configure failed: $LASTEXITCODE" }
 & $cmake --build $BuildDirectory --config Release --parallel
 if ($LASTEXITCODE -ne 0) { throw "CMatrix build failed: $LASTEXITCODE" }

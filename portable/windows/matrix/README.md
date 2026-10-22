@@ -1,6 +1,6 @@
 # Native Windows CMatrix Glow
 
-This builds the existing Glow Unimatrix/Gomatrix animation for Windows x64.
+This builds the existing Glow Unimatrix/Gomatrix animation for Windows x64 or ARM64.
 It keeps the current intro and dashboard commands, including
 `cmatrix-gm --intro --fps 60 --fade 4 -o` and
 `cmatrix-gm --fps 60 --fade 4 --length 9:13 -o`.
@@ -28,6 +28,9 @@ Build on a Windows release runner with Visual Studio 2022 C++ tools and CMake:
   -BuildDirectory "$env:RUNNER_TEMP\glow-matrix-build" `
   -OutputDirectory '.\stage\tools\bin'
 ```
+
+For a native ARM64 release, add `-Architecture arm64` and use a separate build/output directory.
+The default remains x64.
 
 Equivalent commands from the repository root:
 
