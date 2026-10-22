@@ -10,6 +10,14 @@
 - Windows Telescope、顶部空白拖窗、小窗／边缘缩放及透明圆角修复已分别交付；最新实时缩放源码为 `1dbe658`，x64／ARM64 release 均已编译完成。桌面及终端下次启动使用 x64 修复版，用户睡前明确跳过本轮追加验收；实际状态与双架构范围见紧邻下节，既有独立通过结论保留。
 - 既有冻结版 `glow-stack-20261020-gm1` 保留；Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1)／网站第17版不变。新 Windows 精简包本轮完成构建及基础安装／卸载验收，公开下载入口仍未开放；TeX 真实登录用户父入口已在后续授权下通过，实体输入与首帧仍未验。旧 Candidate5／Core94 不作为新包通过凭据。
 
+### 2026-10-22 Windows 软件 ARM64 替换与科学环境重建（Codex）
+
+- 用户明确授权替换及重建环境后，由原生子代理并行完成 Teams、foobar2000、Git 和 Conda；root 负责 7-Zip／ImageMagick 及唯一全局 PATH 整合。Teams 已为 26260.1717.5229.7049 ARM64、注册状态 Ok；foobar2000 2.26.1 ARM64EC 已安装并新增独立桌面入口。foobar 旧 v1 私有配置仅在同用户 Windows 本地原字节复制，未解析／导出；正式 v1→v2 导入要等首次用户启动，旧 Store 版保留回退。未启动播放或用户 GUI，`target/glow-windows-arm64-gui-apps-20261022/receipt.json`。
+- Git 保持 2.55.0.windows.5，同版官方 ARM64 安装 exit0，cmd 入口及 clangarm64 核心均 PE 0xaa64；独立空仓库 init/add/write-tree/status 通过，1717 个用户 shell／插件文件 SHA、安装选项／组件保全通过，系统 gitconfig 只由官方安装器调整内置路径，原字节备份保留。zsh 5.9／MSYS 仍是官方 x64 设计，Glow 双入口、y/tree/btop 函数及 frame none 保持；非 Git PATH 段及 ExpandString 类型保持。`target/glow-windows-git-arm64-migrate-20261022/{receipt.json,verification.json,path-after-git.json}`。
+- 7-Zip 26.05 ARM64、ImageMagick 7.1.2-34 Q16-HDRI ARM64 均已安装 exit0，官方发布 SHA 校验通过（ImageMagick 签名有效，7-Zip 官方包未签名）。ARM64 归档／解包中文空格文件哈希一致，ImageMagick 格式枚举、中文 PNG、无损 WebP 及尺寸检查通过；旧 x64 ImageMagick 已由精确官方卸载器 exit0 移除。安装器及回滚字节保留，`target/glow-windows-native-apps-20261022/receipt.json`。
+- 新 Miniconda ARM64 26.9.3 位于 Windows 用户的 miniconda3-arm64，science 环境为 Python 3.14.8；248 个包中 239 个 win-arm64、9 个 noarch，无 win-64。11 个主要模块真实导入、7 项小计算／绘图及 Python／NumPy／SciPy／Pandas／pyzmq PE 检查通过，旧 Anaconda 2026.07-1 精确卸载 exit0、旧 Python／登记／根残余清零，新两份 Python 保留；未改共享配置或 Glow 私有 Python。Spyder／Navigator 等旧完整发行版 GUI 未重建。`target/glow-windows-conda-arm64-migrate-20261022/{verification.json,path-boundary.json,uninstall-receipt.json}`。
+- root 等各官方 PATH 写入事务结束后再统一切换：旧 Anaconda 段清除，ImageMagick 指向新根；用户 PATH 按 science 根／Library/bin／Scripts、Miniconda Scripts／condabin 排序，Python／Jupyter 优先 science，Git zsh 裸 conda 也可找到原生入口。Machine／User 原注册类型及其余段保留、原字节备份，实际登录用户已广播环境变化；六个默认命令及 zsh conda 解析检查通过。已知 VS Code 用户设置及所查 shell/profile 入口没有显式旧 Anaconda 引用，未改写它们。新开终端生效；PATH 不等于激活环境，包管理用 `conda install -n science ...` 或先激活。软件事务自有进程均已退出，无重启／常驻任务；不将本节安装／CLI 检查写成 GUI／性能验收。
+
 ### 2026-10-22 首次终端选择、Windows 命令与软件架构审计（Codex）
 
 - 按用户明确要求，交给三个独立子代理完成交互终端、命令工具和软件架构审计；三项均已结束，未启动用户 GUI、真实交互 shell、性能测试或常驻任务。
