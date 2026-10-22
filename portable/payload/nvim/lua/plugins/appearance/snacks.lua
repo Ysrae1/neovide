@@ -132,6 +132,12 @@ return {
 
           {
             section = "terminal",
+            -- Optional decoration: terminal launches may skip it, and a
+            -- missing animation tool must not produce a startup job error.
+            enabled = function()
+              return vim.env.NVIM_SKIP_MATRIX_INTRO ~= "1"
+                and vim.fn.executable(vim.g.neovide and "cmatrix-gm" or "cmatrix") == 1
+            end,
             -- cmd = "cmatrix -a -b -u 1",
             -- The GUI panel uses longer virtual streams with the Gomatrix charset.
             cmd = vim.g.neovide and "cmatrix-gm --fps 60 --fade 4 --length 9:13 -o" or "cmatrix -a -b -u 5 -o",
