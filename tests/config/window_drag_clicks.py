@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG = Path(os.environ.get("GLOW_TEST_CONFIG", ROOT / "portable/payload/nvim"))
 PLUGINS = Path(os.environ.get("GLOW_TEST_PLUGIN_ROOT", Path.home() / ".local/share/nvim/lazy"))
 CASES = [
+    {"name": "dashboard_header_v2", "columns": 80, "buffers": 0, "dashboard": True, "header": True, "version": 2},
+    {"name": "dashboard_header_legacy", "columns": 80, "buffers": 0, "dashboard": True, "header": True},
+    {"name": "dashboard_header_resize", "columns": 80, "buffers": 0, "dashboard": True, "header": True, "version": 2, "resize_rows": 40},
     {"name": "dashboard_startup", "columns": 80, "buffers": 0, "dashboard": True},
     {"name": "dashboard_top_content", "columns": 80, "buffers": 0, "dashboard": True, "top_content": True},
     {"name": "dashboard_custom_mouse", "columns": 80, "buffers": 0, "dashboard": True, "custom_mouse": True},
@@ -45,6 +48,7 @@ vim.opt.rtp:prepend(plugins..'/ui')
 vim.opt.rtp:prepend(plugins..'/snacks.nvim')
 vim.g.neovide=true
 vim.g.neovide_window_drag_supported=true
+vim.g.neovide_window_drag_version=case.version
 vim.g.neovide_channel_id=84
 vim.o.showtabline=2;vim.o.mouse='a';vim.o.mousetime=0
 local opts={bufwidth=21,order={'buffers','tabs','githubprofile','btns'},modules={}}
@@ -63,7 +67,7 @@ vim.o.tabline="%!v:lua.require('nvchad.tabufline.modules')()"
 drag.setup()
 if case.dashboard then
   if case.custom_mouse then vim.keymap.set('n','<LeftMouse>',function() _G.route='custom_mouse' end,{buffer=0,desc='Existing dashboard mouse owner'}) end
-  require('snacks').setup({dashboard={enabled=true,row=case.top_content and 0 or nil,sections={{text='Dashboard body'}}}})
+  require('snacks').setup({dashboard={enabled=true,row=case.top_content and 0 or nil,preset={header='NEOVIM\nGLOW'},sections=case.header and {{section='header'},{text='Dashboard body'}} or {{text='Dashboard body'}}}})
 else
   local buffers={}
   for i=1,case.buffers do
@@ -76,6 +80,9 @@ else
 end
 """, str(CONFIG), str(PLUGINS), case)
             editor.command("sleep 20m")
+            if case.get("resize_rows"):
+                editor.ui_try_resize(case["columns"], case["resize_rows"])
+                editor.command("sleep 30m")
             result = editor.exec_lua(r"""
 local case=...
 local raw=require('nvchad.tabufline.modules')()
@@ -84,7 +91,7 @@ local left=vim.api.nvim_eval_statusline(raw:sub(1,start-1),{use_tabline=true,max
 local right=vim.api.nvim_eval_statusline(raw:sub(finish+1),{use_tabline=true,maxwidth=case.columns}).width
 local drag=require('config.appearance.window_drag')
 _G.GlowWindowDrag=function(...) _G.route='drag';return drag.click(...) end
-vim.rpcnotify=function(_,method,packet) _G.last_packet=packet;_G.last_method=method end
+vim.rpcnotify=function(_,method,packet) _G.route='drag';_G.last_packet=packet;_G.last_method=method end
 for _,name in ipairs({'GoToBuf','KillBuf','GotoTab','NewTab','ToggleTabs','OpenGitHubProfile','Toggle_theme','SaveAndQuit'}) do
   vim.cmd('function! Tb'..name..'(a,b,c,d)\n lua _G.route="'..name..'"\n endfunction')
 end
@@ -103,11 +110,12 @@ return {showtabline=vim.o.showtabline,filetype=vim.bo.filetype,gap_start=left,ga
                 editor.command("sleep 1m")
                 route = editor.exec_lua("return {route=_G.route,packet=_G.last_packet,method=_G.last_method}")
                 expected = (not case.get("custom_mouse")) if case.get("dashboard") else result["gap_start"] <= column < result["gap_end"]
-                if case.get("top_content") and (10 <= column < 19 or 20 <= column < 24):
+                if case.get("top_content"):
                     expected = False
                 assert (route["route"] == "drag") == expected, (case, result, column, route)
                 if expected:
-                    assert route["packet"] == {"version": 1, "row": 0, "column": column}, route
+                    expected_packet = {"version": 2, "surface": "dashboard", "row": 0, "column": column} if case.get("version") == 2 else {"version": 1, "row": 0, "column": column}
+                    assert route["packet"] == expected_packet, route
                     assert route["method"] == "neovide.window.start_drag", route
                 elif route["route"]:
                     controls.add(route["route"])
@@ -117,6 +125,33 @@ return {showtabline=vim.o.showtabline,filetype=vim.bo.filetype,gap_start=left,ga
                 assert controls == {"custom_mouse"}, controls
             if case["buffers"]:
                 assert {"GoToBuf", "KillBuf"} <= controls, (case, controls)
+            extra_points = 0
+            if case.get("header"):
+                header = editor.exec_lua("for row,line in ipairs(vim.api.nvim_buf_get_lines(0,0,-1,false)) do if line:find('NEOVIM',1,true) then return vim.fn.screenpos(0,row,1).row end end")
+                assert header and header > 2, (case, header)
+                for row in range(1, header + 2):
+                    for col in [0, 12, 40, 79]:
+                        editor.exec_lua("_G.last_packet=nil")
+                        editor.api.input_mouse("left", "press", "", 0, row, col)
+                        editor.api.input_mouse("left", "release", "", 0, row, col)
+                        editor.command("sleep 1m")
+                        packet = editor.exec_lua("return _G.last_packet")
+                        should_drag = case.get("version") == 2 and row < header - 1
+                        assert bool(packet) == should_drag, (case, header, row, col, packet)
+                        if should_drag:
+                            assert packet == {"version": 2, "surface": "dashboard", "row": row, "column": col}
+                        extra_points += 1
+                if case.get("version") == 2:
+                    editor.exec_lua("local b=vim.api.nvim_create_buf(false,true);vim.api.nvim_open_win(b,false,{relative='editor',row=2,col=10,width=12,height=1,style='minimal'})")
+                    editor.command("redraw!")
+                    editor.exec_lua("_G.last_packet=nil")
+                    editor.api.input_mouse("left", "press", "", 0, 2, 12)
+                    editor.api.input_mouse("left", "release", "", 0, 2, 12)
+                    editor.command("sleep 1m")
+                    assert not editor.exec_lua("return _G.last_packet"), "floating component must keep mouse ownership"
+                    editor.exec_lua("for _,win in ipairs(vim.api.nvim_list_wins()) do if vim.api.nvim_win_get_config(win).relative~='' then vim.api.nvim_win_close(win,true) end end")
+            else:
+                header = None
             if case.get("dashboard") and not case.get("custom_mouse"):
                 for modifiers in ["S", "C", "A"]:
                     editor.exec_lua("_G.route=''")
@@ -129,7 +164,7 @@ return {showtabline=vim.o.showtabline,filetype=vim.bo.filetype,gap_start=left,ga
             editor.api.input_mouse("left", "release", "", 0, 1, 1)
             editor.command("sleep 1m")
             assert editor.exec_lua("return _G.route") != "drag", "dashboard/editor body must not request native move"
-            checks.append({"case": case["name"], "columns_checked": case["columns"], **result, "controls": sorted(controls)})
+            checks.append({"case": case["name"], "columns_checked": case["columns"], "extra_points_checked": extra_points, "header_screenrow": header, **result, "controls": sorted(controls)})
         finally:
             try:
                 editor.command("qa!")

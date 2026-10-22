@@ -287,12 +287,15 @@ impl MouseManager {
     }
 
     #[cfg(target_os = "windows")]
-    fn tabline_press(&self, state: &EditorState) -> Option<super::window_drag::TablinePress> {
+    fn window_drag_press(
+        &self,
+        state: &EditorState,
+    ) -> Option<super::window_drag::WindowDragPress> {
         if !self.enabled {
             log::debug!("Window drag press rejected: mouse input disabled");
             return None;
         }
-        super::window_drag::tabline_press_from_geometry(
+        super::window_drag::window_press_from_geometry(
             self.settings.get::<WindowSettings>().has_mouse_grid_detection,
             &state.full_region,
             self.get_window_details_under_mouse_raw(state),
@@ -633,7 +636,7 @@ impl MouseManager {
         {
             if mouse_button == MouseButton::Left {
                 if down {
-                    let press = self.tabline_press(editor_state);
+                    let press = self.window_drag_press(editor_state);
                     self.window_drag.press(press);
                 } else if self.window_drag.release() {
                     // Neovim's tabline callback deliberately absorbs this

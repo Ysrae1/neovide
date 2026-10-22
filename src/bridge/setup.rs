@@ -35,11 +35,17 @@ pub async fn setup_neovide_specific_state(
         .await
         .context("Could not communicate with neovim process")?;
     nvim.exec_lua(
-        "vim.g.neovide_window_drag_supported = ...; \
+        "local supported, version = ...; \
+         vim.g.neovide_window_drag_supported = supported; \
+         vim.g.neovide_window_drag_version = version; \
          vim.api.nvim_exec_autocmds('User', { pattern = 'NeovideWindowDragReady', modeline = false })",
         call_args![
             cfg!(target_os = "windows")
+                && settings.get::<crate::CmdLineSettings>().frame == crate::frame::Frame::None,
+            if cfg!(target_os = "windows")
                 && settings.get::<crate::CmdLineSettings>().frame == crate::frame::Frame::None
+                && api_information.version.has_version(0, 12, 0, Some(1264))
+            { 2 } else { 1 }
         ],
     )
     .await

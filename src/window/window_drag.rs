@@ -1,9 +1,17 @@
 use rmpv::Value;
 
-/// A tabline click, resolved by Neovim's own click definitions rather than
-/// guessing which painted text or highlight belongs to a button.
+/// A click explicitly authorized by the Neovim configuration: v1 tabline
+/// click definitions, or v2 blank dashboard space above its actual header.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WindowDragSurface {
+    Tabline,
+    Dashboard,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WindowDragRequest {
+    pub surface: WindowDragSurface,
+    pub row: u32,
     pub column: u32,
 }
 
@@ -11,22 +19,28 @@ impl WindowDragRequest {
     pub fn parse(arguments: &[Value]) -> Result<Self, &'static str> {
         let [snapshot] = arguments else { return Err("Expected one window-drag request") };
         let fields = snapshot.as_map().ok_or("Window-drag request must be a map")?;
-        if fields.len() != 3 {
-            return Err("Window-drag request needs version, row and column");
-        }
         let field = |name| {
             fields.iter().find_map(|(key, value)| (key.as_str() == Some(name)).then_some(value))
         };
-        if field("version").and_then(Value::as_u64) != Some(1)
-            || field("row").and_then(Value::as_u64) != Some(0)
-        {
-            return Err("Expected version 1 and root tabline row 0");
-        }
+        let row = field("row")
+            .and_then(Value::as_u64)
+            .filter(|row| *row < 65_536)
+            .ok_or("Invalid root row")? as u32;
+        let surface = match field("version").and_then(Value::as_u64) {
+            Some(1) if fields.len() == 3 && row == 0 => WindowDragSurface::Tabline,
+            Some(2)
+                if fields.len() == 4
+                    && field("surface").and_then(Value::as_str) == Some("dashboard") =>
+            {
+                WindowDragSurface::Dashboard
+            }
+            _ => return Err("Expected v1 root tabline row 0 or v2 dashboard surface"),
+        };
         let column = field("column")
             .and_then(Value::as_u64)
             .filter(|column| *column < 65_536)
-            .ok_or("Invalid tabline column")? as u32;
-        Ok(Self { column })
+            .ok_or("Invalid root column")? as u32;
+        Ok(Self { surface, row, column })
     }
 }
 
@@ -39,27 +53,29 @@ mod input {
         units::{GridScale, PixelPos, PixelRect},
     };
 
-    use super::WindowDragRequest;
+    use super::{WindowDragRequest, WindowDragSurface};
 
     // A delayed callback must never start moving a window after a stalled UI
     // resumes. A normal click-to-notification round trip is well below this.
     const MAX_REQUEST_AGE: Duration = Duration::from_millis(500);
 
     #[derive(Clone, Copy, Debug)]
-    pub struct TablinePress {
+    pub struct WindowDragPress {
+        pub root_input: bool,
+        pub row: u32,
         pub column: u32,
         pub bounds: PixelRect<f32>,
         pub at: Instant,
     }
 
-    pub fn tabline_press_from_geometry(
+    pub fn window_press_from_geometry(
         mouse_grid_detection: bool,
         full_region: &WindowDrawDetails,
         raw_region: Option<&WindowDrawDetails>,
         pointer: PixelPos<f32>,
         grid_scale: GridScale,
         now: Instant,
-    ) -> Option<TablinePress> {
+    ) -> Option<WindowDragPress> {
         // Neovim 0.12 resolves grid 0 input itself. Match the root coordinates
         // sent with that press; a renderer overlay is not its input target.
         // Older versions still use the topmost rendered grid for input.
@@ -69,16 +85,14 @@ mod input {
             return None;
         };
         let position = ((pointer - details.region.min).to_point() / grid_scale).floor();
-        let row = position.y;
+        let row = ((pointer.y - details.region.min.y) / grid_scale.height()).floor() as u32;
         if (!mouse_grid_detection && details.id > 1)
             || pointer.x < details.region.min.x
             || pointer.x >= details.region.max.x
             || pointer.y < details.region.min.y
             || pointer.y >= details.region.max.y
             || details.grid_size.width == 0
-            // Matrix inversion can round the first-row edge just below 1.0.
-            // Test the physical half-open row before flooring grid coordinates.
-            || pointer.y >= details.region.min.y + grid_scale.height()
+            || details.grid_size.height == 0
         {
             log::debug!(
                 "Window drag press rejected: mouse_grid_detection={mouse_grid_detection} grid={} row={row} pointer={pointer:?} region={:?}",
@@ -88,15 +102,19 @@ mod input {
             return None;
         }
         let column = (position.x as u32).min(details.grid_size.width - 1);
+        // Divide by the physical cell height directly: inverse transforms can
+        // round a row boundary just below its exact integer grid coordinate.
+        let row = row.min(details.grid_size.height - 1);
+        let top = details.region.min.y + row as f32 * grid_scale.height();
         let bounds = PixelRect::from_min_max(
-            details.region.min,
-            (details.region.max.x, details.region.min.y + grid_scale.height()),
+            (details.region.min.x, top),
+            (details.region.max.x, (top + grid_scale.height()).min(details.region.max.y)),
         );
         log::debug!(
             "Window drag press recorded: mouse_grid_detection={mouse_grid_detection} grid={} column={column} pointer={pointer:?} bounds={bounds:?}",
             details.id
         );
-        Some(TablinePress { column, bounds, at: now })
+        Some(WindowDragPress { root_input: mouse_grid_detection, row, column, bounds, at: now })
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -109,12 +127,12 @@ mod input {
 
     #[derive(Default)]
     pub struct WindowDragState {
-        press: Option<TablinePress>,
+        press: Option<WindowDragPress>,
         native_release_pending: bool,
     }
 
     impl WindowDragState {
-        pub fn press(&mut self, press: Option<TablinePress>) {
+        pub fn press(&mut self, press: Option<WindowDragPress>) {
             // Windows can consume the previous release in its native move
             // loop. A new press always starts a fresh editor interaction.
             self.native_release_pending = false;
@@ -157,10 +175,14 @@ mod input {
                 Some("primary button or OS modifier state")
             } else if !conditions.no_modifiers {
                 Some("cached modifiers")
+            } else if request.surface == WindowDragSurface::Dashboard && !press.root_input {
+                Some("dashboard requires root mouse coordinates")
+            } else if request.row != press.row {
+                Some("row mismatch")
             } else if request.column != press.column {
                 Some("column mismatch")
             } else if outside {
-                Some("pointer left tabline")
+                Some("pointer left pressed row")
             } else if age > MAX_REQUEST_AGE {
                 Some("stale press")
             } else {
@@ -188,7 +210,7 @@ mod input {
 }
 
 #[cfg(any(target_os = "windows", test))]
-pub use input::{DragConditions, TablinePress, WindowDragState, tabline_press_from_geometry};
+pub use input::{DragConditions, WindowDragPress, WindowDragState, window_press_from_geometry};
 
 #[cfg(target_os = "windows")]
 pub fn plain_left_button_down() -> bool {
@@ -245,20 +267,19 @@ mod tests {
         // Grid 0 input is resolved by Neovim. An overlapping rendered grid
         // must not change its root column or prevent recording the press.
         for raw in [Some(&overlay), None] {
-            let press = tabline_press_from_geometry(true, &root, raw, pointer, scale, now).unwrap();
+            let press = window_press_from_geometry(true, &root, raw, pointer, scale, now).unwrap();
             assert_eq!(press.column, 12);
             assert_eq!(press.bounds, PixelRect::from_min_max((3.0, 7.0), (803.0, 27.0)));
         }
         // Old Neovim receives grid-local input instead, so that overlay cannot
         // supply a root-tabline press even though its own first row is hit.
         assert!(
-            tabline_press_from_geometry(false, &root, Some(&overlay), pointer, scale, now)
-                .is_none()
+            window_press_from_geometry(false, &root, Some(&overlay), pointer, scale, now).is_none()
         );
-        assert!(tabline_press_from_geometry(false, &root, None, pointer, scale, now).is_none());
+        assert!(window_press_from_geometry(false, &root, None, pointer, scale, now).is_none());
         let legacy_root = WindowDrawDetails { id: 1, ..root.clone() };
         assert_eq!(
-            tabline_press_from_geometry(false, &root, Some(&legacy_root), pointer, scale, now)
+            window_press_from_geometry(false, &root, Some(&legacy_root), pointer, scale, now)
                 .unwrap()
                 .column,
             12
@@ -266,24 +287,28 @@ mod tests {
     }
 
     #[test]
-    fn window_drag_root_input_geometry_excludes_other_rows_and_outside_padding() {
+    fn window_drag_root_input_geometry_records_rows_and_excludes_outside_padding() {
         let now = Instant::now();
         let root = root_geometry();
         let scale = GridScale::new(PixelSize::new(10.0, 20.0));
-        for pointer in [
-            PixelPos::new(128.0, 27.0),
-            PixelPos::new(128.0, 6.0),
-            PixelPos::new(2.0, 17.0),
-            PixelPos::new(803.0, 17.0),
-        ] {
+        for pointer in
+            [PixelPos::new(128.0, 6.0), PixelPos::new(2.0, 17.0), PixelPos::new(803.0, 17.0)]
+        {
             assert!(
-                tabline_press_from_geometry(true, &root, None, pointer, scale, now).is_none(),
-                "outside top-row pixel: {pointer:?}"
+                window_press_from_geometry(true, &root, None, pointer, scale, now).is_none(),
+                "outside root grid pixel: {pointer:?}"
             );
         }
+        // Preserve the physical half-open edge when inverse scaling rounds
+        // the first-row boundary to a value just below 1.0.
+        let second =
+            window_press_from_geometry(true, &root, None, PixelPos::new(128.0, 27.0), scale, now)
+                .unwrap();
+        assert_eq!(second.row, 1);
+        assert_eq!(second.bounds, PixelRect::from_min_max((3.0, 27.0), (803.0, 47.0)));
         let empty_root = WindowDrawDetails { grid_size: GridSize::ZERO, ..root };
         assert!(
-            tabline_press_from_geometry(
+            window_press_from_geometry(
                 true,
                 &empty_root,
                 None,
@@ -307,7 +332,7 @@ mod tests {
     fn window_drag_request_rejects_other_rows_versions_and_malformed_packets() {
         assert_eq!(
             WindowDragRequest::parse(&packet(1, 0, 12)),
-            Ok(WindowDragRequest { column: 12 })
+            Ok(WindowDragRequest { surface: WindowDragSurface::Tabline, row: 0, column: 12 })
         );
         for bad in [packet(2, 0, 12), packet(1, 1, 12), packet(1, 0, -1), packet(1, 0, 65_536)] {
             assert!(WindowDragRequest::parse(&bad).is_err());
@@ -327,14 +352,20 @@ mod tests {
         DragConditions { frameless: true, focused: true, left_down: true, no_modifiers: true }
     }
 
-    fn press(at: Instant) -> TablinePress {
-        TablinePress { column: 12, bounds: PixelRect::from_min_max((0.0, 0.0), (800.0, 20.0)), at }
+    fn press(at: Instant) -> WindowDragPress {
+        WindowDragPress {
+            root_input: true,
+            row: 0,
+            column: 12,
+            bounds: PixelRect::from_min_max((0.0, 0.0), (800.0, 20.0)),
+            at,
+        }
     }
 
     #[test]
     fn window_drag_requires_current_plain_left_press_in_the_same_tabline() {
         let now = Instant::now();
-        let request = WindowDragRequest { column: 12 };
+        let request = WindowDragRequest { surface: WindowDragSurface::Tabline, row: 0, column: 12 };
         let pointer = PixelPos::new(125.0, 10.0);
         let mut state = WindowDragState::default();
         assert!(
@@ -351,7 +382,12 @@ mod tests {
             assert!(!state.begin(request, pointer, denied, now));
         }
         state.press(Some(press(now)));
-        assert!(!state.begin(WindowDragRequest { column: 13 }, pointer, conditions(), now));
+        assert!(!state.begin(
+            WindowDragRequest { surface: WindowDragSurface::Tabline, row: 0, column: 13 },
+            pointer,
+            conditions(),
+            now
+        ));
         assert!(!state.begin(request, PixelPos::new(125.0, 20.0), conditions(), now));
         assert!(!state.begin(request, pointer, conditions(), now + Duration::from_millis(501)));
         state.release();
@@ -364,7 +400,7 @@ mod tests {
     #[test]
     fn window_drag_consumes_its_release_once_and_does_not_swallow_the_next_click() {
         let now = Instant::now();
-        let request = WindowDragRequest { column: 12 };
+        let request = WindowDragRequest { surface: WindowDragSurface::Tabline, row: 0, column: 12 };
         let pointer = PixelPos::new(125.0, 10.0);
         let mut state = WindowDragState::default();
         state.press(Some(press(now)));
@@ -385,5 +421,63 @@ mod tests {
             !state.begin(request, pointer, conditions(), now),
             "focus loss invalidates queued requests"
         );
+    }
+
+    fn dashboard_packet(row: i64, column: i64, surface: &str) -> Vec<Value> {
+        let mut packet = packet(2, row, column);
+        if let Value::Map(fields) = &mut packet[0] {
+            fields.push(("surface".into(), surface.into()));
+        }
+        packet
+    }
+
+    #[test]
+    fn window_drag_v2_requires_explicit_dashboard_surface_and_valid_root_coordinates() {
+        let request =
+            WindowDragRequest { surface: WindowDragSurface::Dashboard, row: 7, column: 12 };
+        assert_eq!(WindowDragRequest::parse(&dashboard_packet(7, 12, "dashboard")), Ok(request));
+        for bad in [
+            dashboard_packet(7, 12, "tabline"),
+            dashboard_packet(-1, 12, "dashboard"),
+            dashboard_packet(65_536, 12, "dashboard"),
+            dashboard_packet(7, -1, "dashboard"),
+        ] {
+            assert!(WindowDragRequest::parse(&bad).is_err());
+        }
+        let mut extra = dashboard_packet(7, 12, "dashboard");
+        if let Value::Map(fields) = &mut extra[0] {
+            fields.push(("extra".into(), 1.into()));
+        }
+        assert!(WindowDragRequest::parse(&extra).is_err());
+    }
+
+    #[test]
+    fn window_drag_dashboard_requires_the_same_fresh_root_press_row_and_column() {
+        let now = Instant::now();
+        let root = root_geometry();
+        let scale = GridScale::new(PixelSize::new(10.0, 20.0));
+        let pointer = PixelPos::new(128.0, 157.0);
+        let press = window_press_from_geometry(true, &root, None, pointer, scale, now).unwrap();
+        assert_eq!(press.row, 7);
+        let request =
+            WindowDragRequest { surface: WindowDragSurface::Dashboard, row: 7, column: 12 };
+        let mut state = WindowDragState::default();
+        state.press(Some(press));
+        assert!(!state.begin(WindowDragRequest { row: 6, ..request }, pointer, conditions(), now));
+        assert!(!state.begin(
+            WindowDragRequest { column: 13, ..request },
+            pointer,
+            conditions(),
+            now
+        ));
+        assert!(!state.begin(request, PixelPos::new(128.0, 167.0), conditions(), now));
+        assert!(!state.begin(request, pointer, conditions(), now + Duration::from_millis(501)));
+        state.press(Some(WindowDragPress { root_input: false, ..press }));
+        assert!(!state.begin(request, pointer, conditions(), now));
+        state.press(Some(press));
+        assert!(state.begin(request, pointer, conditions(), now));
+        assert!(state.release());
+        assert!(!state.release());
+        assert!(!state.begin(request, pointer, conditions(), now));
     }
 }
