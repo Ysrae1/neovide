@@ -21,7 +21,8 @@
 - Mac本源／portable各6项语言定向检查、启动时序检查通过；最终统一隔离回归32/32通过。两端共24项主题／材质／字体等参数文件与整理前SHA相同，Git空白检查通过。语言测试修正原fixture的早期leader假设，基线同样失败的复现与原始数据均保留。证据 `target/glow-config-structure-20261023/`。
 - Windows已按自己本源完成17项窄迁移，保留 `NEOVIDE_GLOW_INIT` 前置钩子，只有该端原有的9个语言内部模块归档（不补Mac专用菜单模块）；ARM64／x64各6项定向通过。149旧文件原样保留，8项主题／材质参数SHA不变，未热载用户窗口。新入口在下次启动完整生效；两架构隔离检查保留缺markdown_inline及日志目录提示的边界。最终166文件配置ZIP、SHA清单与两架构前端副本位于Windows本地 `C:\GlowDev\Freeze-20261023-gm1`，收据 `target/glow-freeze-20261023/windows-final.json`；前端仍来自 `b534ddf`，不冒称新源码重编。
 - Mac标准暂存流程在隔离源码 `430c5e3d` 上完成generic arm64候选，最低macOS11.0、App／DMG ad-hoc签名、只读挂载与校验通过；DMG SHA `fefcb99277f68c4b83c5a71b7873601fc9a882f8cc55a979c97dcb6b6da52d27`。构建只改脚本副本CPU选项，未运行安装或用户Sketch同步；期间安装App文件改变，实际检查排除符号／硬链接后，用户明确确认自己手动安装，来源已闭合，CLI不变。旧候选、构建与核验回执在 `target/glow-release-20261023/mac-build/`。
-- 新候选标识为 `glow-stack-20261023-gm1`，Mac配置为 `a5ec5994`。发行流程先建立草稿，Windows安装引导测试与发布页丰富工作分别进入独立聊天；当前不开放未经新引导验收的Windows安装包，既有标签／公开发行资产保留。
+- 冻结标签 `glow-stack-20261023-gm1` 已推送：源码／portable `6cc4d40`，Mac配置 `a5ec5994`；Mac App实际编译源码为 `430c5e3d`。同名[发行草稿](https://github.com/Ysrae1/neovide/releases/tag/untagged-17b1845f3b1fa2763c88)已建立并完成9项资产上传（最终校验见 `target/glow-release-20261023/receipt.json`）；241项包内文件与单文件载荷逐项校验、Mac／WSL安装计划、4项字体保护检查通过，不执行联网安装。旧标签及公开发行资产保留，未公开发布未经新引导验收的Windows安装包。
+- 独立聊天已启动：[Windows安装流程引导](codex://threads/01a167d4-31a6-7d20-bc27-38162a31a134)接续安装步骤、依赖检测／复用、首次使用和错误恢复，负责Windows安装器与对应测试；[发布页功能展示与快捷键手册](codex://threads/01a167c6-bb75-7543-8695-46d79c0dbe2f)负责showcase，先详尽盘点主功能，再制作HTML动画、平台可查快捷键与场景介绍，暂不部署。两个聊天不操作当前冻结标签／发行资产或用户已有主题；本主聊天完成后无自有构建／runner／挂载残留。
 
 ### 2026-10-23 Windows 树焦点主题刷新、Neo-tree 提示字色接口（Codex）
 
