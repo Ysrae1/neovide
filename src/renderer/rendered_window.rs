@@ -1172,9 +1172,12 @@ fn draw_line_foreground<'a>(
     let mut icons = Vec::new();
     let mut caps = Vec::new();
     let mut foreground = Vec::new();
+    let mut captions: Vec<(Range<u32>, Option<Rect>)> = Vec::new();
     let mut reference_outlines: Vec<(Range<u32>, Color4f)> = Vec::new();
     for fragment in fragments {
         let style = fragment.style.as_ref().unwrap_or(&renderer.default_style);
+        let centered_caption = style.centered_caption;
+        let solid_cap = style.avante_solid_cap;
         if style.reference_outline && !fragment.cells.is_empty() {
             let color = style.special(&renderer.default_style.colors);
             if let Some((cells, previous_color)) = reference_outlines.last_mut()
@@ -1188,7 +1191,20 @@ fn draw_line_foreground<'a>(
                 reference_outlines.push((fragment.cells.clone(), color));
             }
         }
-        if style.avante_solid_cap && crate::renderer::box_drawing::is_box_char(fragment.text) {
+        if centered_caption {
+            let ink = renderer.foreground_ink_bounds(&fragment);
+            if let Some((cells, previous)) = captions.last_mut()
+                && cells.end == fragment.cells.start
+            {
+                cells.end = fragment.cells.end;
+                if let Some(ink) = ink {
+                    *previous = Some(previous.map_or(ink, |bounds| Rect::join2(bounds, ink)));
+                }
+            } else {
+                captions.push((fragment.cells.clone(), ink));
+            }
+        }
+        if solid_cap && crate::renderer::box_drawing::is_box_char(fragment.text) {
             caps.push(fragment);
         } else {
             foreground.push(fragment);
@@ -1228,8 +1244,30 @@ fn draw_line_foreground<'a>(
             icons.push(fragment);
             continue;
         }
+        // Move the whole declared caption, including multiple fallback/style
+        // runs, by one measured ink offset. Backgrounds, grid cells, borders
+        // and ordinary text retain their original geometry.
+        let centered_caption = style.centered_caption;
+        if centered_caption {
+            text_canvas.save();
+        }
+        if centered_caption
+            && let Some((cells, Some(ink))) = captions.iter().find(|(cells, _)| {
+                cells.start <= fragment.cells.start && cells.end >= fragment.cells.end
+            })
+        {
+            let left = (cells.start as f32 * renderer.grid_scale.width()).round();
+            let right = (cells.end as f32 * renderer.grid_scale.width()).round();
+            // Integer translation preserves the measured hinted pixels. A
+            // fractional move would rasterize again with different edge ink.
+            let shift = ((left + right) / 2.0 - ink.center_x()).round();
+            text_canvas.translate((shift, 0.0));
+        }
         let (text, boxes) =
             renderer.draw_foreground(text_canvas, boxchar_canvas, &fragment, position, opacity);
+        if centered_caption {
+            text_canvas.restore();
+        }
         text_drawn |= text;
         boxchar_drawn |= boxes;
     }
@@ -1333,6 +1371,10 @@ fn push_fill_rect_path(builder: &mut PathBuilder, bounds: &mut Option<Rect>, rec
 #[cfg(test)]
 #[path = "rendered_window_enlarged_icon_tests.rs"]
 mod enlarged_icon_tests;
+
+#[cfg(all(test, target_os = "macos"))]
+#[path = "rendered_window_caption_tests.rs"]
+mod caption_tests;
 
 #[cfg(test)]
 mod tests {

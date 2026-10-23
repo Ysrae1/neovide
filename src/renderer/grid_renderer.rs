@@ -1,8 +1,9 @@
-use std::{ops::Range, sync::Arc};
+use std::{num::NonZeroUsize, ops::Range, sync::Arc};
 
 use log::trace;
+use lru::LruCache;
 use skia_safe::{
-    BlendMode, Canvas, Color, Color4f, HSV, Paint, PathBuilder, colors, dash_path_effect,
+    BlendMode, Canvas, Color, Color4f, HSV, Paint, PathBuilder, Rect, colors, dash_path_effect,
 };
 
 use crate::{
@@ -19,7 +20,21 @@ use crate::{
     window::WindowSettings,
 };
 
-use super::{box_drawing::BoxDrawingSettings, fonts::font_options::FontOptions};
+use super::{
+    box_drawing::BoxDrawingSettings,
+    fonts::font_options::{CoarseStyle, FontOptions},
+};
+
+#[derive(Hash, PartialEq, Eq)]
+struct CaptionInkKey {
+    text: String,
+    cells: Range<u32>,
+    // Preserve the UI's actual word/cluster placement, including wide-cell
+    // continuations; identical text alone does not describe its line geometry.
+    words: Vec<(u32, Vec<(usize, usize)>)>,
+    style: CoarseStyle,
+    cell_width: u32,
+}
 
 pub struct GridRenderer {
     pub shaper: CachingShaper,
@@ -30,6 +45,9 @@ pub struct GridRenderer {
     pub is_ready: bool,
 
     settings: Arc<Settings>,
+    caption_ink_cache: LruCache<CaptionInkKey, Option<Rect>>,
+    #[cfg(test)]
+    pub(super) caption_raster_count: usize,
 }
 
 /// Struct with named fields to be returned from draw_background
@@ -66,6 +84,9 @@ impl GridRenderer {
             is_ready: false,
 
             settings,
+            caption_ink_cache: LruCache::new(NonZeroUsize::new(256).unwrap()),
+            #[cfg(test)]
+            caption_raster_count: 0,
         }
     }
 
@@ -98,6 +119,9 @@ impl GridRenderer {
     }
 
     fn update_font_dimensions(&mut self) {
+        // Font family, size, hinting/edging, OS/user scale and linespace all
+        // pass this boundary. Theme/color changes do not affect alpha bounds.
+        self.caption_ink_cache.clear();
         self.em_size = self.shaper.current_size();
         self.grid_scale = GridScale::new(self.shaper.font_base_dimensions());
         let new_cell_size = GridSize::new(1, 1) * self.grid_scale;
@@ -214,6 +238,91 @@ impl GridRenderer {
             .set_color(color.to_color());
         canvas.draw_rect(region, &paint);
         true
+    }
+
+    /// Measure the actual hinted ink of the same cached font runs used for
+    /// drawing. Blob bounds are conservative and can leave a two-pixel visual
+    /// imbalance after CJK fallback. Only invalidated caption lines use this
+    /// small raster; their ordinary line pictures remain cached between draws.
+    pub fn foreground_ink_bounds(&mut self, fragment: &LineFragment) -> Option<Rect> {
+        let key = CaptionInkKey {
+            text: fragment.text.to_owned(),
+            cells: fragment.cells.clone(),
+            words: fragment
+                .words()
+                .map(|word| {
+                    (
+                        word.cell,
+                        word.grapheme_clusters().map(|(cell, text)| (cell, text.len())).collect(),
+                    )
+                })
+                .collect(),
+            style: fragment.style.as_ref().unwrap_or(&self.default_style).into(),
+            cell_width: self.grid_scale.width().to_bits(),
+        };
+        if let Some(bounds) = self.caption_ink_cache.get(&key) {
+            return *bounds;
+        }
+        let bounds = self.measure_foreground_ink_bounds(fragment);
+        self.caption_ink_cache.put(key, bounds);
+        bounds
+    }
+
+    fn measure_foreground_ink_bounds(&mut self, fragment: &LineFragment) -> Option<Rect> {
+        let style = fragment.style.as_ref().unwrap_or(&self.default_style);
+        let mut bounds: Option<Rect> = None;
+        let mut runs = Vec::new();
+        for word in fragment.words() {
+            let x = (fragment.cells.start + word.cell) as f32 * self.grid_scale.width();
+            for blob in self.shaper.shape_cached(word, style.into()) {
+                let ink = blob.bounds().with_offset((x, 0.0));
+                if !ink.is_empty() {
+                    bounds = Some(bounds.map_or(ink, |previous| Rect::join2(previous, ink)));
+                    runs.push((blob.clone(), x));
+                }
+            }
+        }
+        let bounds = bounds?;
+        let left = bounds.left.floor() - 1.0;
+        let top = bounds.top.floor() - 1.0;
+        let width = (bounds.right.ceil() + 1.0 - left) as i32;
+        let height = (bounds.bottom.ceil() + 1.0 - top) as i32;
+        // A title is clipped to a finite UI line. Keep malformed/oversized
+        // third-party declarations from creating an unbounded scratch image.
+        if !(1..=16_384).contains(&width)
+            || !(1..=4_096).contains(&height)
+            || i64::from(width) * i64::from(height) > 4 * 1024 * 1024
+        {
+            return Some(bounds);
+        }
+        let Some(mut surface) = skia_safe::surfaces::raster_n32_premul((width, height)) else {
+            return Some(bounds);
+        };
+        #[cfg(test)]
+        {
+            self.caption_raster_count += 1;
+        }
+        surface.canvas().clear(Color::TRANSPARENT);
+        let mut paint = Paint::default();
+        paint.set_color(Color::WHITE).set_anti_alias(false);
+        for (blob, x) in runs {
+            surface.canvas().draw_text_blob(&blob, (x - left, -top), &paint);
+        }
+        let Some(pixels) = surface.peek_pixels() else {
+            return Some(bounds);
+        };
+        let (mut min, mut max) = (width, -1);
+        for y in 0..height {
+            for x in 0..width {
+                if pixels.get_color((x, y)).a() > 0 {
+                    min = min.min(x);
+                    max = max.max(x);
+                }
+            }
+        }
+        (max >= min).then(|| {
+            Rect::new(left + min as f32, bounds.top, left + (max + 1) as f32, bounds.bottom)
+        })
     }
 
     /// Draws some foreground text.

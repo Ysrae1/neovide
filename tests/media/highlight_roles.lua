@@ -2,8 +2,10 @@
 local config = assert(vim.env.GLOW_TEST_CONFIG)
 vim.opt.rtp = { config, vim.env.VIMRUNTIME }
 vim.g.neovide_reference_outline_supported = nil
+vim.g.neovide_centered_caption_supported = nil
 local roles = require("config.appearance.render_roles")
 assert(not roles.groups().LspReferenceText, "old GUI must not receive unknown roles")
+assert(not roles.groups().GlowPickerPromptTitle, "old GUI must not receive caption roles")
 local messages = {}
 local notify = vim.rpcnotify
 vim.rpcnotify = function(channel, method, packet)
@@ -15,6 +17,12 @@ vim.g.neovide_channel_id = 41
 vim.g.neovide_highlight_roles = nil
 dofile("lua/highlight_roles.lua")
 local expected = roles.groups()
+local captions = 0
+for _, value in pairs(expected) do
+  if value[1] == "centered_caption" then captions = captions + 1 end
+end
+assert(captions == 12, "only six picker names and their six popup derivatives")
+assert(not expected.GlowNotebookExpand and not expected.Normal, "caption role leaked into other text")
 assert(vim.deep_equal(messages[#messages].packet.groups, expected), "old config compatibility map")
 assert(vim.g.neovide_highlight_roles_version == 1)
 require("config.appearance.render_roles").setup()
@@ -39,8 +47,10 @@ roles.setup()
 assert(not messages[#messages].packet.groups.LspReferenceText, "outline switch removes native role")
 references.outline = true
 vim.g.neovide_reference_outline_supported = nil
+vim.g.neovide_centered_caption_supported = nil
 roles.setup()
 assert(not messages[#messages].packet.groups.LspReferenceText, "early config waits for capability")
+assert(not messages[#messages].packet.groups.GlowPickerPromptTitle, "old frontend receives no unknown caption role")
 dofile("lua/highlight_roles.lua")
 assert(vim.deep_equal(messages[#messages].packet.groups, expected), "native-ready event republishes early config")
 vim.rpcnotify = notify

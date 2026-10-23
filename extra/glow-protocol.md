@@ -39,6 +39,7 @@ neovide.set_highlight_roles({
   MyActionTitle = { "notebook_actions" },
   MySolidCap = { "solid_title_cap" },
   MyReference = { "reference_outline" },
+  MyCaption = { "centered_caption" },
 })
 ```
 
@@ -47,6 +48,8 @@ neovide.set_highlight_roles({
 本机与 portable 的 `config.appearance.render_roles` 集中声明现有主题组。新 GUI 的 `lua/highlight_roles.lua` 为旧配置提供兼容默认声明，并在 VimEnter／ColorScheme 重发；旧 GUI 没有 setter 时，配置仅保存声明，继续使用旧渲染路径。更改主题组名时同步 Lua 声明即可，不需要修改 Rust 组名字符串。
 
 `reference_outline` 将连续引用格合为一个细矩形，不因语法前景或当前行背景分片而产生内部竖线；普通格间隔及 `sp` 颜色变化会开始另一框。描边使用高亮的 `sp`（未设置时回退前景），宽度固定一个物理像素，完整保留在字格内，不继承背景 `blend`。原生端在加载声明脚本时设置 `g:neovide_reference_outline_supported=true`，完成 setter 初始化后触发 `User NeovideHighlightRolesReady`；新配置仅在能力标记存在时发送此角色，避免旧 GUI 因未知角色拒绝整包声明。内置兼容默认映射覆盖 `LspReferenceText/Read/Write`。
+
+`centered_caption` 只将连续声明标题的实际文字墨迹水平居中于原有标题格范围，合并该段的所有字体／高亮 run 后统一平移；字体、字间排布、背景宽度、边框和窗口位置不变。标题行失效重绘时以小型透明 raster 测量实际 hinted alpha 边界（避免保守 glyph bounds 的额外误差），按整数像素移动以保留其抗锯齿，静态行沿用缓存。它修正 CJK fallback 字形 advance 小于两格而造成的右侧额外空白。配置仅在 `g:neovide_centered_caption_supported=true` 时声明，旧 GUI 保留原来的相同左右空格，不发送未知角色。现有声明只覆盖三类 `GlowPicker*Title`、三类 `Telescope*Title` 及 popup 层对这六个名字派生的 chunk-only 组；普通正文、Notebook 与任意同色组均不参与。
 
 终端中的圆角端帽由字符绘制，端帽背景会填满整个矩形字格。`config.appearance.capsules` 在主题兼容层刷新时统一 minimal/round 状态栏左端帽与 Avante 的 `Reversed*Title`：端帽只保留既有前景和样式，外侧背景继承所在栏，与原本正确的右端帽一致。实心主体、文字及调色板不变。Neovide 跳过这项终端修正，继续使用自己的字形与材质处理；媒体和 Notebook 的端帽已使用透明背景，无需另设覆盖。
 
@@ -57,6 +60,7 @@ neovide.set_highlight_roles({
 | `GlowNotebookCells*`、`Prev`、`Next`、`Menu*` | Notebook 顶栏 | `notebook_actions`：操作域对齐；名称集合在 Lua 显式声明，不将任意前缀自动当作角色 |
 | `AvanteReversedTitle`、`Subtitle`、`ThirdTitle`、状态栏 `St_*ModeSep`／`St_*_sep`／`St_sep_r` | `config.appearance.render_roles` 与 `transparency` | `solid_title_cap`：端帽保持实心并位于普通图标下方，外侧沿用玻璃底材 |
 | `LspReferenceText`、`LspReferenceRead`、`LspReferenceWrite` | `config.appearance.render_roles` 与 `editor_highlights.references` | `reference_outline`：引用词的单像素外框，颜色由对应高亮 `sp` 控制 |
+| 六个 picker 语义标题组及其 popup 派生组 | `config.appearance.render_roles` | `centered_caption`：只移动标题文字，使实际字形左右留白相等 |
 | `SnacksPickerInput/List/Preview` 及其 `Border`，`SnacksPickerBox{,Border}` | 固定版本 Snacks 的窗口局部 `winhighlight` | `lua/float_shadow.lua` 从窗口角色识别组合面板；RPC `neovide.window.shadow_exclusions` 传递窗口 ID，Rust 按窗口 ID 处理阴影 |
 
 Snacks 的链接高亮可能只留下 `NormalFloat` 等通用名字，因此其窗口角色仍在 Lua 层读取，Rust 按窗口 ID 处理。不要将这些已有适配扩展为所有同色或任意插件浮窗的隐式规则。角色声明检查见 `tests/media/highlight_roles.lua` 与 Rust `highlight_roles`、样式替换和像素回归。

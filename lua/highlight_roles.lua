@@ -1,6 +1,7 @@
 -- A capability flag lets new configurations avoid sending an unsupported role
 -- to older GUI builds, whose role snapshots reject unknown entries atomically.
 vim.g.neovide_reference_outline_supported = true
+vim.g.neovide_centered_caption_supported = true
 
 -- Versioned declarations keep theme names out of the native renderer. These
 -- defaults preserve older Glow configurations; a configuration can replace the
@@ -11,6 +12,11 @@ local function assign(names, role)
 end
 assign({ "GlowNotebookLanguage", "GlowNotebookMarkdown" }, "enlarged_icon")
 assign({ "LspReferenceText", "LspReferenceRead", "LspReferenceWrite" }, "reference_outline")
+for _, name in ipairs({ "GlowPickerPromptTitle", "GlowPickerPreviewTitle", "GlowPickerResultsTitle",
+    "TelescopePromptTitle", "TelescopePreviewTitle", "TelescopeResultsTitle" }) do
+    defaults[name] = { "centered_caption" }
+    defaults["GlowPopupCaption_" .. vim.fn.sha256(name):sub(1, 20)] = { "centered_caption" }
+end
 assign({ "AvanteReversedTitle", "AvanteReversedSubtitle", "AvanteReversedThirdTitle" }, "solid_title_cap")
 assign({ "St_file_sep", "St_Pos_sep", "St_cwd_sep", "St_lsp_sep", "St_sep_r" }, "solid_title_cap")
 for _, mode in ipairs({ "Normal", "Visual", "Insert", "Terminal", "NTerminal", "Replace", "Confirm", "Command", "Select" }) do
