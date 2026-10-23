@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "stack_id": "neovide-glow-20261021-preview1",
+  "stack_id": "neovide-glow-20261023-gm1",
   "neovide": {
     "repo": "https://github.com/Ysrae1/neovide.git",
-    "commit": "955e75faf91a518699abc2cc6ad4ac9c240b5671",
+    "commit": "430c5e3d1f9fe6a245ac9d0c9a9a4e6742d11652",
     "rust_toolchain": "1.99.1",
     "macos_dmg": {
       "path": "payload/Neovide.dmg",
-      "sha256": "257ca1c5aa4c103c0dd451eb4509e97707610e0cbbafd9e5888b84d00fcdd4fe",
+      "sha256": "fefcb99277f68c4b83c5a71b7873601fc9a882f8cc55a979c97dcb6b6da52d27",
       "architecture": "arm64",
       "minimum_macos": "11.0",
       "native_layered_icon_macos": "26+",
       "notarized": false,
-      "url": "https://github.com/Ysrae1/neovide/releases/download/glow-macos-20261021-preview1/Neovide-Glow-macOS-arm64.dmg",
+      "url": "https://github.com/Ysrae1/neovide/releases/download/glow-stack-20261023-gm1/Neovide-Glow-macOS-arm64.dmg",
       "build_cpu": "generic"
     }
   },
@@ -400,10 +400,10 @@
     "notebook_python_versions": true,
     "notebook_python_distribution_hashes": false
   },
-  "release_tag": "glow-macos-20261021-preview1",
+  "release_tag": "glow-stack-20261023-gm1",
   "configuration": {
     "repo": "https://github.com/Ysrae1/LazyVim.git",
-    "commit": "5687116f97156745fae6c4dcfc084e3cadd853ef",
-    "tag": "glow-macos-20261021-preview1"
+    "commit": "a5ec59947e127c8e647a928168d2fe78b20f024d",
+    "tag": "glow-stack-20261023-gm1"
   }
 }

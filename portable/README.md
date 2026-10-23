@@ -1,5 +1,7 @@
 # Neovide Glow 便携环境安装包
 
+当前正在准备 **`glow-stack-20261023-gm1` 发布候选**：包含本轮配置结构整理及 Mac／Windows 修复。Mac 候选资产与来源以新发行草稿为准；Windows x64／ARM64 已保存各自原生前端，安装流程引导将在独立对话继续测试，尚未开放新版安装包。Windows 既有配置和配色不由 Mac 默认值覆盖。以下旧公开预览说明保留作已发行版本记录。
+
 保留自定义 Glow、浅色原生分层图标、Neovim 外观、快捷键和 Avante Codex 侧栏的可迁移快照。本次 `glow-macos-20261021-preview1` 仅交付 Apple Silicon Mac 预览版。Windows x64 搭配 Ubuntu 24.04 WSL2 的既有源码安装说明仍保留；新版 Windows 原生前端和精简安装器尚待验收，Linux 开发暂缓。
 
 不需要预先安装 Neovim、Yazi 或字母雨程序。安装器会下载并校验清单锁定的 Neovim 与运行库，再安装配置和插件；已有系统 Neovim 也不会被替换。全新电脑仍需先按部署说明准备系统编译工具与启动安装器的 Python；Windows 还需完成 WSL2／Ubuntu 首次设置。

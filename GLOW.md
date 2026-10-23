@@ -6,7 +6,7 @@
 
 > 2026-10-23，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据实际回执，不将源码／协议检查写成实际界面验收。周额度重置后先修复 Fzf 与 TeX 双向搜索；随后按用户“开始做”的新授权补齐 Windows ARM64 插件与 Notebook 依赖。2026-10-21 停止／归档记录仍作历史保留，Linux 原生开发继续暂缓。
 
-- Mac 磁盘 App 当前核对为 `nightly-210+gb534ddf-dirty`，与本轮标准流程暂存 App 的 SHA 相同；本轮未执行安装命令，复制来源未确认，CLI 仍为旧版。此前菜单及 PDF 界面验收保留历史结论，本轮标题居中仍待用户重开后的 GUI 验收。Windows 配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留。
+- Mac 磁盘 App 当前核对为 `nightly-211+g430c5e3-dirty`，与本轮 generic 候选 App 的 SHA 相同；用户已确认本轮约16:06手动安装，agent未执行安装命令，CLI 仍为旧版。此前菜单及 PDF 界面验收保留历史结论，本轮标题居中仍待用户重开后的 GUI 验收。Windows 配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留。
 - Windows Telescope、顶部空白拖窗、小窗／边缘缩放及透明圆角修复已分别交付；实时缩放 `1dbe658` 的基础上新增 dashboard 标题上方空白拖窗 `73dcbd1`，已纳入两架构前端。ARM64 动画、缩放／语言继承及桌面无控制台入口已补齐；此前按用户要求跳过 dashboard 多高度 Windows GUI，未将其记作通过，后续 Snap 待验见下节。
 - Windows 内嵌 PDF 双向搜索现已实现，功能源码 `fdeece58` 由最新两架构 Snap 修复版继承，三份查看路由配置已部署；此前 ARM64 实际 WebView2 的定位／回源和草稿保护通过，x64 实际加载／关闭通过，实体鼠标尚未验。Sumatra 保留为显式可选回退，详见下节。
 - Windows ARM64 原生插件、Notebook 私有环境与 24 项 Mason 工具已补齐并部署；Java 已补到 Mac、Windows ARM64／x64，当前统一清单及两份 Windows 实际 profile 均为57个语法解析库。普通 ARM64 配置实际启动检查通过；部分进程外工具保留 x64 兼容，GUI 图片显示及在线 AI 对话未验。详见下节。
@@ -19,7 +19,9 @@
 - 整理前 Mac 配置／源码快照在 `target/glow-freeze-20261023/before-structure/`；Windows 已保存的164文件在该端 `C:\GlowDev\Freeze-20261023-before-structure`，逐文件与ZIP校验通过，未保存缓冲区为0。两端参数独立保留，Windows用户主题未复制回Mac／portable。
 - `init.lua` 统一委托 `config.bootstrap.setup()`，原启动先后顺序不变；六项媒体注册统一进入 `config.media.setup()`。10个语言内部实现／词典归入 `config/locale/`，保留 `config.platform.locale` 公共入口、早晚两次setup、公开reload身份和Notebook Python桥接，未进行Notebook内部模块搬迁。
 - Mac本源／portable各6项语言定向检查、启动时序检查通过；最终统一隔离回归32/32通过。两端共24项主题／材质／字体等参数文件与整理前SHA相同，Git空白检查通过。语言测试修正原fixture的早期leader假设，基线同样失败的复现与原始数据均保留。证据 `target/glow-config-structure-20261023/`。
-- Windows结构迁移与双架构原生检查正在独占runner执行；Mac候选使用隔离源码与标准暂存流程，尚未开始构建。新候选标识为 `glow-stack-20261023-gm1`，当前未创建公开发行、不替换本机安装，既有标签／发行资产保留。
+- Windows已按自己本源完成17项窄迁移，保留 `NEOVIDE_GLOW_INIT` 前置钩子，只有该端原有的9个语言内部模块归档（不补Mac专用菜单模块）；ARM64／x64各6项定向通过。149旧文件原样保留，8项主题／材质参数SHA不变，未热载用户窗口。新入口在下次启动完整生效；两架构隔离检查保留缺markdown_inline及日志目录提示的边界。最终166文件配置ZIP、SHA清单与两架构前端副本位于Windows本地 `C:\GlowDev\Freeze-20261023-gm1`，收据 `target/glow-freeze-20261023/windows-final.json`；前端仍来自 `b534ddf`，不冒称新源码重编。
+- Mac标准暂存流程在隔离源码 `430c5e3d` 上完成generic arm64候选，最低macOS11.0、App／DMG ad-hoc签名、只读挂载与校验通过；DMG SHA `fefcb99277f68c4b83c5a71b7873601fc9a882f8cc55a979c97dcb6b6da52d27`。构建只改脚本副本CPU选项，未运行安装或用户Sketch同步；期间安装App文件改变，实际检查排除符号／硬链接后，用户明确确认自己手动安装，来源已闭合，CLI不变。旧候选、构建与核验回执在 `target/glow-release-20261023/mac-build/`。
+- 新候选标识为 `glow-stack-20261023-gm1`，Mac配置为 `a5ec5994`。发行流程先建立草稿，Windows安装引导测试与发布页丰富工作分别进入独立聊天；当前不开放未经新引导验收的Windows安装包，既有标签／公开发行资产保留。
 
 ### 2026-10-23 Windows 树焦点主题刷新、Neo-tree 提示字色接口（Codex）
 

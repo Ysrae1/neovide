@@ -25,6 +25,86 @@ local draft = vim.api.nvim_get_current_buf()
 vim.api.nvim_buf_set_lines(draft, 0, -1, false, { "unsaved startup fixture" })
 local changedtick = vim.api.nvim_buf_get_changedtick(draft)
 
+-- An independently maintained platform configuration can retain its own native
+-- integrations. Compare its frozen entry point with the reorganized one instead
+-- of imposing the shared defaults below on that configuration.
+local baseline = vim.env.GLOW_BOOTSTRAP_BASELINE_CONFIG
+if baseline then
+  local original_hook = vim.env.NEOVIDE_GLOW_INIT
+  local hook_file = vim.fn.tempname() .. ".lua"
+  vim.fn.writefile({ "assert(_G.__glow_bootstrap_hook)()" }, hook_file)
+  vim.env.NEOVIDE_GLOW_INIT = hook_file
+  local ok, err = xpcall(function()
+    for _, case in ipairs({
+      { name = "Mac GUI", gui = true, platform = "mac" },
+      { name = "Windows GUI", gui = true, platform = "windows" },
+      { name = "Linux GUI", gui = true, platform = "linux" },
+      { name = "terminal", gui = false, platform = "windows" },
+    }) do
+      local function run_entry(root)
+        local trace, options = {}, {}
+        local function record(value)
+          if value ~= "config.bootstrap" and value ~= "config.media" then
+            trace[#trace + 1] = value
+          end
+        end
+        _G.__glow_bootstrap_hook = function() record("NEOVIDE_GLOW_INIT") end
+        vim.g.neovide = case.gui
+        vim.fn.has = function(name)
+          if name == "win32" then return case.platform == "windows" and 1 or 0 end
+          if name == "macunix" then return case.platform == "mac" and 1 or 0 end
+          return original_has(name)
+        end
+        for name, path in pairs(native) do
+          local module, source = name, path
+          package.loaded[module] = nil
+          package.preload[module] = function()
+            record(module)
+            return assert(loadfile(root .. "/" .. source))()
+          end
+        end
+        for _, name in ipairs(providers) do
+          local module = name
+          package.loaded[module] = nil
+          package.preload[module] = function()
+            record(module)
+            return {
+              setup = function(opts)
+                record(module .. ".setup")
+                options[module] = opts
+              end,
+              load_scale_factor = load_scale,
+              save_scale_factor = save_scale,
+            }
+          end
+        end
+        assert(loadfile(root .. "/init.lua"))()
+        local first = trace
+        trace = {}
+        assert(loadfile(root .. "/init.lua"))()
+        return { first = first, repeated = trace, options = options }
+      end
+      local before, after = run_entry(baseline), run_entry(config)
+      assert(vim.deep_equal(before, after), case.name .. " differs from its own frozen startup:\n"
+        .. vim.inspect({ before = before, after = after }))
+      assert(vim.api.nvim_get_current_buf() == draft and vim.bo[draft].modified, "startup wiring changed the draft")
+      assert(vim.api.nvim_buf_get_changedtick(draft) == changedtick, "startup wiring edited the draft")
+      receipt.cases[#receipt.cases + 1] = case.name .. ": frozen feature order/options, pre-init hook and cached re-entry preserved"
+    end
+  end, debug.traceback)
+  vim.fn.has, vim.env.NEOVIDE_GLOW_INIT = original_has, original_hook
+  _G.__glow_bootstrap_hook = nil
+  vim.fn.delete(hook_file)
+  receipt.state = ok and "passed" or "failed"
+  if not ok then receipt.error = err end
+  if vim.env.GLOW_TEST_RECEIPT then
+    vim.fn.writefile({ vim.json.encode(receipt) }, vim.env.GLOW_TEST_RECEIPT)
+  end
+  assert(ok, err)
+  print("PASS bootstrap: own frozen feature order/options, pre-init hook and cached re-entry")
+  vim.cmd("qa!")
+end
+
 local ok, err = xpcall(function()
   for _, case in ipairs({
     { name = "Mac GUI", gui = true, platform = "mac" },

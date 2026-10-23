@@ -1,6 +1,6 @@
 # Diagnostic display localization
 
-`config.platform.diagnostic_locale.setup()` is the single initialization entry.
+`config.locale.diagnostics.setup()` is the internal initialization entry, called by the stable `config.platform.locale` facade.
 Call it once during the existing locale setup (after locale initialization is safe),
 and call `refresh()` after a live installation. It listens to the existing
 `User GlowLanguageChanged` and `User LazyLoad` events. It does not write preferences,
