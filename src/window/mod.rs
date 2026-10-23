@@ -309,8 +309,16 @@ pub fn create_window(
     let window_attributes = window_attributes.with_window_icon(Some(icon));
 
     #[cfg(target_os = "windows")]
-    let window_attributes =
-        window_attributes.with_window_icon(Some(icon.clone())).with_taskbar_icon(Some(icon));
+    let window_attributes = window_attributes
+        .with_window_icon(Some(icon.clone()))
+        .with_taskbar_icon(Some(icon))
+        // An empty non-client area suppresses DWM's normal border and shadow.
+        // Winit retains a one-pixel non-client edge for its native shadow path;
+        // leave its color and active/inactive appearance under system control.
+        .with_undecorated_shadow(
+            cmd_line_settings.frame == Frame::None && !settings.get::<WindowSettings>().fullscreen,
+        )
+        .with_border_color(Some(winit::platform::windows::Color::SYSTEM_DEFAULT));
 
     #[cfg(target_os = "windows")]
     let window_attributes = if !cmd_line_settings.opengl {

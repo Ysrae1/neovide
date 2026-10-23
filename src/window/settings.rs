@@ -92,7 +92,9 @@ impl Default for WindowSettings {
             window_blurred: false,
             message_area_drag_selection: true,
             #[cfg(target_os = "windows")]
-            corner_preference: CornerPreference::Default,
+            // Explicitly opt custom frameless windows into native DWM rounding.
+            // DWM still owns the policy for maximized, snapped and remote windows.
+            corner_preference: CornerPreference::Round,
             #[cfg(target_os = "macos")]
             input_macos_alt_is_meta: false,
             #[cfg(target_os = "macos")]

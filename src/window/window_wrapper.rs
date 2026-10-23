@@ -458,6 +458,11 @@ impl WinitWindowWrapper {
             return;
         };
         let window = route.window.winit_window.clone();
+        #[cfg(target_os = "windows")]
+        window.set_undecorated_shadow(
+            !fullscreen
+                && self.settings.get::<CmdLineSettings>().frame == crate::frame::Frame::None,
+        );
         if fullscreen {
             let handle = window.current_monitor();
             window.set_fullscreen(Some(Fullscreen::Borderless(handle)));
