@@ -54,15 +54,16 @@ mod native {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use windows::Win32::{
         Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
+        Graphics::Gdi::{RDW_INTERNALPAINT, RedrawWindow},
         UI::{
             HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi},
             Input::KeyboardAndMouse::GetCapture,
             Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
             WindowsAndMessaging::{
                 GWL_STYLE, GetWindowLongW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT,
-                HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, SM_CXPADDEDBORDER,
-                SM_CXSIZEFRAME, SM_CYSIZEFRAME, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_NCDESTROY,
-                WM_NCHITTEST, WM_SIZING, WS_THICKFRAME,
+                HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, SIZE_MINIMIZED,
+                SM_CXPADDEDBORDER, SM_CXSIZEFRAME, SM_CYSIZEFRAME, WM_ENTERSIZEMOVE,
+                WM_EXITSIZEMOVE, WM_NCDESTROY, WM_NCHITTEST, WM_SIZE, WM_SIZING, WS_THICKFRAME,
             },
         },
     };
@@ -78,6 +79,7 @@ mod native {
         // thread. Track each window independently and drop it on destruction,
         // without adding GetWindowSubclass's Comctl32 v6 manifest requirement.
         static LIVE_RESIZES: RefCell<HashSet<usize>> = RefCell::new(HashSet::new());
+        static LIVE_MOVES: RefCell<HashSet<usize>> = RefCell::new(HashSet::new());
     }
 
     pub fn install(window: &Window, frameless: bool) {
@@ -119,12 +121,31 @@ mod native {
         unsafe {
             if message == WM_NCDESTROY {
                 LIVE_RESIZES.with(|windows| windows.borrow_mut().remove(&(hwnd.0 as usize)));
+                LIVE_MOVES.with(|windows| windows.borrow_mut().remove(&(hwnd.0 as usize)));
                 let _ = RemoveWindowSubclass(hwnd, Some(subclass), subclass_id);
-            } else if message == WM_ENTERSIZEMOVE || message == WM_EXITSIZEMOVE {
-                // WM_ENTERSIZEMOVE also covers title-bar moves. Only WM_SIZING
-                // enables the redraw path; ordinary moves keep their pacing.
+            } else if message == WM_ENTERSIZEMOVE {
+                LIVE_MOVES.with(|windows| windows.borrow_mut().insert(hwnd.0 as usize));
                 LIVE_RESIZES.with(|windows| windows.borrow_mut().remove(&(hwnd.0 as usize)));
+            } else if message == WM_EXITSIZEMOVE {
+                LIVE_MOVES.with(|windows| windows.borrow_mut().remove(&(hwnd.0 as usize)));
+                let resized =
+                    LIVE_RESIZES.with(|windows| windows.borrow_mut().remove(&(hwnd.0 as usize)));
+                let result = DefSubclassProc(hwnd, message, wparam, lparam);
+                if resized {
+                    // The final Snap geometry may arrive as the modal loop
+                    // ends. Queue one paint after Winit has handled the exit.
+                    let _ = RedrawWindow(Some(hwnd), None, None, RDW_INTERNALPAINT);
+                }
+                return result;
             } else if message == WM_SIZING {
+                LIVE_RESIZES.with(|windows| windows.borrow_mut().insert(hwnd.0 as usize));
+            } else if message == WM_SIZE
+                && wparam.0 != SIZE_MINIMIZED as usize
+                && LIVE_MOVES.with(|windows| windows.borrow().contains(&(hwnd.0 as usize)))
+            {
+                // Drag-to-Snap can change size without WM_SIZING. Continue
+                // native paints for asynchronous grid updates only after an
+                // actual size event; ordinary title-bar moves keep pacing.
                 LIVE_RESIZES.with(|windows| windows.borrow_mut().insert(hwnd.0 as usize));
             } else if message == WM_NCHITTEST
                 && data & FRAMELESS_HIT_TEST != 0

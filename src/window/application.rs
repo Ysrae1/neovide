@@ -638,16 +638,7 @@ impl Application {
         self.ensure_render_state(window_id);
         #[cfg(target_os = "windows")]
         if self.is_resizing(window_id) {
-            tracy_zone!("render (native resizing)");
-            // Windows dispatches WM_PAINT while its modal sizing loop owns
-            // the thread, without the outer AboutToWait preparation pass.
-            // Include Neovim's asynchronous resize response in this frame,
-            // even if a compositor redraw was already pending on entry.
-            self.process_buffered_draw_commands(window_id);
-            self.window_wrapper.prepare_frame(window_id);
-            self.reset_animation_period(window_id);
-            self.animate(window_id);
-            self.render(window_id);
+            self.redraw_native_window(window_id);
             return;
         }
         let pending_render =
@@ -664,6 +655,22 @@ impl Application {
                 state.should_render = ShouldRender::Immediately;
             }
         }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn redraw_native_window(&mut self, window_id: WindowId) {
+        tracy_zone!("render (native paint)");
+        self.ensure_render_state(window_id);
+        // WM_PAINT also arrives during Snap and maximize transitions which do
+        // not send WM_SIZING. The GPU surface may already have been replaced
+        // by Resized, while AboutToWait has not prepared the new layout yet.
+        // Present a complete frame before Winit validates that paint request,
+        // including any Neovim resize response queued behind a pending frame.
+        self.process_buffered_draw_commands(window_id);
+        self.window_wrapper.prepare_frame(window_id);
+        self.reset_animation_period(window_id);
+        self.animate(window_id);
+        self.render(window_id);
     }
 }
 
@@ -707,6 +714,9 @@ impl ApplicationHandler<EventPayload> for Application {
         self.ensure_render_state(window_id);
         match event {
             WindowEvent::RedrawRequested => {
+                #[cfg(target_os = "windows")]
+                self.redraw_native_window(window_id);
+                #[cfg(not(target_os = "windows"))]
                 self.redraw_requested(window_id);
             }
             WindowEvent::Focused(focused_event) => {
