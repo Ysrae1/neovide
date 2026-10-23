@@ -196,8 +196,11 @@ impl D3DSkiaRenderer {
             DCompositionCreateDevice2(None).expect("Could not create composition device")
         };
         let target = unsafe {
+            // Keep the editor surface behind native child HWNDs such as the PDF
+            // WebView2 host. Native preview regions already exclude editor floats.
+            // A topmost target would tint the PDF with the editor background.
             composition_device
-                .CreateTargetForHwnd(hwnd, true)
+                .CreateTargetForHwnd(hwnd, false)
                 .expect("Could not create composition target")
         };
         let visual = unsafe {
