@@ -110,7 +110,7 @@ impl Preview {
     }
     fn status(&self) -> String {
         json!({"state":self.state,"error":self.error,"source":self.source.as_str(),
-            "page":self.page,"page_count":self.pages,"zoom":self.zoom,"backend":"webview2-pdfjs",
+            "page":self.page,"pages":self.pages,"page_count":self.pages,"zoom":self.zoom,"backend":"webview2-pdfjs",
             "page_state":"observed","synctex_supported":true,"synctex":self.inverse})
         .to_string()
     }
