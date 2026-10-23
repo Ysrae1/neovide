@@ -1,5 +1,5 @@
 import * as pdfjsLib from "./vendor/pdfjs/build/pdf.mjs";
-import { PROTOCOL_VERSION, validCommand, synctexToPdf, clientToSynctex } from "./protocol.mjs";
+import { PROTOCOL_VERSION, validCommand, synctexBoxToPdf, clientToSynctex } from "./protocol.mjs";
 
 const { EventBus, PDFLinkService, PDFViewer } = await import("./vendor/pdfjs/web/pdf_viewer.mjs");
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("./vendor/pdfjs/build/pdf.worker.mjs", import.meta.url).href;
@@ -128,24 +128,24 @@ async function sync(command, sequence) {
   if (!pageView.pdfPage) pageView.setPdfPage(page);
   if (command.media_box) pageBoxes.set(command.page, command.media_box.slice());
   const box = pageBoxes.get(command.page) || page.view;
-  const [pdfX, pdfY] = synctexToPdf(command.x, command.y, box);
+  const [pdfX, pdfY, pdfRight, pdfTop] = synctexBoxToPdf(command.x, command.y, command.width ?? 0, command.height ?? 0, box);
   viewer.scrollPageIntoView({
     pageNumber: command.page,
-    destArray: [null, { name: "XYZ" }, pdfX, pdfY, null],
-    ignoreDestinationZoom: true, allowNegativeOffset: false,
+    destArray: [null, { name: "XYZ" }, (pdfX + pdfRight) / 2, (pdfY + pdfTop) / 2, null],
+    ignoreDestinationZoom: true, allowNegativeOffset: false, center: "both",
   });
   clearMarker();
   const viewport = pageView.viewport;
   const a = viewport.convertToViewportPoint(pdfX, pdfY);
-  const b = viewport.convertToViewportPoint(pdfX + (command.width ?? 0), pdfY - (command.height ?? 0));
+  const b = viewport.convertToViewportPoint(pdfRight, pdfTop);
   marker = document.createElement("div");
   marker.className = "glow-sync-marker";
   marker.setAttribute("aria-hidden", "true");
   const width = Math.max(12, Math.abs(b[0] - a[0]));
   const height = Math.max(12, Math.abs(b[1] - a[1]));
   Object.assign(marker.style, {
-    left: `${Math.min(a[0], b[0]) - (width === 12 ? 6 : 0)}px`,
-    top: `${Math.min(a[1], b[1]) - (height === 12 ? 6 : 0)}px`,
+    left: `${(a[0] + b[0] - width) / 2}px`,
+    top: `${(a[1] + b[1] - height) / 2}px`,
     width: `${width}px`, height: `${height}px`,
   });
   pageView.div.append(marker);

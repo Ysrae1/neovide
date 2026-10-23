@@ -21,6 +21,13 @@ export function validCommand(value) {
   return true;
 }
 export function synctexToPdf(x, y, box) { return [box[0] + x, box[3] - y]; }
+// `synctex view` emits h/v/W/H for an enclosing box: v is its bottom
+// (baseline + depth), and H extends upwards. Point inverse coordinates keep
+// the ordinary top-left origin and must not receive this box-only offset.
+export function synctexBoxToPdf(x, y, width, height, box) {
+  const [left, bottom] = synctexToPdf(x, y, box);
+  return [left, bottom, left + width, bottom + height];
+}
 export function pdfToSynctex(x, y, box) { return [x - box[0], box[3] - y]; }
 // Use the viewport's full inverse transform, including rotation, crop origin,
 // UserUnit and CSS scale. Device-pixel ratio never enters DOM click positions.

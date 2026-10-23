@@ -115,7 +115,7 @@ try {
   assert.equal(pdfRequests, beforeSync);
   const marker = await page.locator(".glow-sync-marker").evaluate(el => ({ left: parseFloat(el.style.left), top: parseFloat(el.style.top), width: parseFloat(el.style.width), height: parseFloat(el.style.height) }));
   // 90-degree page: point (120,600), scale 1.25 * 96/72.
-  assert.ok(Math.abs(marker.left - 580 * 1.25 * 4 / 3) < 1);
+  assert.ok(Math.abs(marker.left - 600 * 1.25 * 4 / 3) < 1);
   assert.ok(Math.abs(marker.top - 120 * 1.25 * 4 / 3) < 1);
   assert.ok(Math.abs(marker.width - 20 * 1.25 * 4 / 3) < 1);
   assert.ok(Math.abs(marker.height - 60 * 1.25 * 4 / 3) < 1);
@@ -131,7 +131,7 @@ try {
   })), markerCenter);
   await page.waitForFunction(seq => __messages.some(m => m.type === "inverse" && m.seq > seq), sequenceBeforeZoomClick);
   const zoomInverse = await page.evaluate(() => __messages.filter(m => m.type === "inverse").at(-1));
-  assert.ok(Math.abs(zoomInverse.x - 150) < 1 && Math.abs(zoomInverse.y - 210) < 1, JSON.stringify(zoomInverse));
+  assert.ok(Math.abs(zoomInverse.x - 150) < 1 && Math.abs(zoomInverse.y - 190) < 1, JSON.stringify(zoomInverse));
   mappings.push({ rotation: 90, zoom: 1.25, metaKey: true, x: zoomInverse.x, y: zoomInverse.y });
   results.push("Meta+click inverse mapping at 125% after rotated forward positioning and scrolling");
 

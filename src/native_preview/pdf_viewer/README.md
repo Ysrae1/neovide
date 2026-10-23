@@ -56,9 +56,16 @@ The page sends JSON objects through `chrome.webview.postMessage`:
 - `{version:1,type:"inverse",revision,page,x,y,seq}` for Ctrl+click or Meta+click.
 - `{version:1,type:"error",revision,message}` for a document load failure.
 
-`page` is 1-based; `zoom` is a multiplier. `x`, `y`, `width`, `height` are
-unrotated PDF points from the top-left, independent of display scale, device
-pixel ratio, scroll and page rotation. PDF.js exposes the visible page box
+`page` is 1-based; `zoom` is a multiplier. Inverse `x`, `y` are unrotated PDF
+points from the top-left, independent of display scale, device pixel ratio,
+scroll and page rotation. Forward `pdf_sync` uses SyncTeX CLI `h`, `v`, `W`,
+`H`: `x` is the box's left edge, `y` is its bottom edge (baseline plus depth),
+and `height` extends **upwards**, covering `y-height` through `y`. The viewer
+centers this box in the available viewport when page edges permit, keeping
+surrounding text visible. This convention follows the official
+[`synctex_main.c`](https://github.com/jlaurens/synctex/blob/master/synctex_main.c)
+CLI output; it is distinct from an arbitrary top-left rectangle.
+PDF.js exposes the visible page box
 (CropBox intersect MediaBox). For ordinary XeLaTeX output this is the MediaBox.
 For deliberately cropped PDFs, the host must supply `media_box: [x0,y0,x1,y1]`
 with a forward command for exact MediaBox coordinates; without it, inverse
@@ -81,3 +88,10 @@ to `target/glow-windows-embedded-synctex-20261023/viewer/`.
 
 `node --test tests/media/windows_pdf_protocol.mjs` checks validation and the
 coordinate conversions independently of a browser.
+
+`tests/media/windows_pdf_synctex_roundtrip.mjs` compiles an isolated real
+XeLaTeX fixture and checks that the marker-center DOM click returns its exact
+included-source line through `synctex edit`, at 135% and 50% (the 12px minimum
+marker size). It preserves raw forward/inverse CLI output and screenshots in
+the test output's `tex-roundtrip/` directory. It needs XeLaTeX and SyncTeX;
+their executables may be set with `GLOW_TEST_XELATEX` and `GLOW_TEST_SYNCTEX`.

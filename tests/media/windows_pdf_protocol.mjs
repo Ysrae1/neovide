@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validCommand, synctexToPdf, pdfToSynctex, clientToSynctex } from "../../src/native_preview/pdf_viewer/protocol.mjs";
+import { validCommand, synctexToPdf, synctexBoxToPdf, pdfToSynctex, clientToSynctex } from "../../src/native_preview/pdf_viewer/protocol.mjs";
 
 test("commands reject invalid versions, paths, coordinates and scale", () => {
   for (const value of [null, [], {}, { action: "open", url: "file:///secret" }, { action: "page", page: 0 },
@@ -19,6 +19,10 @@ test("PDF point mapping preserves media origin and top-left convention", () => {
   const box = [-20, 10, 580, 810];
   assert.deepEqual(synctexToPdf(125, 240, box), [105, 570]);
   assert.deepEqual(pdfToSynctex(105, 570, box), [125, 240]);
+});
+
+test("SyncTeX CLI box height extends above its bottom edge", () => {
+  assert.deepEqual(synctexBoxToPdf(120, 200, 60, 20, [0, 0, 600, 800]), [120, 600, 180, 620]);
 });
 
 test("DOM click mapping accounts for CSS zoom without device pixel ratio", () => {
