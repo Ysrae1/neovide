@@ -1,0 +1,9 @@
+:root { color-scheme: dark; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #202328; }
+#viewerContainer { position: absolute; inset: 0; overflow: auto; outline: none; overscroll-behavior: contain; }
+.pdfViewer { padding-block: 12px; }
+.pdfViewer .page { margin-block: 0 12px; }
+.glow-sync-marker { position: absolute; pointer-events: none; z-index: 10; box-sizing: border-box; border: 2px solid #3985df; border-radius: 3px; background: rgb(57 133 223 / 20%); min-width: 12px; min-height: 12px; }
+#error { position: absolute; inset: 16px; height: fit-content; padding: 12px; border-radius: 8px; background: #3c262a; color: #fff; font: 14px/1.5 system-ui, sans-serif; }
+@media (prefers-reduced-motion: no-preference) { .glow-sync-marker { animation: sync-fade 1.5s ease-out forwards; } }
+@keyframes sync-fade { 0%, 65% { opacity: 1; } 100% { opacity: 0; } }

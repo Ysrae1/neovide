@@ -4,6 +4,9 @@ use crate::{bridge::NeovimWriter, image_preview::ImageView};
 use nvim_rs::Neovim;
 use rmpv::Value;
 
+#[cfg(any(target_os = "windows", test))]
+mod pdf_bridge;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum NativeCommand {
     Open { id: u64, kind: String, source: String },

@@ -108,7 +108,8 @@ pub async fn setup_neovide_specific_state(
     nvim.set_var(
         "neovide_native_pdf_synctex",
         Value::from(
-            cfg!(target_os = "macos") || linux_preview_kinds.iter().any(|kind| kind == "pdf"),
+            cfg!(any(target_os = "macos", target_os = "windows"))
+                || linux_preview_kinds.iter().any(|kind| kind == "pdf"),
         ),
     )
     .await
