@@ -5,8 +5,8 @@ local plugins = vim.env.GLOW_TEST_PLUGIN_ROOT or vim.fn.expand("~/.local/share/n
 for _, name in ipairs({ "snacks.nvim", "trouble.nvim", "nui.nvim", "plenary.nvim" }) do vim.opt.rtp:append(plugins .. "/" .. name) end
 vim.o.columns, vim.o.lines = 140, 60
 vim.g.glow_ui_language = "en"
-local M = require("config.platform.diagnostic_locale")
-local catalog = require("config.platform.diagnostic_messages")
+local M = require("config.locale.diagnostics")
+local catalog = require("config.locale.diagnostic_messages")
 local aliases = { lua_ls = "Lua Diagnostics.", go = "gopls", json = "jsonls" }
 local count = 0
 for source, rows in pairs(catalog) do

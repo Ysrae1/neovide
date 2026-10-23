@@ -209,8 +209,11 @@ def build(source, destination, launcher, stack_id, frontend=None, frontend_sha25
     shutil.copy2(HERE / "runtime/WindowsInit.lua", runtime / "WindowsInit.lua")
     dependencies = destination / "dependencies"
     dependencies.mkdir()
-    for name in ("Setup-Dependencies.ps1", "dependencies.json", "WebView2.ps1", "Dependency-Helpers.ps1", "system-assets.lock.json", "Setup-LaTeX.ps1"):
+    for name in ("Setup-Dependencies.ps1", "dependencies.json", "WebView2.ps1", "Dependency-Helpers.ps1", "system-assets.lock.json", "Setup-LaTeX.ps1", "Setup-Notebook.ps1", "setup-notebook.py", "Setup-ACP.ps1"):
         shutil.copy2(HERE / name, dependencies / name)
+    (dependencies / "codex-acp").mkdir()
+    for name in ("package.json", "package-lock.json"):
+        shutil.copy2(payload / "codex-acp" / name, dependencies / "codex-acp" / name)
     shutil.copytree(HERE / "tex", dependencies / "tex")
     shutil.copy2(payload / "nvim/lua/config/media/runtime/requirements.txt", dependencies / "notebook-requirements.txt")
     shutil.copy2(payload / "requirements-latex.lock", dependencies / "latex-requirements.lock")

@@ -17,7 +17,7 @@ local ok, err = xpcall(function()
   -- Load statusline first to cover the locale initialization re-entry boundary.
   local statusline = require("nvchad.stl.utils")
   local locale = require("config.platform.locale")
-  local ui = require("config.platform.locale_ui")
+  local ui = require("config.locale.ui")
   local snacks = require("snacks")
   snacks.setup({ picker = { enabled = true, ui_select = false }, input = { enabled = false }, notifier = { enabled = false } })
   ui.setup(locale)

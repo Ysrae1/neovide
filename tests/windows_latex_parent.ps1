@@ -1,5 +1,5 @@
 #requires -Version 5.1
-<# Run from the logged-on Windows user, with an existing complete TeX and Git.
+<# Run from the logged-on Windows user, with existing complete TeX, Git and SumatraPDF.
    Calls the real TeX-only parent without a redirected PowerShell supervisor.
    An independent watchdog bounds the test, including native grandchildren.
    No downloads, new installations, user selection writes, Python imports or GUI. #>
@@ -65,26 +65,28 @@ try{
     Save-TestJson (Join-Path $selection 'selected.json') $seed
     $env:PATH=(@($seed.tool_paths) -join ';')+';'+$savedPath
     $sourceHashes=[ordered]@{}
-    foreach($name in @('Setup-Dependencies.ps1','Setup-LaTeX.ps1','Dependency-Helpers.ps1','tex\fixture.tex')){$sourceHashes[$name]=Test-Hash (Join-Path $SourceRoot ('portable\windows\'+$name))}
+    foreach($name in @('Setup-Dependencies.ps1','Setup-LaTeX.ps1','Dependency-Helpers.ps1','tex\Fontconfig.ps1','tex\fixture.tex')){$sourceHashes[$name]=Test-Hash (Join-Path $SourceRoot ('portable\windows\'+$name))}
     $receipt.source_sha256=$sourceHashes
     # An explicitly absent interpreter avoids re-running Python inspection.
     $report=& (Join-Path $SourceRoot 'portable\windows\Setup-Dependencies.ps1') -InstallLatex -Python (Join-Path $WorkRoot 'intentionally-absent-python.exe') -Json -DependencyRoot $deps -SelectionRoot $selection|ConvertFrom-Json
     Save-TestJson (Join-Path $WorkRoot 'parent-report.json') $report
     if($report.status -cne 'passed' -or -not $report.latex_checked -or -not $report.latex_ready){throw 'Real TeX parent did not pass.'}
+    $viewer=$report.tools|Where-Object {$_.role -eq 'pdf'}|Select-Object -First 1
+    if(-not $viewer -or -not $viewer.available -or -not (Test-Path -LiteralPath $viewer.path -PathType Leaf)){throw 'The existing bidirectional PDF viewer was not detected.'}
     if(@($report.python_probes).Count){throw 'The TeX-only check repeated Python imports.'}
     $runs=@(Get-ChildItem -LiteralPath (Join-Path $deps 'runs') -Directory)
     if($runs.Count -ne 1){throw 'Expected one parent run.'}
-    $tex=Get-Content -LiteralPath (Join-Path $runs[0].FullName 'tex\selected.json') -Raw|ConvertFrom-Json
+    $tex=Get-Content -LiteralPath (Join-Path $runs[0].FullName 'tex\selected.json') -Raw -Encoding UTF8|ConvertFrom-Json
     if($tex.status -cne 'passed' -or -not $tex.reused){throw 'Existing TeX was not reused.'}
     $checks=@($report.checks)
-    if($checks.Count -ne 2){throw 'Expected the Chinese latexmk and SyncTeX checks only.'}
+    if($checks.Count -notin @(2,3) -or @($checks|Where-Object {$_.name -notin @('refresh-TeX-font-cache','probe-existing-LaTeX','probe-existing-SyncTeX')}).Count){throw 'Expected only optional font cache refresh, Chinese latexmk and SyncTeX checks.'}
     foreach($check in $checks){if($check.exit_code -ne 0 -or $check.timed_out -or -not $check.output_drain_complete){throw ('Incomplete native child: '+$check.name)}}
     $project=Join-Path $runs[0].FullName 'tex\existing-tex-probe'
     $pdf=Join-Path $project 'fixture.pdf';$synctex=Join-Path $project 'fixture.synctex.gz'
     if((Get-Item -LiteralPath $pdf).Length -le 5 -or (Get-Item -LiteralPath $synctex).Length -le 0){throw 'Missing PDF or SyncTeX.'}
     $stream=[IO.File]::OpenRead($pdf);try{$header=New-Object byte[] 5;$null=$stream.Read($header,0,5)}finally{$stream.Dispose()}
     if([Text.Encoding]::ASCII.GetString($header) -cne '%PDF-'){throw 'Invalid PDF header.'}
-    $after=Get-Content -LiteralPath (Join-Path $selection 'selected.json') -Raw|ConvertFrom-Json
+    $after=Get-Content -LiteralPath (Join-Path $selection 'selected.json') -Raw -Encoding UTF8|ConvertFrom-Json
     foreach($key in @('python','jupytext','latex2text','qa_retained')){if($after.$key -cne $seed[$key]){throw ('Retained selection changed: '+$key)}}
     foreach($path in @($seed.tool_paths)){if(@($after.tool_paths) -notcontains $path){throw ('Retained tool path lost: '+$path)}}
     if((Test-Hash $userSelection) -cne $before){throw 'Actual user selection changed.'}

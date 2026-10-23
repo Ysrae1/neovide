@@ -2,6 +2,7 @@
 -- GLOW_TEST_CONFIG=~/.config/nvim nvim --headless -u NONE -i NONE -l tests/notebook/output_scroll.lua
 vim.opt.rtp = { assert(vim.env.GLOW_TEST_CONFIG), vim.env.VIMRUNTIME }
 require("config.platform.locale").set_lang("zh", { save = false, silent = true })
+vim.g.neovide_native_notebook_footer = true
 local api = vim.api
 local source, source_buf = api.nvim_get_current_win(), api.nvim_get_current_buf()
 local source_lines = { "# %%", "print('saved output')" }
@@ -53,7 +54,14 @@ assert(math.abs(origin[2] + outline.col - geometry.rect.col) < 0.001
   and math.abs(outline.width - geometry.rect.width) < 0.001,
   "popup's green left/right outlines must match the original fractional edges")
 assert(origin[1] + outline.row == geometry.rect.row
-  and api.nvim_win_get_height(output) == 18, "popup must stay at output seam and expand down into remaining space")
+  and api.nvim_win_get_height(output) == 17, "popup must stay at output seam and reserve its fixed footer row")
+local footer_config = api.nvim_win_get_config(output)
+local footer_text = ""
+for _, chunk in ipairs(footer_config.footer) do footer_text = footer_text .. chunk[1] end
+assert(footer_text:find("q / Esc", 1, true) and footer_config.footer_pos == "right",
+  "expanded outputs must show their close keys in a fixed bottom-right capsule")
+assert(origin[1] + outline.row + outline.height == geometry.clip.row + geometry.clip.height - 0.5,
+  "native output bottom edge must meet the footer row center")
 assert(not vim.bo[output_buf].modifiable and vim.bo[output_buf].readonly, "output viewer must reject edits")
 local styles = api.nvim_buf_get_extmarks(output_buf, api.nvim_get_namespaces()["glow.notebook.output-view"], 0, -1, { details = true })
 assert(styles[1][4].hl_group == "GlowNotebookOutputNumber" and styles[3][4].hl_group == "GlowNotebookOutputSuccess",
@@ -73,7 +81,7 @@ api.nvim_exec_autocmds("VimResized", {})
 vim.wait(20)
 outline = vim.w[output].glow_notebook_output_frame
 assert(outline.width == geometry.rect.width and api.nvim_win_get_width(output) == 35
-  and api.nvim_win_get_height(output) == 16, "resizing must keep the output aligned with the new source width and available height")
+  and api.nvim_win_get_height(output) == 15, "resizing must keep the output aligned and reserve its footer")
 local after_resize = vim.fn.winsaveview()
 assert(after_resize.topline == before_resize.topline and after_resize.leftcol == before_resize.leftcol,
   "refitting the expanded window must retain its horizontal and vertical scroll position")
@@ -81,6 +89,8 @@ geometry.clip.height = 5
 api.nvim_exec_autocmds("VimResized", {})
 vim.wait(20)
 assert(api.nvim_win_get_height(output) == 1, "two remaining rows must retain one real scrollable text row")
+assert(type(api.nvim_win_get_config(output).footer) ~= "table" and vim.w[output].glow_notebook_output_footer == nil,
+  "tiny viewports must hide the footer instead of consuming the final text row")
 geometry.clip.height = 20
 api.nvim_exec_autocmds("VimResized", {})
 vim.wait(20)

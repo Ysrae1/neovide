@@ -1,7 +1,7 @@
 #requires -Version 5.1
 <# Native Python-probe regression. Compile and run test-owned executables only;
    no Python/package installation, downloads, registry writes, user config or GUI.
-   Run after committing the corresponding source/test changes. #>
+   The receipt binds the actual source bytes under test. #>
 param(
     [string]$SourceRoot=(Split-Path -Parent $PSScriptRoot),
     [Parameter(Mandatory=$true)][string]$WorkRoot
@@ -14,6 +14,7 @@ $WorkRoot=[IO.Path]::GetFullPath($WorkRoot)
 $null=New-Item -ItemType Directory -Path $WorkRoot
 $utf8=New-Object Text.UTF8Encoding($false)
 $receipt=@{schema_version=1;state='running';checks=@();source=(Join-Path $SourceRoot 'portable\windows\Setup-Dependencies.ps1')}
+$receipt.source_sha256=(Get-FileHash -LiteralPath $receipt.source -Algorithm SHA256).Hash.ToLowerInvariant()
 function Save-Receipt {
     [IO.File]::WriteAllText((Join-Path $WorkRoot 'receipt.json'),($receipt|ConvertTo-Json -Depth 12),$utf8)
 }
@@ -79,11 +80,12 @@ public static class GlowPythonProbeFixture {
     }
     private static void Ready(string self, string mode) {
         string directory=Path.GetDirectoryName(self);
-        string version=mode=="incompatible" ? "[3,11,9]" : "[3,12,8]";
+        string version=mode=="incompatible" ? "[3,11,9]" : (mode=="arm-ready" ? "[3,14,8]" : "[3,12,8]");
+        string platform=mode.StartsWith("arm-") ? "win-arm64" : "win-amd64";
         string missing=mode=="missing" ? "[\"pynvim\"]" : "[]";
-        string importsChecked=mode=="incompatible" ? "false" : "true";
+        string importsChecked=mode=="incompatible" || mode=="arm-unvalidated" ? "false" : "true";
         Console.Out.WriteLine("{\"python\":"+Json(self)+",\"version\":"+version+
-            ",\"implementation\":\"cpython\",\"platform\":\"win-amd64\",\"bits\":64,\"missing\":"+missing+
+            ",\"implementation\":\"cpython\",\"platform\":"+Json(platform)+",\"bits\":64,\"missing\":"+missing+
             ",\"imports_checked\":"+importsChecked+
             ",\"jupytext\":"+Json(Path.Combine(directory,"jupytext.exe"))+
             ",\"latex2text\":"+Json(Path.Combine(directory,"latex2text.exe"))+"}");
@@ -194,7 +196,7 @@ try {
     Save-Receipt
     $fixture=Join-Path $WorkRoot 'ready.exe'
     Add-Type -TypeDefinition $fakeSource -Language CSharp -OutputAssembly $fixture -OutputType ConsoleApplication
-    foreach ($name in @('missing','incompatible','exit','invalid','timeout','orphan')) {
+    foreach ($name in @('missing','incompatible','arm-ready','arm-unvalidated','exit','invalid','timeout','orphan')) {
         Copy-Item -LiteralPath $fixture -Destination (Join-Path $WorkRoot ($name+'.exe'))
     }
     foreach ($name in @('jupytext.exe','latex2text.exe')) {
@@ -208,6 +210,12 @@ try {
     Require ($ready.selected.python -eq (Join-Path $WorkRoot 'ready.exe') -and $ready.selected.version -eq '3.12.8' -and @($ready.selected.missing).Count -eq 0) 'Complete Python lost its selection fields.'
     Require ($ready.selected.jupytext -eq (Join-Path $WorkRoot 'jupytext.exe') -and $ready.selected.latex2text -eq (Join-Path $WorkRoot 'latex2text.exe')) 'Complete Python lost its helper paths.'
     Pass 'ready Python retains selection fields and complete diagnostics'
+
+    $arm=Invoke-ProbeCase 'arm-ready'
+    Require ([bool]$arm.selected -and $arm.selected.ready -and $arm.selected.platform -eq 'win-arm64' -and $arm.selected.version -eq '3.14.8') 'Validated native ARM64 Python profile was rejected or lost its architecture.'
+    $armOther=Invoke-ProbeCase 'arm-unvalidated'
+    Require ([bool]$armOther.selected -and -not $armOther.selected.compatible -and $armOther.diagnostic.status -eq 'incompatible') 'An unvalidated ARM64 version was treated as a ready provider.'
+    Pass 'validated ARM64 profile passes while other ARM versions remain explicit incompatible results'
 
     $missing=Invoke-ProbeCase 'missing'
     Require ([bool]$missing.selected -and $missing.selected.compatible -and -not $missing.selected.ready) 'Known missing modules changed the compatible-base behavior.'

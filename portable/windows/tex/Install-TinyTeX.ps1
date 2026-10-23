@@ -324,7 +324,7 @@ try {
     $receipt.fmtutil_after=(Invoke-Bounded -Executable $fmtutil -Arguments @('--version') -Name 'fmtutil-version-after').Trim()
     $null=Invoke-Bounded -Executable $fmtutil -Arguments @('--dry-run','--byengine','xetex','--byfmt','xelatex') -Name 'verify-combined-format-selectors' -TimeoutSeconds 90
     Save-Receipt
-    $packages = @('latexmk','xetex','synctex','xecjk','ctex','fandol','enumitem','fancyhdr','geometry','amsmath','amsfonts','amscls','hyperref','fontspec','xcolor','graphics','tools','booktabs','caption','float','listings','mathtools','unicode-math','xurl','etoolbox','kvoptions')
+    $packages = @('latexmk','xetex','synctex','xecjk','ctex','fandol','tex-gyre','enumitem','fancyhdr','geometry','amsmath','amsfonts','amscls','hyperref','fontspec','xcolor','graphics','tools','booktabs','caption','float','listings','mathtools','unicode-math','xurl','etoolbox','kvoptions')
     $receipt.requested_packages = $packages
     $null = Invoke-Bounded -Executable $perl -Arguments ($verified+@('install')+$packages) -Name 'install-common-packages' -TimeoutSeconds 600
     # A prior post-install fmtutil failure leaves installed packages intact.
@@ -333,6 +333,12 @@ try {
     $null=Invoke-Bounded -Executable $fmtutil -Arguments @('--missing') -Name 'complete-missing-formats' -TimeoutSeconds 300
     # Documented TinyTeX relocation action for the XeTeX font configuration only.
     $null = Invoke-Bounded -Executable $perl -Arguments @($tlmgr,'postaction','install','script','xetex') -Name 'xetex-local-font-configuration' -TimeoutSeconds 120
+    . (Join-Path $PSScriptRoot 'Fontconfig.ps1')
+    $fontconfig=Set-GlowTeXFontDirectories -BinRoot $bin -RunRoot $RunRoot -RefreshCache {
+        param($cache)
+        $null=Invoke-Bounded -Executable $cache -Arguments @('-f') -Name 'xetex-user-font-cache' -TimeoutSeconds 120
+    }
+    $receipt.fontconfig=$fontconfig
     $null = Invoke-Bounded -Executable (Join-Path $bin 'xelatex.exe') -Arguments @('--version') -Name 'xelatex-version'
     $null = Invoke-Bounded -Executable (Join-Path $bin 'latexmk.exe') -Arguments @('-v') -Name 'latexmk-version'
     $null = Invoke-Bounded -Executable (Join-Path $bin 'synctex.exe') -Arguments @('help') -Name 'synctex-help'

@@ -29,7 +29,7 @@ local ok, err = xpcall(function()
   locale.set_lang("zh", { silent = true, save = false })
   locale.set_lang("en", { silent = true, save = false })
   assert(vim.deep_equal(calls, { "en", "zh", "en" }), "language changes must reach native host")
-  require("config.platform.native_menu_locale").setup(locale)
+  require("config.locale.native_menu").setup(locale)
   calls = {}
   locale.set_lang("zh", { silent = true, save = false })
   assert(vim.deep_equal(calls, { "zh" }), "repeated setup must not duplicate subscriptions")

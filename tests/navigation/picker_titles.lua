@@ -10,7 +10,7 @@ vim.fn.mkdir(work, "p")
 local original_stdpath = vim.fn.stdpath
 vim.fn.stdpath = function(name) return name == "state" and work or name == "config" and config or original_stdpath(name) end
 local locale = require("config.platform.locale")
-local ui = require("config.platform.locale_ui")
+local ui = require("config.locale.ui")
 require("snacks").setup({ picker = { enabled = true, ui_select = false }, notifier = { enabled = false } })
 require("telescope").setup({ defaults = { initial_mode = "normal", dynamic_preview_title = false } })
 -- Reproduce the exact legacy wrapper shape held by an already-open GUI.
@@ -64,8 +64,8 @@ local picker = core.new({ source = "files", show_delay = 0, focus = "list", form
   layout = { preset = "default" } })
 assert(vim.wait(1500, function() return picker.list:count() == 2 and picker.preview.win:valid() end), "actual picker did not show")
 local ids = { picker.input.win.win, picker.list.win.win, picker.preview.win.win }
-package.loaded["config.platform.locale_ui"] = nil
-ui = require("config.platform.locale_ui")
+package.loaded["config.locale.ui"] = nil
+ui = require("config.locale.ui")
 ui.refresh_pickers(locale)
 assert(vim.deep_equal(ids, { picker.input.win.win, picker.list.win.win, picker.preview.win.win }), "hot update recreated the active picker")
 if vim.env.GLOW_TEST_PICKER_HOT then

@@ -67,7 +67,7 @@ for platform, theme, glass in [
           end
           if platform=='windows' then
             local panel_blend=hl('NeoTreeNormal').blend
-            assert(panel_blend==(theme=='light' and 15 or 80),'actual NeoTree material')
+            assert(panel_blend==40,'actual NeoTree material in both Windows themes')
             for _,name in ipairs({'St_EmptySpace','St_EmptySpace2','St_gitIcons','St_lspError',
               'St_NormalModeSep','St_TerminalModeSep','St_file_sep','St_Pos_sep','St_cwd_sep','St_sep_r'})do
               local attrs=hl(name)

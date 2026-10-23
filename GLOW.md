@@ -4,11 +4,126 @@
 
 ## 当前维护状态
 
-> 2026-10-22，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据实际回执，不将源码／协议检查写成实际界面验收。用户本轮明确恢复 Windows 未闭合范围；2026-10-21 停止／归档记录仍作历史保留，Linux 原生开发继续暂缓。
+> 2026-10-23，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据实际回执，不将源码／协议检查写成实际界面验收。周额度重置后先修复 Fzf 与 TeX 双向搜索；随后按用户“开始做”的新授权补齐 Windows ARM64 插件与 Notebook 依赖。2026-10-21 停止／归档记录仍作历史保留，Linux 原生开发继续暂缓。
 
-- 已安装Mac为 `nightly-139+g955e75f`，Mac菜单及PDF真实界面验收、runtime签名／安装已完成。Windows配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留；后续Windows增量按下表分别交付。
-- Windows Telescope、顶部空白拖窗、小窗／边缘缩放及透明圆角修复已分别交付；实时缩放 `1dbe658` 的基础上新增 dashboard 标题上方空白拖窗 `73dcbd1`，x64／ARM64 release 均已编译并切至下次启动。ARM64 动画、缩放／语言继承及桌面无控制台入口已补齐；用户最新要求跳过后续检查，新版多高度 Windows GUI 未验，见紧邻下节。
+- Mac 磁盘 App 当前核对为 `nightly-210+gb534ddf-dirty`，与本轮标准流程暂存 App 的 SHA 相同；本轮未执行安装命令，复制来源未确认，CLI 仍为旧版。此前菜单及 PDF 界面验收保留历史结论，本轮标题居中仍待用户重开后的 GUI 验收。Windows 配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留。
+- Windows Telescope、顶部空白拖窗、小窗／边缘缩放及透明圆角修复已分别交付；实时缩放 `1dbe658` 的基础上新增 dashboard 标题上方空白拖窗 `73dcbd1`，已纳入两架构前端。ARM64 动画、缩放／语言继承及桌面无控制台入口已补齐；此前按用户要求跳过 dashboard 多高度 Windows GUI，未将其记作通过，后续 Snap 待验见下节。
+- Windows 内嵌 PDF 双向搜索现已实现，功能源码 `fdeece58` 由最新两架构 Snap 修复版继承，三份查看路由配置已部署；此前 ARM64 实际 WebView2 的定位／回源和草稿保护通过，x64 实际加载／关闭通过，实体鼠标尚未验。Sumatra 保留为显式可选回退，详见下节。
+- Windows ARM64 原生插件、Notebook 私有环境与 24 项 Mason 工具已补齐并部署；Java 已补到 Mac、Windows ARM64／x64，当前统一清单及两份 Windows 实际 profile 均为57个语法解析库。普通 ARM64 配置实际启动检查通过；部分进程外工具保留 x64 兼容，GUI 图片显示及在线 AI 对话未验。详见下节。
+- 10月23日现场反馈的 Snap／最大化重绘已修复并编译、部署 x64／ARM64，等待用户手动验收；Windows 面板材质独立设置，后续用户已改为30并保留，Mac原参数不变，Neo-tree已换方正 Windows 图标。当前 `tool.tex` 已补齐字体发现与宏包并重编，实际 Windows 正逆 SyncTeX CLI 通过，详见下节。
 - 既有冻结版 `glow-stack-20261020-gm1` 保留；Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1)／网站第17版不变。新 Windows 精简包本轮完成构建及基础安装／卸载验收，公开下载入口仍未开放；TeX 真实登录用户父入口已在后续授权下通过，实体输入与首帧仍未验。旧 Candidate5／Core94 不作为新包通过凭据。
+
+### 2026-10-23 配置结构整理与发布准备（Codex）
+
+- 用户确定顺序：保留已保存版本基线 → 配置结构整理 → 发布流程 → 独立对话测试／优化 Windows 安装引导；发布页功能盘点、HTML 动画演示与可查询快捷键手册已在独立聊天并行制作，暂不部署线上。
+- 整理前 Mac 配置／源码快照在 `target/glow-freeze-20261023/before-structure/`；Windows 已保存的164文件在该端 `C:\GlowDev\Freeze-20261023-before-structure`，逐文件与ZIP校验通过，未保存缓冲区为0。两端参数独立保留，Windows用户主题未复制回Mac／portable。
+- `init.lua` 统一委托 `config.bootstrap.setup()`，原启动先后顺序不变；六项媒体注册统一进入 `config.media.setup()`。10个语言内部实现／词典归入 `config/locale/`，保留 `config.platform.locale` 公共入口、早晚两次setup、公开reload身份和Notebook Python桥接，未进行Notebook内部模块搬迁。
+- Mac本源／portable各6项语言定向检查、启动时序检查通过；最终统一隔离回归32/32通过。两端共24项主题／材质／字体等参数文件与整理前SHA相同，Git空白检查通过。语言测试修正原fixture的早期leader假设，基线同样失败的复现与原始数据均保留。证据 `target/glow-config-structure-20261023/`。
+- Windows结构迁移与双架构原生检查正在独占runner执行；Mac候选使用隔离源码与标准暂存流程，尚未开始构建。新候选标识为 `glow-stack-20261023-gm1`，当前未创建公开发行、不替换本机安装，既有标签／发行资产保留。
+
+### 2026-10-23 Windows 树焦点主题刷新、Neo-tree 提示字色接口（Codex）
+
+- 用户最终确认的症状为 Neo-tree 持焦点时整窗深浅双向切换均停住，点击顶部 Tab 空白后才更新。实际保留现场：Windows 应用／系统值为 Light，Neovim 内部 `background=light`、`ayu_light`、全局 Normal 为 `#F3F3F3`，正常模式且未阻塞；两次真实截图仍为 Dark。一次纯 `redraw!` 后截图立即变 Light，未发送点击、切换焦点或改配色。已确认最终画面刷新缺失，尚未细分原先是 Neovim 未 flush 还是前端未呈现；不将同类 PowerToys 通知报告当成本机原因。实际 PowerToys 为0.102.2933.0。
+- 在 `appearance/base46.lua` 完成主题／材质重放和树 redraw 后，仅 Windows Neovide 主动执行一次 `redraw!`；Mac／Linux／普通终端沿用 `redrawstatus!`，无新轮询或渲染参数修改。本源／portable 各8场真实 Neo-tree／multigrid 检查通过，平台差异为本机模拟，深浅主题的 flush／grid_line、树焦点、窗口／光标／未保存内容均保留；新测试 `tests/media/windows_theme_redraw.py`。首轮测试消息区等待回车，改测试 UI 为 ext_messages 后自然完成，非产品初始化修改。Windows 单文件旧SHA／目标buffer守卫、原字节备份／非空swap原子部署，两架构原生语法检查通过；新会话自动生效，尚未把用户实际重新切换的验收记作通过。
+- 按用户要求，两端统一提示字色入口为各自 `~/.config/nvim/lua/config/appearance/tree_message.lua` 的 `config.light`／`config.dark`；默认 `false` 完整继承原色，可填十六进制或主题色槽，保存后 `:lua require('config.appearance.tree_message').reload()`。作用于 `NeoTreeMessage`（隐藏项目、空目录等提示），仅改前景，保留背景／斜体／透明度；false 或重载可恢复继承。`ui.lua` 接入，README补入口；两端配置仍独立，所有主题文件未修改。
+- 本源／portable 及 Windows 原生 ARM64／x64 的真实冻结 Neo-tree 定向检查通过，覆盖实际隐藏项目提示高亮组、默认继承、Light／Dark／色槽、重复应用、恢复及无关组不变；新增 `tests/config/tree_message.lua`。Windows仅新增接口、原UI按唯一调用点插入一行、README按旧SHA更新，保留其他本源内容与原字节备份；两原生测试有隔离日志目录不可用警告，不影响行为断言。所有自有进程退出，未热载／重启用户窗口、改 PowerToys 设置或启动构建／发布。
+- 现场与刷新部署证据 `target/glow-windows-theme-focus-20261023/{diagnosis.json,stalled-before.png,stalled-after-read.png,stalled-after-redraw.png,redraw-deployment.json}`；颜色入口检查 `target/glow-neotree-message-20261023/`，Windows守卫与原生收据 `target/glow-neotree-message-windows-20261023/{deployment.json,arm64.json,x64.json}`。刷新修复与接口均下次新会话完整加载；当前卡住画面已由前述单次纯重绘恢复。
+
+### 2026-10-23 Mac 全屏 CMatrix 开屏去阴影（Codex）
+
+- 用户观察到开屏全屏字母雨下方残留浮窗阴影；原因是 `matrix_intro` 覆盖窗口尚未进入阴影排除快照。现 Mac 平台按既有 `glow_popup_profile=matrix_intro` 身份排除真实窗口 ID，intro 创建并标记后同步发布 RPC 再 redraw，避免等待 WinNew 的延迟首帧；关闭沿用同一控制器的完整快照清理。仅调整本源及 portable 的 `appearance/intro.lua`、`appearance/float_shadows.lua` 与 `platform/neovide.lua`，普通浮窗阴影保留，未改字体、颜色、动画或 Windows 实际配置。
+- 新增 `tests/navigation/matrix_shadow.py`：本源／portable 各6场本机真实 embedded Neovim／CMatrix 启动通过，覆盖首个 `win_float_pos` 前已排除 ID、VimEnter／UIEnter、新旧前端脚本接管、焦点／材质及窗口／buffer／job 清理；Windows／Linux 仅为平台策略模拟。两份配置各12场既有 Notebook／Picker／Snacks／WhichKey 阴影协议回归通过。首轮采集将 MessagePack 窗口 ExtType 当整数，保留失败证据后只修测试解码；不冒称原生 GUI／GPU 像素验收。
+- 全部自有检查进程已退出，无后台等待。下次 Mac 新会话生效；未替换 App、热载或重启用户窗口。原字节备份与通过回执为 `target/glow-macos-matrix-shadow-20261023/{before,protocol-local.json,protocol-portable.json,notebook-local.json,notebook-portable.json,manifest.json}`。
+
+### 2026-10-23 配置独立维护、主题路径统一（Codex）
+
+- 按用户最新要求，统一相对入口、分开维护整个配置：Mac 与 Windows 各以自己系统的 `~/.config/nvim` 为本源，公共功能逐文件核对后同步，Windows 参数／配色不被 Mac 或 portable 整份覆盖。项目 AGENTS 与两份 README 已更新；不新建仓库、不搬回 Windows 配色，也未复制或改写两端主题文件。
+- Windows `windows_themes` 改读标准 `config.appearance.themes.*`，主题目录为当前 `stdpath(config)/lua/config/appearance/themes`；现有 x64／ARM64 home 桥接均指向 `C:\Users\ysrae1\.config\nvim`。不再优先读取 AppData 旧副本；`reload()` 与主题顶部的旧单主题命令现在读取同一文件。AppData 原文件原样保留，相关原字节另备份在 Windows `C:\GlowDev\ConfigThemeEntry20261023`。未迁移的新 stack 仍默认自己的 profile，采用它时须显式沿用既有 home 入口；安装／启动代码核对未发现覆盖已有用户配置的路径，无据不改安装器。
+- 本机本源→portable 定向检查、Windows 原生 x64／ARM64 的隔离用例及实际完整主题／Base46 选中行解析均通过。Windows 已保存的 Light `folder_bg=#92929B`、Dark `#47525C` 和两主题 blend15 被正确读取；两份 `.config` 主题的未保存缓冲区保留。Windows 仅 helper／README 两文件发生本轮部署变更，其余配置与旧 AppData 文件 SHA 保持，Mac 两主题 SHA 保持；未关闭、热载或重启用户窗口。现有窗口若手动应用，先保存主题，再执行 `:lua package.loaded['config.platform.windows_themes']=nil; require('config.platform.windows_themes').reload()`；新会话直接使用新入口。
+- 两文件按旧 SHA／目标 buffer modified 守卫、原字节备份及实际非空 swap 备份原子更新；首轮预检因 PowerShell 默认编码误读中文 UTF-8 收据而零写入停止，明确指定 UTF-8 后完成，原失败回执保留。自有进程均退出，没有后台监控或新发布。证据 `target/glow-windows-config-theme-entry-20261023/{deployment.json,theme-differences.json,arm64-actual.json,x64-actual.json}`；源／portable回执与 Mac 主题哈希见 `target/glow-theme-config-entry-20261023/`，新回归沿用 `tests/config/windows_themes.lua`。
+
+### 2026-10-23 Neo-tree 路径输入、C/C++ 能力核对与 x64 Java（Codex）
+
+- 按用户要求新增 Neo-tree 文件树 `g/`（先 g 再 /）：在树面板内弹出路径输入框，目录切换树根，文件定位并选中；支持 `~`、相对／绝对路径及 Windows 盘符／UNC。取消、空值或无效路径不改变树，保留草稿；`?` 帮助和中英提示同步。手动跳转后在树中浏览保留该根，返回编辑文件后恢复已有自动跟随。修改 `navigation/neo_tree_path.lua`、`navigation/project_root.lua`、插件键位及 UI 词典四文件，本机验证后逐字节同步 portable，再按旧 SHA／目标 buffer modified 守卫、原字节备份与非空备份路径原子部署 Windows 共用 home 配置；下次启动生效，未热载或重启现窗。
+- 新增 `tests/navigation/neo_tree_path.lua`，Mac 本源／portable 及 Windows 原生 ARM64／x64 均通过实际冻结 Neo-tree／Nui 定向检查：左右侧树内输入框、18／28／40列、目录／隐藏文件选中、取消／非法／空输入、词典帮助、手动根与自动跟随恢复、未保存草稿。Windows 用户私有主题字节不变，全部自有检查进程已退出；此为 headless 实际窗口与导航检查，用户 GUI 观感待自行验收。Windows 部署／检查证据 `target/glow-neotree-path-deployment-20261023/{manifest.json,deployment.json,buffer-guard.json}`。
+- C/C++ 能力只读核对：Mac 普通 zsh 可用 Apple Clang21、CMake4.3.4、Ninja1.13.2及Make3.81；现有 CMake extra 在项目有 `CMakeLists.txt` 时提供 `:CMakeGenerate`／`:CMakeBuild`／`:CMakeRun`，单文件可从 Ctrl-T 终端手动编译。Windows 普通 PowerShell／CMD、非交互 zsh -f 及当前 ARM64 Neovim 进程内均无 clang／cl／cmake／ninja／make 命令入口；桌面“Glow 开发环境”可用 MSVC19.44.35229（ARM64宿主、x64目标）、Clang21.1.8、CMake4.4.4、Ninja1.13.2和NMake。clangd／clang-format 为语言服务／格式工具，不负责生成程序；未发现通用编译运行当前 C/C++ 文件快捷键。未安装或改工具链／PATH，未编译或执行用户项目。普通环境／专用入口证据 `target/glow-cpp-capability-20261023/windows-audit/{tools-ordinary.json,tools-developer.json,followup.json}`；当前编辑器只读实查见前项 `runner-preflight/guard.json`，早期审计 pipe 查询超时不作为通过证据。
+- Windows x64 Java 原缺 parser 已补齐，复用固定 grammar `a7db5227ec40fcfe94489559d8c9bc7c8181e25a`／ABI14，MSVC HostARM64→x64 编译 PE8664（514560字节，SHA `536d9e08124756e9b0aeaf0ccf4f1a759533f2c4d53dc8e5511f277cccd566e4`），部署到实际 `pd-hardware-opengl-a96bece797dd-7d61575a` profile。实际 x64 Neovim0.12.3 的 Java 文件类型、无错误语法树、自动高亮及 Light／Dark 解析通过（82 capture／21类）；原56个 parser 和164个配置／私有主题文件哈希保持。首轮守卫撞到本轮另一个临时查询进程而零部署停止，保留失败回执后只续守卫／部署／profile验收，未重复构建。未安装JDK／jdtls、未运行Java、未重做Mac／ARM64或操作用户窗口；全部自有进程已退出。`target/glow-java-x64-20261023/{attempt1-result.json,result.json,acceptance.json}`。
+
+### 2026-10-23 标题居中、Avante 材质与阶段结束（Codex）
+
+- Picker 标题实际网格已左右各一空格，约5px差来自字体可见墨迹边界。`b534ddf29e76b0acf74f7e3f421b873cd13c8f23` 新增显式 `centered_caption` 角色及前端能力声明，只平移文字墨迹，不改背景、网格、字体或配色。覆盖 Snacks／Telescope 六类标题组及其派生 caption，包含文件、Buffer 列表、结果区及预览；Avante／Notebook 胶囊沿用各自布局。30项真实字体 CPU raster 检查覆盖五类文字、三档缩放与浅深主题，左右间距差均≤1px，缓存与既有渲染回归通过；不等同于两平台 GPU 界面验收。`target/glow-picker-caption-spacing-20261023/source.json`。
+- Windows 同源 ARM64／x64 release 均完成，继承 Snap 及系统外框修复；最终分别41,434,624／43,587,584字节，SHA `d70e0070a900b41c8eefb4665dda8bbcb1481cbc10ef6a1d7ac172acc5ca28de`／`36c72826f3de3d70ebe25cd46841143b02639b7b9ea4053f2b9c12836b250f12`。PE架构／GUI子系统、源包及远端哈希核验后，三入口守卫备份原子切换，下次启动生效；自有构建进程全部结束，未重启用户窗口。`target/glow-windows-caption-centering-20261023/receipt.json`。Mac 用同commit隔离干净检出经 `neovide-update --no-fetch --stage-only` 构建，App／CLI arm64与严格签名验证通过，资产已还原；App SHA `293116f25f2ebfdc2437720ed4faf776af54adff3547ce10c6029223ef90e82a`，已安装App观察状态见上文，CLI未替换。候选及构建证据在 `target/glow-picker-caption-spacing-20261023/mac-build/`。
+- Avante 全区统一归 `popup_materials.config.avante={mode="editor"}`，正文、选区区、输入区、边框、间隙及胶囊外侧沿用编辑区材质，语义实心标题／按钮保留；清除旧 transparency.lua 中第二套 Avante 材质来源。复用窗口变回普通 split 时只恢复本模块拥有的 namespace。Mac／portable 的真实窗口及 UI 协议检查、Windows ARM64 原生六窗口和复用边界通过，三文件守卫备份部署；Windows 用户 material_blend=30及私有调色板保留。最终证据 `target/glow-avante-editor-material-20261023/{ui-protocol.json,reuse-deployment.json,windows-reuse-headless.json}`；用户 GUI 外观待验。
+- Mac 编辑区透明度独立移至 `config/platform/macos_appearance.lua` 的 Light／Dark `normal_opacity`，保存后 `:lua require('config.platform.macos_appearance').reload()`；主题事件自动选对应值。`GlowGlass opacity` 临时值即时更新 Avante，`GlowGlass reset` 恢复当前主题默认。仅Mac GUI启用，本机／portable的主题事件、真实Avante窗口、重载及既有Glass检查通过；未改Windows独立值。用户工作中继续修改Mac参数／配色，收尾保留最新本机Light .95／Dark .85，portable保留代理最后同步的 .90／.85，此为参数差异，不回写用户颜色。
+- Java 高亮缺口是 Mac／Windows ARM64 均漏装 parser，已有 Ayu 映射无需修改；仅补固定 grammar `a7db5227ec40fcfe94489559d8c9bc7c8181e25a`／ABI14，原56项保持。实际 Java 文件类型、无错误语法树、自动高亮及两主题解析检查通过（82 capture／21类）；本机 ensure_installed 与 portable统一清单补Java，共57项。未安装JDK／jdtls、未操作现窗，Windows x64及Linux原生未验。`target/glow-java-highlighting-20261023/{acceptance.json,windows/result.json}`。
+- 本阶段所有已分派子任务已完成，无自有后台工作或继续监控；未发布版本。用户自行验收重开后的标题留白、Windows外框／Snap材质及Notebook／Avante外观。按用户要求，以本文件作为新对话最小交接，后续承接“当前C/C++编译能力及入口”核对；用户随后指定Windows x64 Java parser也放到新工作补齐，不恢复无关历史任务。已只读发现本机 clang／clang++、CMake／Ninja／make 可用，配置有 clangd／clang-format，尚未确认编辑器编译动作；Windows已有开发工具部署记录，普通终端可用性留新对话实查。
+
+### 2026-10-23 Windows 原生外框、Mac 输出去阴影与 Buffer 标题（Codex）
+
+- 用户追加 Windows 主窗口系统圆角、细描边和阴影。固定源码 `5681beecf656432f7a50a536aabd7e5303e3b240` 仅改三份 Windows 窗口相关 Rust：默认显式请求 DWM Round（用户显式圆角设置仍有效），frameless 顶层启用 Winit 原生 shadow 路径并使用系统默认描边色，进入全屏关闭其1px非客户顶边、退出恢复。保留渲染 alpha／RGB／主题，未引入 DwmExtendFrameIntoClientArea；核对自有 resize hook不处理WM_NCCALCSIZE、八向命中仍以系统外框及DPI为准。Mac 四项 resize release检查、格式检查通过。
+- 同一 commit 的 ARM64／x64 release 均通过，41,415,680／43,565,056字节，SHA分别 `4e5bfb2ff8cf1afd361a6ee5c50e221147539b16fdd2cea0ae2704afa1bba84b`／`9d7cb8c401437b7d790a0a2a1db80530ff8eb8addaa93662cbddb6540396d1a6`；PE架构／GUI子系统2及三入口旧SHA、原字节备份／原子切换均核验，下次启动生效。前两次源包选择遗漏derive／桥接Lua使Cargo预检101，失败证据保留；改为完整固定commit git archive后两架构成功，没有改产品源码或依赖来绕过预检。全部构建与部署隐藏启动、自有进程均结束。`target/glow-windows-native-frame-20261023/receipt.json`。未实际GUI验收；[微软说明](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/ui/apply-rounded-corners)表明圆角是系统提示、最大化／Snap及虚拟或远程环境受系统策略限制，不能将API请求写成三项像素均通过。
+- 用户要求仅 Mac Notebook 展开输出框去阴影。新增 `config.appearance.float_shadows` 单一完整排除快照控制器，平台入口只为Mac启用真实 `molten_output` window ID；保留Snacks子层／WhichKey footer规则、其他浮窗和picker外层阴影。原生Lua优先委托、旧配置保留fallback；旧App由同名augroup接管及单次真实UIEnter兼容，不替换Mac App、不全局关闭shadow、不伪装Snacks角色。重复接管清缓存，修正已有server被旧脚本写回后的快照去重缺口。源／portable各12场真实RPC／UIEnter检查及无配置fallback picker回归通过，包含新旧脚本、两种启动顺序、已有输出、三平台策略、Tab／关闭清理和frame／capsule／材质保留。`target/glow-macos-notebook-shadow-20261023/protocol-{local,portable}.json`；尚非GPU像素验收，下次Mac会话生效。用户若需当前会话手动应用可用 `:lua require("config.appearance.float_shadows").setup({ notebook_output = true })`，本轮未向现窗发送。
+- 用户指定 `空格 b e` 顶栏标题为 `Buffer Explorer`／`Buffer 浏览器`。确认真实冻结快捷键打开Neo-tree buffers源，现 `tree_title.lua` 按 `neo_tree_source` 选Buffer标题，仅修词典该中文项，其他树源仍为文件浏览器；之前方正Windows图标保留。源／portable／实际Windows原生Neovim各检查快捷键→真实树源、中英切换、492种宽度、源往返、未保存内容保护通过。两文件守卫备份部署，旧探针语法及绕过既有UNC适配的两次失败收据保留；最后只续验而未重复部署。`target/glow-buffer-explorer-title-20261023/{source.json,windows-headless.json}`。用户随后另报picker红色标题内左右留白不等，作为独立事项继续，不能将该标题命名检查当作留白已修。
+- 上述三项及下方Notebook胶囊均已完成可独立交付；当时未发布新版本、未关闭／重启用户窗口、未替换Mac安装。随后完成的picker标题留白及构建状态见上节，当前无后台等待。
+
+### 2026-10-23 Notebook 展开输出的右下角收起胶囊（Codex）
+
+- 按用户要求，Mac／Windows 的 `空格 j o` 展开输出框在右下角固定显示 `󰕎 q / Esc` 胶囊；长短输出均显示，正文横纵滚动不移动提示。复用主题已有 `GlowNotebookExpand*` 普通字号／透明端帽，底边预留一行、原生 frame 只在胶囊处断开下边线；极小视口隐藏提示并保留至少一正文行，原 q／Esc 收起动作始终可用。旧前端安全保留框内提示，无需改 Rust 或替换 Mac 已安装 App。
+- 仅修改 `notebook_output.lua`、`notebook_ui.lua` 与浮窗 caption 的四个 Notebook 语义组保留规则，先本机再同步 portable；用户颜色、Windows 独立主题与材质值均不变。两份配置的实时／保存输出滚动回归及各14项附 UI 协议检查通过：浅深主题、实际 footer glyph 列／gap 对齐、固定底行、滚动位置、缩窗、短输出、q／Esc 清理、旧前端回退以及实际 popup caption 材质。未启动内核、AI 或用户 GUI；协议不等于 GPU 像素验收。
+- Windows 三文件按旧 SHA 与用户目标 buffer modified 元数据守卫，原字节备份后原子部署；实际原生 Neovim0.12.6 语法和 `output_scroll.lua` 通过，自有进程全部退出。首轮 File.Replace 空备份路径导致零替换失败，保留收据后使用实际非空备份路径修正；完整检查、部署及必要重试均通过 GUI 子系统 launcher／CreateNoWindow 隐藏启动，未热载或重启现窗。下次加载配置生效，真实外观由用户验收。
+- 按用户追加要求，原上箭头改为展开图标U+F054F对应的[双向内收图标U+F054E](https://pictogrammers.com/library/mdi/icon/unfold-less-horizontal/)，无横杠；源／portable各两主题实际linegrid、宽度与gap增量检查通过，现有及随包六款Mono字体映射／双轮廓通过，两者均1列、胶囊仍12列。旧测试字体同时缺展开／收起两字形，记录为既有边界而未改字体。Windows仅helper此一行守卫备份部署，原生语法／字形宽度／gap检查通过，自有进程退出。增量证据为同目录 `protocol-icon-{local,portable}.json`、`icon-fonts.json`、`deployment-icon.json`、`windows-headless-icon.json`。
+- 证据 `target/glow-notebook-output-hint-20261023/{protocol-local.json,protocol-portable.json,deployment.json,windows-headless.json}`；新增独立 `tests/notebook/output_hint.py`，README 与验证说明同步。该项已完成，不等待后续独立 Windows 原生外框构建。
+
+### 2026-10-23 Windows 主题独立、Avante 材质与终端反馈（Codex）
+
+- 按用户要求，将 Windows 完整 Light/Dark 调色板及高亮参数与 Mac 独立。新增 `config.platform.windows_themes`，Windows 优先读取 `%LOCALAPPDATA%\NeovideGlow\appearance\themes\ayu_{light,dark}_customed.lua`，缺少私有文件的新安装使用共享默认；Mac/Linux 继续原主题加载路径。`chadrc` 与嵌入 Yazi 后备配色共用此入口，私有文件不进入 portable／配置同步树，也不回写 Mac。共享源与 portable 的隔离检查已通过，Mac 两份原主题文件 SHA 不变；Windows 原保存值已逐字节迁入私有目录，两份原源文件保持不变，当前 ayu_light 选择保留。helper 先安装，再按 SHA 守卫原子更新 chadrc／Yazi／README并保留备份；实际 ARM64 隔离检查完整调色板深度相等、私有文件优先、重载路由及语法均通过，不启动插件／GUI。下次载入生效；以后编辑私有文件后执行 `:lua require("config.platform.windows_themes").reload()`。说明与重载入口同步 README，项目 AGENTS 记录平台边界。`target/glow-platform-themes-20261023/{deployment.json,windows-headless.json}`。
+- Windows Avante 分隔格及胶囊外侧材质原先仅在 Mac Liquid Glass 条件下匹配，现仅放开这两处 Windows 路径；未改 RGB 或原生绘制。用户最新 `windows.material_blend=30`、原格式及其他参数保留，守卫备份后部署。源／portable／实际 Windows ARM64 共六组深浅平台检查通过，Mac/Linux 前后快照一致；真实边框及圆角观感尚待用户验收。证据 `target/glow-windows-avante-material-20261023/{source.json,deployment.json,windows-headless.json}`。
+- Windows 内嵌 zsh 的 gitstatus 错误已按实际继承环境复现：Neovim 传入 Windows 格式 `XDG_CACHE_HOME`，gitstatus 将其缓存路径判为非 POSIX 绝对路径。仅 workstation-config 的 `shell/zsh-port/windows.zsh` 转换 `GITSTATUS_CACHE_DIR`，保留 XDG 原值、用户 p10k 及 Mac 路径；Windows 已备份部署。实际用户环境下的自建 Neovim 虚拟 UI，经相同 PowerShell→zsh 链验证 daemon state2、查询 ok-sync、测试分支及未跟踪文件；七份既有 shell／入口文件 SHA 不变，自有仓库／进程已清理。现有终端未重启，用户执行 `exit` 后 Ctrl-T 重开验收。`target/glow-windows-zsh-gitstatus-20261023/receipt.json`。
+- WhichKey 初次只读查询确认用户窗口正在录制 `q` 寄存器；冻结插件录制期间会移除自动提示触发，附 UI 协议已复现。用户反馈按 `q` 无反应后补查 Avante 默认 buffer-local `q` 关闭侧栏映射；独立同语义映射场景证明其可能拦截结束录制，条件命令 `:if reg_recording() !=# '' | execute 'normal! q' | endif` 能安全绕过，重复执行不启动新录制。后续只读现窗已无录制、Avante 已关闭、普通代码缓冲区 Space 触发存在且树含35个子项；未向现窗输入或修改配置，告知用户 Esc 后直接 Space 验收，不再重复按 q。无法追溯最初触发录制的按键；用户随后手动确认代码区 Esc→Space 能正常弹出菜单，本项已闭合。证据 `target/glow-windows-whichkey-20261023/{live-readonly-q-followup.json,live-readonly-tree-followup.json,avante-q-stop-ui.json}`。
+
+- 用户后续观察打开文件时有终端短暂闪现。本轮最后检查确实以未隐藏的 PowerShell／原生 headless Neovim 控制台方式运行，可能与该次闪现相关；没有视觉记录，不能认定具体来源。全部自有检查已返回、无后台进程；收到反馈后停止新增 Windows 调用。Avante 外观与新终端由用户验收，未重启／热载用户窗口、未替换 Mac 已安装产物、未构建／发布或新增 standby。
+
+### 2026-10-23 现场反馈：Snap 重绘、Windows 材质及 TeX 项目迁移（Codex）
+
+- 用户报告 Neo-tree 展开时贴顶最大化、左右贴边半屏及后续缩放会空白、需点击才恢复，并观察到背景材质变化。`7da35f706fc27227e80ec3af5c4595cc3cfd3660` 修复 Windows 原生 paint 在 Snap 不发送 `WM_SIZING` 时绕过完整准备的问题：先处理缓冲批次、布局和动画再呈现，尺寸变化期间继续失效重绘，退出原生循环补一次 paint，纯移动不持续刷新。没有通过修改 RGB／opacity 掩盖画面缺失；材质观感与空白是否全部解决仍待用户实际验证。
+- 同一提交的 ARM64／x64 release 均 exit0，匹配各自 Skia；41,413,120／43,561,472 字节，SHA 分别 `cf592322c66d78569144f935eccd236c6473fce41a000818845087c9db905f3c`／`d393cdcadcef462ab4115ee4c25e484b47d314b5b49e5b32af370790acbc1ff3`。Mac release 原有四项 resize 几何检查通过。桌面 `Glow ARM64`／`nvidec-arm64` 及原 x64 桌面／`nvidec` 已守卫备份、并排切至下次启动，未关闭或重启用户窗口。两次自建 GUI 均未达到 readiness，不能宣称复现／像素验收通过；自有进程已按 PID＋创建时间清理，按用户“弄好交给我测试”停止追加 GUI。证据 `target/glow-windows-snap-redraw-20261023/{receipt.json,deployment/deployment.json}`。
+- Windows `transparency.lua` 用户实际已改为40，却被 `apply()` 的80及浅色平台15覆盖。现集中为该文件 `M.config.windows.material_blend=40`，深浅面板统一；原 Windows `normal_opacity` 深.85／浅.98、`popup_blend` 深100／浅15也在同一 Windows 表，保留原语义。Mac/Linux 的 `M.config.material_blend=80` 不读取 Windows 表，独立选中行／RGB／字体不变。Windows 原格式化差异保留，单文件 SHA 守卫备份部署；本源／portable 定向检查、10个实际状态栏合成场景及实际 Windows ARM64 headless 通过，含编辑53后主题刷新及重载。首次迁移随新前端重开；以后修改保存后执行 `:lua package.loaded['config.appearance.transparency']=nil; require('config.appearance.transparency').setup()`。证据 `target/glow-windows-snap-synctex-20261023/material/`。
+- Neo-tree 标题 Windows 图标从斜透视 U+F17A 换成方正四格 U+F0372；实际安装字体与随包 FiraCode Nerd Font Mono 字节一致，已核对字形。本源／Windows各75个标题宽度场景通过，Mac/Linux图标、字号、颜色及布局不变，未热载用户窗口。`target/glow-windows-feedback-20261023/tree-icon/`。
+- 当前 Windows `Desktop/tex.tool/tool.tex` 的旧 PDF／SyncTeX／recorder 仍记录 Mac `/Users/...`，实际四种源路径查询均 code0、stdout `No tag`，空 stderr 又吞掉诊断。仅 Windows 修正错误显示，并新增构建缓存迁移模块：真实 VimTeX 初始化发现 `.fls` 的绝对 PWD 与当前根不同，给该 compiler 首次实际编译加自有 `-g`，成功后恢复增量；不自动编译、不删产物，手动原有 `-g` 保留。Mac不导入该模块／注册新事件／改编译参数，诊断也保留原分支。真实冻结 VimTeX 的本源／portable四次定向检查通过，包含 Mac 旧根项目行为不变；四份配置已守卫备份部署 Windows。证据 `target/glow-{synctex-diagnostics,latex-cache-migration}-20261023/`、`target/glow-windows-synctex-feedback-20261023/config-deployment.json`。
+- 强制编译另暴露 XeLaTeX 找不到已安装的用户级 FiraCode Nerd Font Mono，随后缺 `tgschola.sty`。新增 Windows TeX fontconfig 局部扩展，包含用户字体目录和实际 TeX 字体目录，保留原 `fonts.conf`；明确选择 TeX 时的复用／安装入口均接入。实际 TeX 父入口的字体 cache、中文 XeLaTeX、SyncTeX三检查通过，用户全局依赖选择 SHA 不变，Core八项检查通过。补齐 `tex-gyre` 后当前文档以 XeLaTeX 成功生成新 PDF 和 `Input:1:C:/Users/.../tool.tex`，原源码 SHA `56e95971723a8aad0e14f8bb8fa2f87d3171acacb49ff78e73fdf81d27fce12d` 不变，原产物备份在 `C:\GlowDev\GraphicsQA\TexFeedback20261023Rebuild\before`。第74／20行真实正向与逆向 CLI 均通过；首次 Python 验收保留 CR 导致逆向参数失败，修正为 splitlines 后只重验查询，未重复编译。`tex-gyre` 来自官方 CTAN HTTPS；tlmgr 输出有 `not verified: pubkey missing` 及 cmd 启动告警，未将此安装记作 PGP 校验通过。此前编译失败、工具探针与安装失败收据原样保留，最终可用状态以 `target/glow-windows-synctex-feedback-20261023/project-verified.json` 为准。
+- 本轮窗口 GUI、材质实际观感及鼠标双向定位由用户验收；已给出保存重开 `Glow ARM64` 后测试贴顶／左右半屏／连续缩放、深浅面板、`:VimtexView` 与 PDF Ctrl＋单击的入口。未替换 Mac 已安装产物、未改既有 `chadrc.lua`、未发布新版本；后台构建及自建测试已结束，不新增 standby／自动唤醒。
+
+### 2026-10-23 Windows ARM64 插件与 Notebook 依赖补齐（Codex）
+
+- 按用户新授权完成此前“仍待单独适配”的依赖项。证据统一位于 `target/glow-windows-arm64-dependencies-20261023/`。Avante 冻结源码 `7a9fbbd` 的四个原生模块、FFF v0.11.0、LuaSnip jsregexp 已按 ARM64 准备并守卫部署；实际 ARM64 Neovim 加载、分词／模板／repo-map／HTML 转换、模糊查找及正则捕获通过，既有 x64 原生库保持。既有 Fzf ARM64 修复复用。56 个冻结语法解析库均实际加载／解析通过，其中 10 个使用非空语法样例，其余仅验证 ABI 与空输入树；Python 使用冻结提交，未混入 x64 DLL。`native-plugins/{receipt.json,parsers/deployed.json}`、`luasnip/{deployment.json,deployed-probe.json}`。
+- Notebook 使用独立、不继承全局包的 ARM64 Python 3.14.8 venv，按原锁安装 53 个包并生成真实 Molten rplugin manifest；未重建或覆盖用户科学环境。真实内核返回 42、预期 ValueError、执行计数及异步编辑响应通过；PNG 经内核→Molten→ipynb 导出后尺寸／像素一致，中文空格路径 Jupytext 往返保留结果、错误和图片。私有 Jupyter 路径只在选择私有 host 时启用，显式用户设置保留。实际依赖父入口已选择新 provider，原先无 selected.json；没有虚构旧选择备份。`notebook/{setup-report.json,live-report.json,jupytext-report.json,runtime-deployment.json}`、`shared/notebook-selection.json`。
+- ARM64 profile 已准备冻结的 24 项 Mason 工具；23 项 CLI、9 项 LSP initialize/shutdown、实际 Neovim 的 24 项命令解析及 3 项 LSP 初始化通过。Node、Java、Texlab、Neocmakelsp、Ruff 为 ARM64，其他部分进程外工具及其私有 Python 继续兼容 x64；不宣称全软件原生化。未改全局 PATH 或旧 x64 profile。覆盖范围记为 `mason/receipt.json` 的 `passed_scoped`；未做完整项目诊断／调试，Go SDK 不在 PATH，未验证 Go 项目构建。
+- 另补齐 Avante 原缺失的 ACP adapter 2.2.2 与 Codex 0.160.1 ARM64，使用既有私有 ARM64 Node；保留冻结 npm 锁和 Mac 路由。实际入口环境下路径、语法及版本检查通过，未 initialize、读取认证或发送聊天请求。新增 `Setup-ACP.ps1`，安装父入口已实际返回 ready，复用分支未运行 npm 或修改现有模块。`native-plugins/acp/receipt.json`、`shared/acp-parent.json`。
+- 公共配置先本源验证、再同步 portable、按 SHA 备份部署 Windows；新增可复用 Notebook／Mason／ACP 准备入口，Avante／LuaSnip 构建明确目标架构，Core 素材包含新入口和 ACP 锁。本源＋portable 共 30 项隔离检查、Windows PythonProbe 9 组及 Core 打包 8 项检查通过；普通 ARM64 home 配置实际启动、Python provider RPC、原生库、Mason 路径、Python 解析及 Avante 路径均通过，见 `shared/profile-health.json`。本次未构建新的完整 ARM64 离线安装包；`build-bundle.py` 主类仍为 x64，不能据单项架构支持宣称完整 ARM64 安装器已验。
+- GUI 图片像素、实体交互及在线 AI 对话未验；必要检查已结束，不继续 standby。早期探针／构建失败及定向修正证据保留，没有追认失败断言；各模块自有进程已退出。未关闭／重启用户应用，未替换 Mac 已安装产物，未改字体、缩放、主题色或既有 `chadrc.lua`，未发布新版本；下次启动使用部署结果。
+
+### 2026-10-23 保留 Windows 内嵌 PDF，实现双向搜索（Codex）
+
+- 按用户选择扩展 WebView2 后端，采用离线 PDF.js 6.4.299 与版本化坐标桥；新前端明确声明 SyncTeX 能力，`VimtexView`／`GlowTexForward` 优先内嵌，PDF 正文 Ctrl＋单击逆向回源，显式 `g:glow_tex_viewer='sumatra'` 仍可选择外部回退。本源配置先验证再同步 portable，三份文件按旧 SHA 守卫部署，字体、缩放、主题色不变。
+- 源码最终 `fdeece58f8c14f33a0f08203e89646e018e53e08`，匹配架构 Skia 的 x64／ARM64 release 均 exit0、输出关闭、自有构建进程退出；EXE 分别 43,559,424／41,411,072 字节，SHA256 及 PE 见 `target/glow-windows-embedded-synctex-20261023/build/{x64,arm64}/receipt.json`。旧 `4433823` 构建保留于 `attempt-4433823`，因真实定位缺陷不用于部署。
+- 真实 ARM64 首轮发现 SyncTeX `v` 为包围框底边、`H` 向上延伸，查看器原来向下延伸使第3行误回第5行；已修正方向、小标记中心与定位上下文。真实 XeLaTeX 浏览器回环在 135%／50% 均回第3行；Windows ARM64 新版 135% 实际 WebView2 DOM→host→Lua→SyncTeX 也回第3行，目标标记与上下文已查看，nohidden 拒绝覆盖及 hidden 草稿保留通过。x64 新版 ready／两页／显式关闭通过。原首轮稳定正向定位证据复用，新版 ARM64 仅续必要失败断点；不是实体鼠标验收。
+- 本源＋portable 28 项隔离回归、2 项 Rust 协议测试、4 项 Node／7 组浏览器检查通过，官方资源 286 项哈希核对通过。ARM64 续验附加 Network 统计断言把初载误当重载，原失败收据保留并按实际观察记为 `passed_scoped`；该轮未执行显式 RPC 关闭，只确认正常 quit 与9个自有进程退出，未冒称全套通过。实际范围绑定 `integration/{arm64-01,arm64-02,x64-02}`、`viewer/tex-roundtrip` 及 `deployment/deployment-authority.json`。特殊后处理裁切 PDF 的 MediaBox 坐标仍需额外元数据，普通 XeLaTeX 输出已覆盖；Mac 未重做原生 PDF GUI、Linux 未验。
+- 已并排部署并切换 x64 桌面／`nvidec` 与 ARM64 原入口；原程序、入口字节、三份配置和新增 PDF.js 许可均保留，`deployment/deployment.json` 为 `deployed_next_launch`。首次入口替换因 PowerShell 5.1 将空备份参数绑定成非法路径，在零文件更改时失败；改为真实同卷备份路径后切换成功，原失败收据保留。未关闭／重启用户应用、未替换 Mac 已安装产物、未重封或发布包；所有本轮自有进程已结束，不再 standby／新设唤醒。
+
+### 2026-10-23 周用量重置后的两项修复（Codex，首轮记录）
+
+- 定时检查实际读取 Codex 七天窗口（10080 分钟）由 100% 降为 0%，重置时间也已更新，符合用户“重置才开始”的条件；随后暂停一次性检查 `glow`，未恢复无关历史任务。依据 `target/glow-windows-two-fixes-20261023/quota-gate.json`。
+- ARM64 Fzf 的直接原因是数据准备时过滤原生二进制，实际缺少 `build/libfzf.dll`。已按 Neovim 架构编译并守卫部署 ARM64 DLL（114688 字节，PE 0xaa64，SHA256 `4b77ba529e57d45c41a47d9f9a711858eab206c21f2c99fbf1c239e7118bcc12`，仅 KERNEL32.dll），保留原 x64 DLL及配置备份。修正插件依赖结构、分架构 CMake/install 构建与明确警告／Lua 排序回退，portable 构建器仅调整 Fzf 分支。Mac 本源／portable、Windows ARM64 候选／部署、现有 x64 与缺库回退六项实际加载／排序通过；见 `target/glow-windows-fzf-fix-20261023/receipt.json`。
+- Windows 当前 WebView2 内嵌 PDF 明确不支持坐标 SyncTeX；本轮通过官方原生 ARM64 SumatraPDF 3.6.1 恢复双向搜索，保留内嵌普通预览和系统 PDF 关联。`VimtexView`／`GlowTexForward` 发起正向搜索，Sumatra 正文双击为逆向入口；每个 Neovim server 使用独立查看器 profile，逆向最小客户端通过结构化 RPC 回到发起实例，保留未保存草稿。另修复 Windows 盘符／UNC 绝对路径与 XeLaTeX/SyncTeX 的系统 ANSI 中文文件名解码；Mac 保留既有原生／Skim 路由。查看器下载哈希及签名通过，六个运行配置文件含词典均按旧 SHA 守卫、原字节备份部署，普通 ARM64／打包 x64 环境均能自动发现原生 ARM64 查看器，下次启动生效；见 `target/glow-windows-tex-search-fix-20261023/{deployment.json,sumatra-rpc-receipt.json,arm64-viewer-detection.json,x64-viewer-detection.json}`。
+- 验证：真实 XeLaTeX／SyncTeX 中文、空格、单引号及独立输出目录往返通过；实际逆向 RPC、两实例隔离、未保存草稿保护通过。Windows TeX 真实父入口 7.13 秒通过，复用 TeX／Sumatra、两子进程 exit0 且输出关闭，零下载／新增安装／Python 导入，用户选择保留；首次验收脚本 ANSI 读取 UTF-8 JSON 的误判已定向修正，失败证据保留。安装流程同时检测／补齐双向查看器，并按 OS 架构复用；本源＋portable 共 28 项隔离 headless 回归及改动格式检查通过。收据 `target/glow-windows-two-fixes-20261023/{latex-parent-passed.json,headless.log}`。
+- GUI 边界：自建隔离 Neovide／Neovim／Sumatra 在真实登录 session1 成功启动且收到正确参数；CUA 返回旧画面，原生自有窗口尺寸也不可用，因此未发送 SendInput、未验证实际定位高亮／正文双击。两项鼠标体验留待用户在场；不能将 RPC 通过写成 GUI 通过，Windows 内嵌双向搜索也未实现。测试窗口按精确 PID／创建时间／路径清理，最终自有进程均已退出；未关闭用户窗口、未替换 Mac 已安装产物、未构建／发布新包，既有 `chadrc.lua` 改动保留。各自证据中的 `gui-cleanup.json`／`final-process-check.json` 为清理依据；本轮结束，无 standby 或继续唤醒。
+
+### 2026-10-22 16:21 用户反馈待办：仅记录，暂不处理（Codex，历史记录）
+
+- 用户明确要求“现在先不工作，先记录一下”；本次只保存反馈与截图，后续排查／修复等待用户明确恢复。
+- Windows ARM64：dashboard 启动时 lazy.nvim 报 `Failed to run config for telescope-fzf-native.nvim`，`fzf` 扩展加载失败；截图指向 nvim-arm64 数据目录内的 `telescope-fzf-native.nvim/build/libfzf.dll`，提示“找不到指定的模块”。具体原因未排查。
+- LaTeX：用户反馈编译后，源文件与 PDF 之间无法双向搜索（正向／逆向搜索）。本次未复现或检查阅读器／SyncTeX 链路；此前编译通过不代表双向搜索通过。
+- 截图（16:21:14）：`target/glow-windows-user-feedback-20261022-1621/screenshot.png`。未启动代理、Windows 操作、构建或测试，未修改程序及运行配置。
 
 ### 2026-10-22 ARM64 继承、动画、无控制台入口与 dashboard 拖窗（Codex）
 

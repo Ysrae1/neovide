@@ -10,21 +10,21 @@ end
 vim.o.columns, vim.o.lines = 120, 40
 local ok, err = xpcall(function()
   if vim.env.GLOW_TEST_LOCALE_UI_BASE then
-    package.loaded["config.platform.locale_ui"] = dofile(vim.env.GLOW_TEST_LOCALE_UI_BASE)
+    package.loaded["config.locale.ui"] = dofile(vim.env.GLOW_TEST_LOCALE_UI_BASE)
   end
   local locale = require("config.platform.locale")
   require("snacks").setup({ input = { enabled = true }, notifier = { enabled = false } })
-  require("config.platform.locale_ui").setup(locale)
+  require("config.locale.ui").setup(locale)
   locale.set_lang("en", { save = false, silent = true })
   local input = require("snacks.input").input({ prompt = "Rename File", default = "Find Files 中文.lua" }, function()
     error("language refresh must not confirm or cancel the input")
   end)
   local win, buf = input.win, input.buf
   if vim.env.GLOW_TEST_LOCALE_UI_BASE then
-    package.loaded["config.platform.locale_ui"] = nil
-    require("config.platform.locale_ui").setup(locale)
+    package.loaded["config.locale.ui"] = nil
+    require("config.locale.ui").setup(locale)
     local dispatch = require("snacks.win").win_opts
-    require("config.platform.locale_ui").setup(locale)
+    require("config.locale.ui").setup(locale)
     assert(require("snacks.win").win_opts == dispatch, "hot setup stacked caption wrappers")
   end
   vim.api.nvim_win_set_cursor(win, { 1, 4 })

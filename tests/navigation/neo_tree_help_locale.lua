@@ -6,7 +6,7 @@ for _, name in ipairs({ 'neo-tree.nvim', 'nui.nvim', 'plenary.nvim' }) do vim.op
 local stdpath, work = vim.fn.stdpath, vim.fn.tempname()
 vim.fn.stdpath = function(name) return name == 'state' and work or name == 'config' and work .. '/config' or stdpath(name) end
 local language = 'en'
-local catalog = require('config.platform.locale_catalog').new(function() return language end)
+local catalog = require('config.locale.catalog').new(function() return language end)
 package.loaded['config.platform.locale'] = { current = function() return language end, t = catalog.t }
 vim.o.columns, vim.o.lines, vim.o.laststatus, vim.o.showtabline = 160, 80, 0, 0
 local sources = { 'filesystem', 'buffers', 'git_status', 'document_symbols' }

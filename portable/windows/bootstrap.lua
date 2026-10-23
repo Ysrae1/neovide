@@ -6,7 +6,10 @@ local function read_json(path) return vim.json.decode(read_text(path)) end
 
 local function main()
   ensure(vim.fn.has("win32") == 1, "Windows bootstrap requires native Windows Neovim")
-  ensure(vim.env.NEOVIDE_BUNDLE_PLATFORM == "windows-x64", "Expected NEOVIDE_BUNDLE_PLATFORM=windows-x64")
+  local architecture = jit.arch == "arm64" and "arm64" or (jit.arch == "x64" and "x64" or nil)
+  ensure(architecture, "Windows bootstrap requires x64 or ARM64 Neovim")
+  ensure(vim.env.NEOVIDE_BUNDLE_PLATFORM == "windows-" .. architecture,
+    "Bootstrap target must match the Neovim process architecture")
   local payload = assert(vim.env.NEOVIDE_BUNDLE_PAYLOAD, "NEOVIDE_BUNDLE_PAYLOAD is required")
   local phase = vim.env.NVIM_BUNDLE_PHASE
   ensure(phase == "parsers" or phase == "mason" or phase == "health", "Windows bootstrap phase must be parsers, mason or health")
@@ -68,8 +71,9 @@ local function main()
     end
     vim.list_extend(compilers, { "cl", "clang-cl" })
     install.compilers = vim.tbl_filter(function(name) return vim.fn.executable(name) == 1 end, compilers)
-    ensure(#install.compilers > 0, "An x64 MSVC developer environment with cl or clang-cl is required")
-    ensure(not vim.env.VSCMD_ARG_TGT_ARCH or vim.env.VSCMD_ARG_TGT_ARCH == "x64", "Parser compiler must target x64")
+    ensure(#install.compilers > 0, "An MSVC developer environment with cl or clang-cl is required")
+    ensure(not vim.env.VSCMD_ARG_TGT_ARCH or vim.env.VSCMD_ARG_TGT_ARCH == architecture,
+      "Parser compiler must target the Neovim process architecture")
     ensure(vim.fn.executable("git") == 1 and vim.fn.executable("tree-sitter") == 1, "Pinned Git/tree-sitter tools are missing")
     require("nvim-treesitter.configs").setup({ ensure_installed = {}, auto_install = false })
     vim.cmd("runtime plugin/nvim-treesitter.lua")

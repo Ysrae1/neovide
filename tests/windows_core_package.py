@@ -50,9 +50,10 @@ class CorePackage(unittest.TestCase):
             "nvim/init.lua": b"-- current defaults\n", "nvim/lazy-lock.json": files["profile/config/nvim/lazy-lock.json"],
             "nvim/lua/config/media/runtime/requirements.txt": b"pynvim==0.6.0\n",
             "yazi/init.lua": b"current yazi", "requirements-latex.lock": b"pylatexenc==2.11\n",
+            "codex-acp/package.json": b'{"name":"fixture"}', "codex-acp/package-lock.json": b'{"lockfileVersion":3}',
         }.items():
             self.write(self.payload / path, content)
-        for path in ["runtime/WindowsInit.lua", "Setup-Dependencies.ps1", "dependencies.json", "WebView2.ps1", "Dependency-Helpers.ps1", "system-assets.lock.json", "Setup-LaTeX.ps1", "tex/Install-TinyTeX.ps1", "tex/fixture.tex", "tex/asset-lock.json"]:
+        for path in ["runtime/WindowsInit.lua", "Setup-Dependencies.ps1", "dependencies.json", "WebView2.ps1", "Dependency-Helpers.ps1", "system-assets.lock.json", "Setup-LaTeX.ps1", "Setup-Notebook.ps1", "setup-notebook.py", "Setup-ACP.ps1", "tex/Install-TinyTeX.ps1", "tex/Fontconfig.ps1", "tex/fixture.tex", "tex/asset-lock.json"]:
             self.write(self.here / path, b"test input")
         self.launcher = self.root / "new-launcher.exe"
         self.launcher.write_bytes(b"compiled current launcher")

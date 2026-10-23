@@ -8,6 +8,10 @@ param(
     [switch]$InstallNotebook,
     [switch]$InstallBase,
     [switch]$InstallLatex,
+    [switch]$InstallACP,
+    [string]$NvimDataRoot,
+    [string]$ACPNodePath,
+    [ValidateSet('x64','arm64')][string]$ACPArchitecture,
     [ValidateSet('powershell','git','search','find','yazi','fzf','node','latex','pdf','webview2')]
     [string[]]$InstallTool = @(),
     [switch]$Json,
@@ -16,6 +20,9 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ($InstallACP -and (-not $NvimDataRoot -or -not $ACPNodePath -or -not $ACPArchitecture)) {
+    throw 'ACP setup requires an explicit Neovim data root, Node executable and target architecture.'
+}
 if ($InstallTool -contains 'latex') {
     $InstallLatex=$true
     $InstallTool=@($InstallTool|Where-Object {$_ -ne 'latex'})
@@ -48,7 +55,9 @@ implementation=sys.implementation.name
 version=list(sys.version_info[:3])
 platform=sysconfig.get_platform()
 bits=8*struct.calcsize('P')
-compatible=implementation=='cpython' and version[:2]==[3,12] and platform=='win-amd64' and bits==64
+compatible=implementation=='cpython' and bits==64 and (
+    (version[:2]==[3,12] and platform=='win-amd64') or
+    (version[:2]==[3,14] and platform=='win-arm64'))
 missing=[]
 imports_checked=False
 if compatible:
@@ -151,15 +160,18 @@ print(json.dumps({'python':sys.executable,'implementation':implementation,'versi
         if ($diagnostic.exit_code -ne 0) { throw ('Python probe exited with code '+$diagnostic.exit_code+'.') }
         if ($diagnostic.stdout_truncated) { throw 'Python probe output exceeded 32 KiB; its result could not be verified.' }
         $result=$diagnostic.stdout|ConvertFrom-Json
-        # This release's Windows wheels are validated with CPython 3.12.
-        $compatible = $result.implementation -eq 'cpython' -and $result.version[0] -eq 3 -and $result.version[1] -eq 12 -and $result.platform -eq 'win-amd64' -and $result.bits -eq 64
+        # Preserve the frozen x64 profile; the same requirements also resolve
+        # to native Windows ARM64 wheels on the validated CPython 3.14 profile.
+        $compatible = $result.implementation -eq 'cpython' -and $result.bits -eq 64 -and $result.version[0] -eq 3 -and (
+            ($result.version[1] -eq 12 -and $result.platform -eq 'win-amd64') -or
+            ($result.version[1] -eq 14 -and $result.platform -eq 'win-arm64'))
         $diagnostic.imports_checked=[bool]$result.imports_checked
         if ($compatible -and -not $diagnostic.imports_checked) { throw 'Compatible Python did not complete its dependency imports; interpreter availability is unknown.' }
         $ready = $compatible -and $diagnostic.imports_checked -and @($result.missing).Count -eq 0 -and
             (Test-Path -LiteralPath $result.jupytext -PathType Leaf) -and
             (Test-Path -LiteralPath $result.latex2text -PathType Leaf)
         $diagnostic.status=if (-not $compatible) {'incompatible'} elseif ($ready) {'ready'} else {'missing'}
-        return [pscustomobject]@{ python = $result.python; version = ($result.version -join '.');
+        return [pscustomobject]@{ python = $result.python; version = ($result.version -join '.'); platform = $result.platform; bits = $result.bits;
             compatible = $compatible; ready = [bool]$ready; missing = @($result.missing); imports_checked = $diagnostic.imports_checked;
             jupytext = $result.jupytext; latex2text = $result.latex2text }
     }
@@ -196,6 +208,7 @@ function Save-Selection($Selected) {
     }
     $contents = @{ schema_version = 1; python = $Selected.python; jupytext = $Selected.jupytext;
         latex2text = $Selected.latex2text; python_version = $Selected.version; tool_paths=@($script:SelectedToolPaths) }
+    if ($Selected.PSObject.Properties['platform']) { $contents.python_platform=$Selected.platform }
     $temporary = $receipt + '.preparing-' + [Guid]::NewGuid().ToString('N')
     try {
         [IO.File]::WriteAllText($temporary, ($contents | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
@@ -214,7 +227,8 @@ if ($manifest.schema_version -ne 1 -or $assetLock.schema_version -ne 1) { throw 
 $script:SelectedToolPaths=@(Get-DependencySelectedPaths (Join-Path $SelectionRoot 'selected.json'))
 $script:DependencyChecks=@(); $script:DependencyRun=$null; $script:PythonProbeDiagnostics=@()
 $dependencyMutex=$null; $mutexAcquired=$false
-$mutating=$InstallBase -or $InstallNotebook -or $SelectPython -or $InstallLatex -or $InstallTool.Count -gt 0
+$mutating=$InstallBase -or $InstallNotebook -or $SelectPython -or $InstallLatex -or $InstallACP -or $InstallTool.Count -gt 0
+$acpReady=$false
 $mapping=@{search='rg';find='fd';yazi='yazi';fzf='fzf';git='git'}
 $minimumVersions=@{search='14.0';find='10.0';yazi='26.5.6';fzf='0.65.0';git='2.30.0'}
 function Find-DependencyCommand([string]$Role,[string]$Name) {
@@ -238,6 +252,25 @@ function Find-DependencyCommand([string]$Role,[string]$Name) {
         foreach ($tiny in @((Join-Path $env:APPDATA 'TinyTeX\bin\windows\xelatex.exe'),
             (Join-Path $env:LOCALAPPDATA 'Programs\NeovideGlow-TinyTeX\bin\windows\xelatex.exe'))) {
             if (Test-Path -LiteralPath $tiny -PathType Leaf) { return $tiny }
+        }
+    }
+    if ($Role -eq 'pdf') {
+        # A user-level portable viewer need not be on the global PATH. Prefer
+        # its native OS architecture, then reuse a standard existing install.
+        try { $nativeArchitecture=[System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString() }
+        catch { $nativeArchitecture=if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE } }
+        $architecture=if ($nativeArchitecture -eq 'ARM64') { 'arm64' } else { 'x64' }
+        $portable=Join-Path $env:LOCALAPPDATA 'NeovideGlow\dependencies\sumatra'
+        if (Test-Path -LiteralPath $portable -PathType Container) {
+            foreach ($version in @(Get-ChildItem -LiteralPath $portable -Directory | Sort-Object Name -Descending)) {
+                $candidate=Join-Path $version.FullName ($architecture+'\SumatraPDF.exe')
+                if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+            }
+        }
+        foreach ($root in @($env:ProgramFiles,${env:ProgramFiles(x86)},$env:LOCALAPPDATA,(Join-Path $env:LOCALAPPDATA 'Programs'))) {
+            if (-not $root) { continue }
+            $candidate=Join-Path $root 'SumatraPDF\SumatraPDF.exe'
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
         }
     }
     return $null
@@ -285,12 +318,14 @@ else {
         } catch { Write-Warning 'Previous dependency selection could not be read; existing bytes were preserved.' }
     }
     $candidates+=Join-Path $DependencyRoot 'notebook-v1\Scripts\python.exe'
+    $candidates+=Join-Path $DependencyRoot 'notebook-v1-arm64-py314\Scripts\python.exe'
+    $candidates+=Join-Path $env:LOCALAPPDATA 'nvim-arm64\data\nvim-data\glow-notebook-venv\Scripts\python.exe'
     $candidates+=Join-Path $env:LOCALAPPDATA 'Programs\NeovideGlow-Python312\python.exe'
     $candidates+=Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'
     foreach ($name in @('python.exe','python3.exe')) {
         $candidates+=@(Get-Command $name -CommandType Application -All -ErrorAction SilentlyContinue|ForEach-Object {$_.Source})
     }
-    foreach ($relative in @('anaconda3\python.exe','miniconda3\python.exe','miniforge3\python.exe')) {
+    foreach ($relative in @('anaconda3\python.exe','miniconda3\python.exe','miniconda3-arm64\python.exe','miniforge3\python.exe')) {
         $candidates+=Join-Path $env:USERPROFILE $relative
     }
     $jupyterRoots=@((Join-Path $env:APPDATA 'jupyter'),(Join-Path $env:PROGRAMDATA 'jupyter'))
@@ -322,7 +357,7 @@ if ($InstallNotebook) {
     elseif ($base) { Write-Host ('Notebook: reuse CPython '+$base.version+'; download packages into a separate environment (package size is resolved by pip).') }
     else { Write-Host ('Notebook: download official CPython 3.12 x64 ('+[Math]::Round($assetLock.assets.python.download_size/1MB,1)+' MiB), then packages into a separate environment.') }
 }
-if ($InstallLatex) { Write-Host 'LaTeX: reuse a verified complete TeX installation; otherwise TinyTeX (70.3 MiB) plus signed TeX packages and Git/GnuPG if missing.' }
+if ($InstallLatex) { Write-Host 'LaTeX: reuse a verified complete TeX installation and SumatraPDF for bidirectional search; otherwise install missing dependencies only.' }
 try {
     if ($mutating) {
         $dependencyMutex=New-Object Threading.Mutex($false,'Local\NeovideGlowDependenciesV1')
@@ -336,7 +371,7 @@ try {
     Assert-NotebookProbeKnown $selected ([bool]($InstallNotebook -or $SelectPython))
     $roles=@($InstallTool)
     if ($InstallBase) { $roles+=@('search','find','yazi','fzf','git','webview2') }
-    if ($InstallLatex) { $roles+=@('git') }
+    if ($InstallLatex) { $roles+=@('git','pdf') }
     foreach ($role in @($roles|Select-Object -Unique)) {
         $tool=$tools|Where-Object {$_.role -eq $role}|Select-Object -First 1
         if ($tool.available) { Write-Host ('Reusing '+$role); continue }
@@ -381,10 +416,13 @@ try {
     }
     if ($InstallNotebook -and -not $selected) {
         if (-not $base) { $base=Install-DependencyPython $assetLock.assets.python }
-        $environment=Join-Path $DependencyRoot 'notebook-v1'
+        $nativeArm=$base.platform -eq 'win-arm64'
+        $environmentName=if ($nativeArm) {'notebook-v1-arm64-py314'} else {'notebook-v1'}
+        $environment=Join-Path $DependencyRoot $environmentName
         $requirements=Join-Path $PSScriptRoot 'notebook-requirements.txt'
         $requirementsSha=(Get-FileHash -LiteralPath $requirements -Algorithm SHA256).Hash.ToLowerInvariant()
-        Initialize-DependencyDirectory $environment ('glow-notebook-v1-'+$requirementsSha)
+        $owner=if ($nativeArm) {'glow-notebook-v1-arm64-py314-'} else {'glow-notebook-v1-'}
+        Initialize-DependencyDirectory $environment ($owner+$requirementsSha)
         $null=Invoke-DependencyProcess $base.python @('-I','-m','venv',$environment) 'prepare-Notebook-environment' 120
         $privatePython=Join-Path $environment 'Scripts\python.exe'
         $null=Invoke-DependencyProcess $privatePython @('-I','-m','pip','--isolated','install','--index-url','https://pypi.org/simple','--disable-pip-version-check','--only-binary=:all:','-r',$requirements) 'install-Notebook-packages' 1200
@@ -399,10 +437,20 @@ try {
         if (-not $?) { throw 'LaTeX setup did not pass.' }
         $texBin=Join-Path $env:APPDATA 'TinyTeX\bin\windows'
         $texSelection=Join-Path $script:DependencyRun 'tex\selected.json'
-        if (Test-Path -LiteralPath $texSelection) { $texBin=(Get-Content -LiteralPath $texSelection -Raw|ConvertFrom-Json).bin }
+        if (Test-Path -LiteralPath $texSelection) { $texBin=(Get-Content -LiteralPath $texSelection -Raw -Encoding UTF8|ConvertFrom-Json).bin }
         $script:SelectedToolPaths+=$texBin
         $texTool=$tools|Where-Object {$_.role -eq 'latex'}|Select-Object -First 1
         $texTool.path=Join-Path $texBin 'xelatex.exe'; $texTool.available=Test-Path -LiteralPath $texTool.path -PathType Leaf
+    }
+    if ($InstallACP) {
+        $acpEvidence=Join-Path $script:DependencyRun 'acp'
+        $shell=Join-Path $PSHOME 'powershell.exe'
+        $null=Invoke-DependencyProcess $shell @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',
+            '-File',(Join-Path $PSScriptRoot 'Setup-ACP.ps1'),'-DataRoot',$NvimDataRoot,
+            '-NodePath',$ACPNodePath,'-Architecture',$ACPArchitecture,'-EvidenceDirectory',$acpEvidence) 'prepare-ACP-runtime' 900
+        $acpResult=Get-Content -LiteralPath (Join-Path $acpEvidence 'acp-setup.json') -Raw -Encoding UTF8|ConvertFrom-Json
+        if ($acpResult.state -notin @('installed','already_ready')) { throw 'ACP runtime did not pass its version, lock and architecture checks.' }
+        $acpReady=$true
     }
     $script:SelectedToolPaths=@($script:SelectedToolPaths|Select-Object -Unique)
     if ($SelectPython -or $InstallNotebook) {
@@ -420,7 +468,7 @@ try {
         }
         Write-DependencyJson $selection $record
     }
-    $report=[pscustomobject]@{schema_version=1;status='passed';tools=$tools;python=$interpreters;python_probes=@($script:PythonProbeDiagnostics);notebook_ready=[bool]$selected;selection_saved=[bool]$mutating;webview2=$webview2;latex_checked=[bool]$InstallLatex;latex_ready=[bool]$InstallLatex;checks=$script:DependencyChecks}
+    $report=[pscustomobject]@{schema_version=1;status='passed';tools=$tools;python=$interpreters;python_probes=@($script:PythonProbeDiagnostics);notebook_ready=[bool]$selected;selection_saved=[bool]$mutating;webview2=$webview2;latex_checked=[bool]$InstallLatex;latex_ready=[bool]$InstallLatex;acp_checked=[bool]$InstallACP;acp_ready=$acpReady;checks=$script:DependencyChecks}
     if ($mutating) {
         Write-DependencyJson (Join-Path $script:DependencyRun 'python-probes.json') @($script:PythonProbeDiagnostics)
         Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') $report

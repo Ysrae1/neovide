@@ -13,6 +13,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
 HEADLESS = (
+    "config/bootstrap.lua",
+    "config/notebook_windows_host.lua",
     "media/capsule_backgrounds.lua",
     "media/glass_controls.lua",
     "media/highlight_roles.lua",

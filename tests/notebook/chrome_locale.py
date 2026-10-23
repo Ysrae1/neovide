@@ -36,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix='glow-chrome-locale-') as work:
           local stdpath=vim.fn.stdpath
           vim.fn.stdpath=function(name) return name=='state' and work or name=='config' and (work..'/config') or stdpath(name) end
           vim.g.glow_ui_language='en';vim.env.LANG='en_US.UTF-8';vim.env.LC_ALL='en_US.UTF-8'
-          package.loaded['config.platform.locale_ui']={setup=function()end,refresh=function()end}
+          package.loaded['config.locale.ui']={setup=function()end,refresh=function()end}
           _locale=require('config.platform.locale')
           vim.o.laststatus=0;vim.o.showmode=false
         ''', str(CONFIG), str(PLUGINS), work)
@@ -94,7 +94,7 @@ with tempfile.TemporaryDirectory(prefix='glow-chrome-locale-') as work:
         writer.show_virtual_output(anchor)
         assert lines()[0] == 'Out[1]: ... 运行中' and lines()[1].startswith('↑ 另有 '), lines()
         assert nvim.exec_lua('''
-          local buf,ns,id=...;local c=require('config.platform.notebook_chrome_locale')
+          local buf,ns,id=...;local c=require('config.locale.notebook_chrome')
           local m=vim.api.nvim_buf_get_extmark_by_id(buf,ns,id,{details=true})
           return c.status(c.canonical_lines(buf,ns,id,m[3].virt_lines))
         ''', buf, ns, writer.virt_text_id) == 'running'
@@ -118,7 +118,7 @@ with tempfile.TemporaryDirectory(prefix='glow-chrome-locale-') as work:
           _old=vim.api.nvim_buf_set_extmark(0,ns,12,0,{virt_lines={
             {{'[OLD] ','MoltenVirtualText'},{'Out[8]:','GlowNotebookOutputNumber'},{' ','MoltenVirtualText'},{'✓ Done','GlowNotebookOutputSuccess'}},
             {{'󰁅 17 More lines ','MoltenVirtualText'}}}})
-          require('config.platform.notebook_chrome_locale').refresh()
+          require('config.locale.notebook_chrome').refresh()
         ''')
         legacy = nvim.api.buf_get_extmark_by_id(buf, ns, nvim.exec_lua('return _old'), {'details': True})[2]['virt_lines']
         assert ''.join(c[0] for c in legacy[0]) == '[旧输出] Out[8]: ✓ 完成'
@@ -127,7 +127,7 @@ with tempfile.TemporaryDirectory(prefix='glow-chrome-locale-') as work:
           local b=vim.api.nvim_create_buf(false,true)
           vim.api.nvim_buf_set_lines(b,0,-1,false,{'[OLD] Out[8]: ✓ Done','Done More lines','Traceback: Running Failed'})
           vim.bo[b].filetype='molten_output';vim.bo[b].modifiable=false;vim.bo[b].readonly=true
-          require('config.platform.notebook_chrome_locale').refresh_popups()
+          require('config.locale.notebook_chrome').refresh_popups()
           return b
         ''')
         assert nvim.api.buf_get_lines(popup, 0, -1, False) == ['[旧输出] Out[8]: ✓ 完成', 'Done More lines', 'Traceback: Running Failed']

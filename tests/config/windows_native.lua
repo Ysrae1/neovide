@@ -46,13 +46,10 @@ assert(unix.opts.acp_providers.codex.command:match("env$") and unix.opts.acp_pro
 assert(converter(unix) == "C:/Bundle/data/latex2text-venv/bin/latex2text")
 
 local viewer = "lua/plugins/languages/vimtex.lua"
-local sumatra, sumatra_vim = load_spec(viewer, true, { paths = { SumatraPDF = "C:/Bundle/bin/SumatraPDF.exe" } })
+local sumatra, sumatra_vim = load_spec(viewer, true)
 sumatra.init()
-assert(sumatra_vim.g.vimtex_view_method == "general" and sumatra_vim.g.vimtex_view_general_viewer == "SumatraPDF")
-assert(sumatra_vim.g.vimtex_view_general_options == "-reuse-instance -forward-search @tex @line @pdf")
-local fallback, fallback_vim = load_spec(viewer, true)
-fallback.init()
-assert(fallback_vim.g.vimtex_view_general_viewer == 'start ""' and fallback_vim.g.vimtex_view_general_options == "@pdf")
+assert(sumatra_vim.g.vimtex_view_method == "sumatra_async", "Windows needs both directions, not the generic browser opener")
+assert(vim.tbl_contains(sumatra_vim.g.vimtex_compiler_latexmk.options, "-synctex=1"))
 
 vim.opt.rtp = { config, vim.env.VIMRUNTIME }
 vim.g.neovide_native_image, vim.g.neovide_channel_id = true, 42

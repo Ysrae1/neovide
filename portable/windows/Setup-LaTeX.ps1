@@ -17,6 +17,12 @@ try {
         $bin=Split-Path -Parent $existing.Source
         $latexmk=Join-Path $bin 'latexmk.exe'; $synctex=Join-Path $bin 'synctex.exe'
         if ((Test-Path -LiteralPath $latexmk) -and (Test-Path -LiteralPath $synctex)) {
+            . (Join-Path $PSScriptRoot 'tex\Fontconfig.ps1')
+            $fontconfig=Set-GlowTeXFontDirectories -BinRoot $bin -RunRoot $RunRoot -RefreshCache {
+                param($cache)
+                $null=Invoke-DependencyProcess $cache @('-f') 'refresh-TeX-font-cache' 120
+            }
+            Write-DependencyJson (Join-Path $RunRoot 'fontconfig.json') $fontconfig
             $project=Join-Path $RunRoot 'existing-tex-probe'
             $null=New-Item -ItemType Directory -Path $project
             Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'tex\fixture.tex') -Destination (Join-Path $project 'fixture.tex')

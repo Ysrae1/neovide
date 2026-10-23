@@ -1,4 +1,4 @@
--- Reproduce the GUI's early glass -> locale load, then the final LazyVim leader.
+-- Reproduce early glass -> locale load with a pre-LazyVim leader, then the final leader.
 -- Uses the actual WhichKey mode tree, node visibility and rendered leaf label.
 local config=assert(vim.env.GLOW_TEST_CONFIG)
 local wk=vim.env.GLOW_TEST_WHICH_KEY or vim.fn.expand('~/.local/share/nvim/lazy/which-key.nvim')
@@ -6,7 +6,7 @@ vim.opt.rtp={config,vim.env.VIMRUNTIME,wk}
 local std=vim.fn.stdpath
 local work=vim.fn.tempname()
 vim.fn.stdpath=function(n) return n=='state' and work or n=='config' and (work..'/config') or std(n) end
-vim.g.mapleader=nil
+vim.g.mapleader='\\'
 vim.g.neovide=true
 local ok,err=xpcall(function()
   require('config.platform.glass').setup()

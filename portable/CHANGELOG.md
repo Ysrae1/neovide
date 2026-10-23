@@ -1,5 +1,14 @@
 # 冻结版本记录
 
+## 2026-10-23 · glow-stack-20261023-gm1（发布候选）
+
+保存当前源码、独立 Mac 配置及 portable 默认配置；Windows 用户配置在该系统单独保存，不将用户主题装入发行包。旧标签及既有下载保留。
+
+- 启动顺序集中在 `config/bootstrap.lua`，媒体注册集中在 `config/media/init.lua`；10 个语言内部模块归入 `config/locale/`，公共语言入口和主题／材质重载路径保持稳定。
+- 包含 Neo-tree `g/` 路径输入、主题色槽提示文字、Windows 树焦点主题重绘、Mac 开屏和 Notebook 输出去阴影，以及本轮标题、材质、原生插件和 PDF／SyncTeX 修复。
+- Mac 发布候选和 Windows x64／ARM64 原生前端分别记录来源和校验。Windows 安装引导将另开对话测试与完善；不将此前基础安装／命令行检查写成新安装器完整验收。
+- 当前处于发布准备阶段；实际资产、构建及验证结果以发行页与 `GLOW.md` 为准。
+
 ## 2026-10-21 · glow-macos-20261021-preview1
 
 本次独立发布 Apple Silicon Mac 预览，环境标识为 `neovide-glow-20261021-preview1`。保留 `glow-stack-20261020-gm1` 及更早标签、发行文件和校验值。

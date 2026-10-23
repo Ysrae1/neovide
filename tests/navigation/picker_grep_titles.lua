@@ -7,7 +7,7 @@ local api, work, stdpath = vim.api, vim.fn.tempname(), vim.fn.stdpath
 vim.fn.mkdir(work, "p")
 vim.fn.stdpath = function(name) return name == "state" and work or stdpath(name) end
 local locale = require("config.platform.locale")
-local ui = require("config.platform.locale_ui")
+local ui = require("config.locale.ui")
 require("snacks").setup({ picker = { enabled = true, ui_select = false }, notifier = { enabled = false } })
 ui.setup(locale)
 local file = work .. "/中文  文件.txt"

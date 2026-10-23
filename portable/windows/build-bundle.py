@@ -220,15 +220,20 @@ class WindowsBundle(Installer):
                 _, entry = self.entry("fff")
                 self.copy(self.download(entry), path / "target/release/libfff_nvim.dll")
             elif action == "avante":
-                for package in ("tokenizers", "templates", "repo-map", "html2md"):
-                    env = dict(self.env)
-                    env.pop("CARGO_TARGET_DIR", None)
-                    self.run(["cargo", "+" + toolchain, "build", "--release", "--locked", "--features=luajit", "-p", "avante-" + package], cwd=path, env=env)
-                    name = "avante_" + package.replace("-", "_") + ".dll"
-                    self.copy(path / "target/release" / name, path / "build" / name)
+                architecture = {"windows-x64": "x64", "windows-arm64": "arm64"}[self.target]
+                env = dict(self.env, RUSTUP_TOOLCHAIN=toolchain)
+                env.pop("CARGO_TARGET_DIR", None)
+                self.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                          "-File", HERE / "build-avante.ps1", "-Source", path,
+                          "-Architecture", architecture, "-BuildDirectory",
+                          self.root / "native-build/avante" / architecture], cwd=path, env=env)
             elif action == "telescope-fzf-native":
-                self.run(["cmake", "-S", path, "-B", path / "build", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release"])
-                self.run(["cmake", "--build", path / "build", "--config", "Release"])
+                architecture = {"windows-x64": "x64", "windows-arm64": "arm64"}[self.target]
+                build = path / "build" / ("glow-" + architecture)
+                self.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                          "-File", HERE / "build-fzf.ps1", "-Source", path,
+                          "-Architecture", architecture, "-BuildDirectory", build])
+                self.copy(build / "libfzf.dll", path / "build/libfzf.dll")
                 # The pinned Lua loader names this library libfzf.dll on Windows.
                 if not (path / "build/libfzf.dll").is_file():
                     raise InstallError("Telescope Windows DLL was not produced.")
@@ -238,7 +243,11 @@ class WindowsBundle(Installer):
                 script = HERE / "build-luasnip.ps1"
                 if not script.is_file():
                     raise InstallError("Windows LuaSnip ABI build entry is not implemented; refusing an incomplete installer.")
-                self.run(["powershell", "-NoProfile", "-File", script, "-Source", path, "-Neovim", self.stage])
+                architecture = {"windows-x64": "x64", "windows-arm64": "arm64"}[self.target]
+                self.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                          "-File", script, "-Source", path, "-Neovim", self.stage,
+                          "-Architecture", architecture, "-BuildDirectory",
+                          self.root / "native-build/luasnip" / architecture])
 
     def auxiliary(self):
         acp = self.profile_data / "codex-acp"

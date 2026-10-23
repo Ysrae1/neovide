@@ -28,7 +28,12 @@ vim.g.neovide_native_preview = false
 assert(not preview.available('pdf'))
 local synctex = require('config.media.synctex')
 vim.g.neovide_native_preview = true
+assert(synctex.native_enabled() == (vim.fn.has('win32') ~= 1), 'old Windows frontend must not imply coordinate support')
+vim.g.neovide_native_pdf_synctex = true
 assert(synctex.native_enabled())
+vim.g.glow_tex_viewer = 'sumatra'
+assert(not synctex.native_enabled(), 'explicit external viewer must override native coordinates')
+vim.g.glow_tex_viewer = nil
 vim.g.neovide_native_pdf_synctex = false
 assert(not synctex.native_enabled(), 'unsupported coordinate SyncTeX advertised')
 print('PASS native preview kind capability and failed tree opening fallback')

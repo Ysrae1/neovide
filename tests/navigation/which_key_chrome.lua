@@ -10,7 +10,7 @@ end
 vim.g.mapleader, vim.g.glow_ui_language = " ", "en"
 local ok, err = xpcall(function()
   local locale = require("config.platform.locale")
-  local adapter = require("config.platform.which_key_locale")
+  local adapter = require("config.locale.which_key")
   -- Reproduce the already-running previous adapter's own marker wrappers.
   -- setup must migrate just these wrappers once, without nesting them.
   local view, text = require("which-key.view"), require("which-key.text")
@@ -45,8 +45,8 @@ local ok, err = xpcall(function()
   local wrapped_item, wrapped_show, wrapped_append = view.item, view.show, text.append
   adapter.item = function() error("stale translation module") end
   adapter.append = function() error("stale translation module") end
-  package.loaded["config.platform.which_key_locale"] = nil
-  require("config.platform.which_key_locale").setup()
+  package.loaded["config.locale.which_key"] = nil
+  require("config.locale.which_key").setup()
   assert(view.item == wrapped_item and view.show == wrapped_show and text.append == wrapped_append,
     "module reload/setup must not stack wrappers")
   local mode = require("which-key.buf").get({ mode = "n", buf = vim.api.nvim_get_current_buf(), update = true })

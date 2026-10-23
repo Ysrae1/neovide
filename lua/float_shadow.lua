@@ -1,5 +1,11 @@
 -- A composed popup casts one outer shadow. Window-local role mappings retain
 -- their identity even when linked theme highlights collapse to NormalFloat.
+-- A configured controller owns this same complete snapshot, including any
+-- platform-local exclusions. Older configurations keep the fallback below.
+local configured, shadows = pcall(require, "config.appearance.float_shadows")
+if configured and type(shadows) == "table" and type(shadows.setup) == "function" and shadows.setup() then
+    return
+end
 local api = vim.api
 local previous, queued
 local child = {

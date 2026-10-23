@@ -167,7 +167,7 @@ The existing `glow-stack-20261020-gm1` Mac/WSL release remains unchanged.
 
 The package includes its own fixed Neovim, Node, Python/Notebook dependencies,
 Java runtime, Git/Yazi/search tools, plugin sources and prebuilt native modules,
-56 parser DLLs, 24 language tools, fonts, and the Windows port of Glow Matrix.
+57 parser DLLs (including Java), 24 language tools, fonts, and the Windows port of Glow Matrix.
 AI authentication is performed by the user. A project-specific compiler,
 complete TeX distribution, and macOS-only media frameworks are outside the
 editor's bundled runtime.

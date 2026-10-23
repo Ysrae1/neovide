@@ -1,6 +1,8 @@
 # Glow 维护验证
 
-统一入口为 `python3 tests/validate.py`，可以从任意目录调用脚本。默认只运行 13 个 headless Lua 检查；需要已安装的 Python 3 和 Neovim 0.12+。它不安装依赖、不联网、不打开 GUI、不启动 Notebook 内核。Book 生命周期使用仓库内的假 builder，通过当前 Python 解释器启动。
+`config/bootstrap.lua` 验证启动入口与媒体注册的原有顺序，覆盖模拟 Mac／Windows／Linux GUI、终端、重复加载及未保存草稿保护；不启动用户编辑器。
+
+统一入口为 `python3 tests/validate.py`，可以从任意目录调用脚本。默认只运行 15 个 headless Lua 检查；需要已安装的 Python 3 和 Neovim 0.12+。它不安装依赖、不联网、不打开 GUI、不启动 Notebook 内核。Book 生命周期使用仓库内的假 builder，通过当前 Python 解释器启动。
 
 ```sh
 # 默认检查 portable；两份配置均验证时显式选择，配置只读，不同步或覆盖文件。
@@ -21,11 +23,17 @@ Rust 套件先检查格式，再运行 release 测试；`--rust-filter` 可重�
 
 默认套件中的 `popup_materials.lua` 使用真实隔离浮窗检查浅深底色、逐类 editor/custom/opaque 切换、当前行／选区、namespace 样式及重复重载、明确遮罩移除，并保护主编辑区、底栏／WinBar／TabLine、Dashboard 和终端前端。
 
-`notebook/output_scroll.lua` 检查实时与保存输出一次聚焦、原地展开、横纵滚动、语义高亮、选择复制及关闭返回，保护源码和原始内联输出。`tests/media/notebook_footer.py` 需要现有 pynvim，以隔离附加 UI 检查溢出提示的条件、端点及布局生命周期；它不证明 Neovide 像素效果。
+`config/notebook_windows_host.lua` 隔离检查 Windows 私有 Notebook provider 的 Jupyter 默认目录，以及显式 Python host／Jupyter 设置的优先级；它模拟平台分支，不运行 Python 或内核。真实 Windows ARM64 provider、Molten 计算与 PNG 导出使用 `tests/windows_notebook_runtime.py`；Mason 私有运行时、CLI／LSP 检查使用 `tests/windows_mason_profile.py`，分别按文件头准备，不能用这些命令行结果代替 Neovide GUI 图片像素验收。
+
+`notebook/output_scroll.lua` 检查实时与保存输出一次聚焦、原地展开、横纵滚动、语义高亮、选择复制及关闭返回，保护源码和原始内联输出。 `notebook/output_hint.py --config <配置目录>` 使用现有 Notebook pynvim 环境验证展开框右下角固定 `q / Esc` 胶囊、原生底边断口、实际 popup caption 材质、深浅主题、滚动／缩窗及关闭清理；为附加 UI 协议检查，不证明 GUI／GPU 像素效果。`media/notebook_shadow.py --config <配置目录>` 检查新旧App脚本两种启动顺序、真实UIEnter接管和RPC排除范围，仅Mac Notebook输出去影，保留其他浮窗、frame及底材。 `tests/media/notebook_footer.py` 需要现有 pynvim，以隔离附加 UI 检查溢出提示的条件、端点及布局生命周期；它不证明 Neovide 像素效果。
 
 `notebook/filetype.lua` 开启真实文件类型检测，验证转换后的 Notebook 首次读入、重复读入及窗口重入保持 Python，保留源码／未保存状态／输出；原始 JSON 与普通 Python 不误标。
 
 `tests/media/popup_layers.py` 使用现有 pynvim、Noice/Nui 等插件，在隔离附加 multigrid UI 中检查 Noice／WhichKey／Snacks 各窗口保留自身材质、实际 `hl_attr_define`／`grid_line` 透明度、语义选中块及显示／重开钩子；不打开 GUI 或连接用户会话。这只能验证配置与协议；最终背景 alpha 由 Rust `floating_material_*` 像素回归检查，视觉表现需用新开发构建实际查看。
+
+`config/macos_appearance.lua` 使用隔离主题事件与真实 Avante split 检查 Mac Light/Dark 独立透明度、重载、临时 Glass 值及按当前主题 reset，并覆盖 Windows/Linux 不启用的边界。`media/avante_materials.lua` 检查完整 Avante 所属窗口、editor/custom/opaque 配置、namespace 复用恢复以及主编辑区／Neo-tree保护；均以 `GLOW_TEST_CONFIG` 选择本机或 portable，不启动 GUI／AI。
+
+原生标题居中由 Rust `rendered_window_caption_tests` 的真实字体 CPU raster 检查可见左右留白，另有 `media/highlight_roles.lua` 检查显式角色及能力协商；CPU像素和UI协议均不能代替实际平台GPU界面验收。
 
 ## 需要显式准备的检查
 

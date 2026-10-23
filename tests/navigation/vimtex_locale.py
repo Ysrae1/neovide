@@ -39,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='glow-vimtex-locale-') as temporary:
           require('plugins.languages.vimtex').init()
           vim.cmd('runtime plugin/vimtex.vim')
           _language='en'
-          local catalog=require('config.platform.locale_catalog').new(function()return _language end)
+          local catalog=require('config.locale.catalog').new(function()return _language end)
           package.loaded['config.platform.locale']={current=function()return _language end,t=catalog.t}
           require('which-key').setup({delay=0,notify=false,icons={mappings=false},
             win={width=110,height={min=8,max=35},row=2,col=2,no_overlap=false},
@@ -66,11 +66,11 @@ with tempfile.TemporaryDirectory(prefix='glow-vimtex-locale-') as temporary:
         assert child.exec_lua('return vim.b.vimtex~=nil and vim.bo.filetype=="tex"')
         assert all(not row.get('desc') for row in baseline.values()), 'fixture must use true plugin mappings without desc'
         # Hot application to already initialized VimTeX; no source/module reload.
-        assert child.exec_lua('return require("config.platform.vimtex_locale").setup()') == len(baseline)
+        assert child.exec_lua('return require("config.locale.vimtex").setup()') == len(baseline)
         assert child.exec_lua('return _maps(...)', buf) == baseline, 'metadata changed real map fields'
-        assert child.exec_lua('return require("config.platform.vimtex_locale").setup()') == len(baseline)
+        assert child.exec_lua('return require("config.locale.vimtex").setup()') == len(baseline)
         metadata_count = child.exec_lua('return #require("which-key.config").mappings')
-        assert child.exec_lua('return require("config.platform.vimtex_locale").refresh(...)', buf) == len(baseline)
+        assert child.exec_lua('return require("config.locale.vimtex").refresh(...)', buf) == len(baseline)
         assert child.exec_lua('return #require("which-key.config").mappings') == metadata_count, 'duplicate metadata registration'
 
         group_rows = child.exec_lua(r'''
@@ -148,7 +148,7 @@ with tempfile.TemporaryDirectory(prefix='glow-vimtex-locale-') as temporary:
         # Avoid Neovim's unrelated Lua ftplugin starting an unavailable parser
         # in this deliberately minimal plugin fixture. Test the real ft value.
         child.command('noautocmd setlocal filetype=lua')
-        assert child.exec_lua('return require("config.platform.vimtex_locale").refresh()') == 0
+        assert child.exec_lua('return require("config.locale.vimtex").refresh()') == 0
         assert child.exec_lua('local m=require("which-key.buf").get({mode="n",update=true});return m.tree:find([[\\l]])==nil')
         assert tex.read_text() == document and second.read_text() == document
         assert not any(p.suffix in {'.pdf', '.log', '.aux', '.fdb_latexmk', '.synctex'} for p in work.iterdir()), 'compiler/viewer action ran'
