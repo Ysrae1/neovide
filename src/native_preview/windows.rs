@@ -86,6 +86,7 @@ struct Preview {
     inverse: Option<Value>,
     inverse_seq: u64,
     input_seq: u64,
+    close_requested: bool,
     layout: Option<Layout>,
 }
 impl Drop for Preview {
@@ -111,7 +112,8 @@ impl Preview {
     fn status(&self) -> String {
         json!({"state":self.state,"error":self.error,"source":self.source.as_str(),
             "page":self.page,"pages":self.pages,"page_count":self.pages,"zoom":self.zoom,"backend":"webview2-pdfjs",
-            "page_state":"observed","synctex_supported":true,"synctex":self.inverse})
+            "page_state":"observed","synctex_supported":true,"synctex":self.inverse,
+            "close_requested":self.close_requested})
         .to_string()
     }
     fn execute(preview: &Rc<RefCell<Self>>, mut command: Value) -> windows::core::Result<()> {
@@ -175,6 +177,7 @@ impl Preview {
             return Ok(());
         };
         let mut loaded = false;
+        let mut blur = None;
         match event {
             ViewerEvent::Ready { page, pages, zoom } => {
                 state.page = page;
@@ -197,6 +200,13 @@ impl Preview {
                 state.inverse_seq = state.inverse_seq.wrapping_add(1).max(1);
                 state.inverse = Some(json!({"page":page,"x":x,"y":y,"seq":state.inverse_seq}));
             }
+            ViewerEvent::CloseRequested => {
+                // SyncTeX may leave Neovim's current window on the source.
+                // Let its owner/id close this preview; never inject `q` into
+                // whichever buffer happens to be current.
+                state.close_requested = true;
+                blur = Some(state.parent);
+            }
             ViewerEvent::Error(error) => state.fail(error),
             _ => {}
         }
@@ -204,6 +214,11 @@ impl Preview {
         let pending =
             if loaded && !reload { std::mem::take(&mut state.pending) } else { Vec::new() };
         drop(state);
+        if let Some(parent) = blur {
+            unsafe {
+                let _ = SetFocus(Some(parent));
+            }
+        }
         if reload {
             Self::reload(preview)?;
         }
@@ -380,6 +395,7 @@ impl NativePreviews {
             inverse: None,
             inverse_seq: 0,
             input_seq: 0,
+            close_requested: false,
             layout: None,
         }));
         self.previews.insert(id, preview.clone());

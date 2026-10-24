@@ -25,6 +25,7 @@ pub enum ViewerEvent {
     Ready { page: u64, pages: u64, zoom: f64 },
     Status { page: u64, pages: u64, zoom: f64 },
     Inverse { page: u64, x: f64, y: f64, seq: u64 },
+    CloseRequested,
     Error(String),
 }
 
@@ -38,6 +39,7 @@ pub fn event(json: &str, revision: u64) -> Option<ViewerEvent> {
     }
     let page = || value.get("page")?.as_u64().filter(|n| (1..=1_000_000).contains(n));
     match value.get("type")?.as_str()? {
+        "close_requested" => Some(ViewerEvent::CloseRequested),
         "error" => Some(ViewerEvent::Error(
             value
                 .get("error")
@@ -136,5 +138,14 @@ mod tests {
             ),
             Some(ViewerEvent::Ready { zoom: 0.05, .. })
         ));
+    }
+
+    #[test]
+    fn pdf_bridge_close_request_is_bound_to_the_current_revision() {
+        let close = r#"{"version":1,"type":"close_requested","revision":3}"#;
+        assert_eq!(event(close, 3), Some(ViewerEvent::CloseRequested));
+        assert_eq!(event(close, 4), None);
+        assert_eq!(event(&close.replace("\"version\":1", "\"version\":2"), 3), None);
+        assert_eq!(event(r#"{"version":1,"type":"close_requested"}"#, 3), None);
     }
 }

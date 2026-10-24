@@ -156,8 +156,70 @@ try {
   assert.deepEqual(errors, []);
   results.push("Reload invalidates older sync/marker and revision; invalid commands and outbound navigation rejected");
 
+  // A plain q must reach the host as an owner-scoped request even when a
+  // forward search leaves Neovim's selected window on the source buffer.
+  // The native adapter owns Escape's existing return-to-editor behavior.
+  const closeCount = () => page.evaluate(() => __messages.filter(m => m.type === "close_requested").length);
+  await page.locator("#viewerContainer").focus();
+  await page.keyboard.press("q");
+  assert.equal(await closeCount(), 1);
+  assert.deepEqual(await page.evaluate(() => __messages.filter(m => m.type === "close_requested").at(-1)),
+    { version: 1, type: "close_requested", revision: 1 });
+  await page.keyboard.press("Escape");
+  assert.equal(await closeCount(), 1);
+  await page.evaluate(() => document.activeElement.blur());
+  await page.keyboard.press("q");
+  assert.equal(await closeCount(), 2, "Initial WebView document focus must also close the preview");
+
+  const ignored = await page.evaluate(() => {
+    const variants = [
+      { ctrlKey: true }, { altKey: true }, { metaKey: true }, { shiftKey: true },
+      { isComposing: true }, { keyCode: 229 }, { repeat: true }, { key: "Q" },
+    ];
+    return variants.map(options => {
+      const event = new KeyboardEvent("keydown", { key: "q", bubbles: true, cancelable: true, ...options });
+      document.getElementById("viewerContainer").dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+  });
+  assert.ok(ignored.every(prevented => !prevented));
+  assert.equal(await closeCount(), 2);
+  await page.evaluate(() => {
+    const target = document.getElementById("viewerContainer");
+    target.addEventListener("keydown", event => event.preventDefault(), { once: true });
+    target.dispatchEvent(new KeyboardEvent("keydown", { key: "q", bubbles: true, cancelable: true }));
+  });
+  assert.equal(await closeCount(), 2, "Already handled keys belong to the child control");
+
+  for (const kind of ["input", "textarea", "select", "editable", "textbox"]) {
+    await page.evaluate(kind => {
+      const element = document.createElement(["editable", "textbox"].includes(kind) ? "div" : kind);
+      element.id = "keyboard-fixture";
+      if (kind === "editable") { element.contentEditable = "true"; element.innerHTML = "<span id='keyboard-fixture-child'>edit</span>"; }
+      if (kind === "textbox") { element.setAttribute("role", "textbox"); element.tabIndex = 0; }
+      if (kind === "select") element.innerHTML = "<option>example</option>";
+      document.getElementById("viewerContainer").append(element);
+      element.focus();
+    }, kind);
+    await page.keyboard.press("q");
+    assert.equal(await closeCount(), 2, `${kind} must retain q`);
+    if (["input", "textarea"].includes(kind)) assert.equal(await page.locator("#keyboard-fixture").inputValue(), "q");
+    if (kind === "editable") {
+      assert.match(await page.locator("#keyboard-fixture").textContent(), /q/);
+      assert.equal(await page.locator("#keyboard-fixture-child").evaluate(element => {
+        const event = new KeyboardEvent("keydown", { key: "q", bubbles: true, cancelable: true });
+        element.dispatchEvent(event);
+        return event.defaultPrevented;
+      }), false);
+    }
+    await page.locator("#keyboard-fixture").evaluate(element => element.remove());
+  }
+  assert.equal(await closeCount(), 2);
+  results.push("q emits a revision-scoped close request from PDF/document focus; Escape, modifiers, IME, repeats and editable controls are preserved");
+
   await command({ action: "close", revision: 1 });
   const messagesAfterClose = await page.evaluate(() => __messages.length);
+  await page.keyboard.press("q");
   await page.waitForTimeout(100);
   assert.equal(await page.evaluate(() => __messages.length), messagesAfterClose);
   assert.equal(await command({ action: "next" }), false);

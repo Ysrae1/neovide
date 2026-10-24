@@ -233,6 +233,17 @@ container.addEventListener("click", event => {
   const anchor = event.target.closest?.("a[href]");
   if (anchor && anchor.getAttribute("href") && !anchor.getAttribute("href").startsWith("#")) event.preventDefault();
 }, { capture: true, signal: lifetime.signal });
+// WebView2 does not report plain character keys as native accelerators. A
+// SyncTeX preview can own DOM focus while Neovim still selects the source, so
+// ask the host to close this preview by id instead of forwarding a literal q.
+document.addEventListener("keydown", event => {
+  if (event.key !== "q" || event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229
+    || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+  const target = event.target;
+  if (target?.isContentEditable || target?.closest?.("input, textarea, select, [role='textbox']")) return;
+  event.preventDefault();
+  send("close_requested");
+}, { signal: lifetime.signal });
 container.addEventListener("keydown", event => {
   if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
   if (event.key === "PageDown") { event.preventDefault(); command({ action: "next" }); }
