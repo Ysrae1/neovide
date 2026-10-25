@@ -4,6 +4,271 @@
 
 ## 当前维护状态
 
+### 2026-10-25 v1.0 冻结、结构整理与 GitHub Pages 上线（Codex）
+
+- 按用户授权保存原始完整基线至 `showcase/review/release-20261025/baseline/`，整理提交 `9cb2353`；页面样式/控制脚本拆出，实际显示与离屏测量共用 `story-copy.js`，清除空缓存/只写状态。旧测试页与未使用素材可恢复归档；现有Safari零尺寸fixed/sticky锚点、合成轨道、动画和自然文字排版保留。最终编辑源码 `f1e01a8e`、本地网站标签 `v1.0`。
+- 宽屏快捷栏71px过粗已确认是减少动态模式给隐藏测量节点施加0.01ms全属性过渡，读到了旧16px字号及旧宽度；仅关闭测量节点过渡，单行40px、375px宽多行98px。288组DOM写入序列等价；1200/375px四组中英/浅深色组合共96阶段尺寸与文案对照通过，1468媒体引用无缺失，IAB与原生Safari实际滚动检查完成。没有新增手机快速触摸录屏或软件安装验收。
+- 新官网 `https://ysrae1.github.io/neovide-glow/` 已built并强制HTTPS；公开官网仓库 `Ysrae1/neovide-glow` 的main与v1.0均为 `6a9faf2084afaeeaf4a45a3f9e6aaacbdd60e133`，1121静态文件与冻结源码逐字节一致。线上代表性8文件字节一致、7个下载链接及官网源码ZIP均HTTP200。用户指定新主入口后取消旧Sites上传流程；原官网第32版改为仅所有者可访问，保留源码/历史版本，可恢复公开。
+- 软件发行 `https://github.com/Ysrae1/neovide/releases/tag/v1.0` 已公开，源码归档基点 `34ab3ddd`；Mac 2026.10.21与Windows 2026.10.23.6两架构共14项原件原样保存，另附统一manifest/校验清单，共16资产远端大小及SHA256全部核对。未重编译或替换本机安装，原包内部版本/签名/配置/依赖入口及旧发行保留；冻结清单见 `extra/releases/v1.0.json`，收据见 `target/releases/v1.0/`。
+- 验证证据在 `showcase/review/release-20261025/`；自有8771验证服务与临时浏览器页已关闭，既有8767/8770预览保留。软件仓库主页和README已改指新官网与v1.0发行。
+
+
+### 2026-10-25 当前发布页本地版用户确认收敛（Codex）
+
+- 用户先确认 `track-compositing1` 顶部内容延伸“基本上可以了”，随后明确纵向内部空行指各项文字从多行变少行时的预留；核对期间最终反馈“现在都正常了”“感觉终于完成了”。保留当前版本，不追加布局修改；文字浮现／图片飞入仍保留，动效关闭曾由用户明确确认是自己切换了开关。
+- 本次核对未改正式页面代码；375px Notebook标题三行→两行实际高度146.39→97.59px、标题到说明仍16px。临时检查页与8771独立检查服务清理，原8767及手机8770预览保留。此前快速滑动缺绘没有新增专门录屏验收，不扩大用户本次确认范围。仍仅本地未提交／未发布。
+
+### 2026-10-25 图文自然高度修正与 iOS 顶部绘制分层，内容延伸待验（Codex）
+
+- `showcase/dist/assets/story-layout.js` 不再分别取标题、说明、阶段栏等内部项的双语最大高度；保留整块最大外部占位，内部按当前内容自然排版。`workflow-lab.css` 清除内部最小高度、阻止阶段按钮拉伸，并显式隐藏空快捷键行；`workflow-lab.js` 增加内容容器，只在宽屏将当前实际文字整体垂直居中。入口缓存 `natural-copy3`；仅本地未提交／未发布。
+- 1440×900 TeX 三阶段及英文阶段实测：图片中心、外部占位中心、实际文字中心均为450px，差值0；标题到说明16px、说明到阶段栏24px，中文阶段栏46.5px、按钮36.5px。402×800仍上图下文，图片顶96px、图片到文字26px，空快捷键行不占位。语法／diff检查通过；截图 `showcase/review/reconstruction-20261025/wide-natural-copy-centered.png`。未把桌面窄屏当作手机动态验收。
+- 用户最短触发为**从页顶向下到第一内容块出现**。实际失败位置 y3417：仅隐藏快捷栏仍纯色，导航也隐藏后纹理恢复，仅恢复快捷栏又复现。`ios-check=1` 的对照按钮仅显式本地启用。导航与浮动快捷栏改为0×0 fixed锚点、实际组件作absolute子项，缓存 `edge-anchors1`；用户真实滚动后纯色消失，但确认文字仍被系统栏下沿裁切，不能以纹理恢复宣称解决。证据 `ios27-edge-{failed-before-toggle,legend-hidden,nav-and-legend-hidden,legend-alone-reproduces}.png`、`ios27-edge-anchors-after-native-scroll.png`（同review目录）。
+- WebKit官方源码的 `viewportConstrainedSublayers` 对直接合成到根视图的sticky额外建立viewport裁切，与边缘取色是两条路径；官方测试 `compositing/ios/immediate-scrolling-clip-sticky-element-to-viewport.html` 明确覆盖该行为。仅给既有 `.wf-track` 加静态 `translateZ(0)`，使其成为非根合成祖先，原生sticky／几何／阶段不变；CSS缓存 `track-compositing1`，备份 `before/track-compositing/`。源码支持此候选，但不能视为同版运行证明；实际内容进入系统时间后方、回滑稳定与快速缺绘仍待验收。
+- 按用户要求重启Device Hub并保留模拟器；用户随后可手动滑动。控制工具拖动曾直接冲到页尾，小幅滚动和诊断点击未可靠改变位置，停止反复工具手势，不当作验收通过。已提供8770手机预览当前候选（HTTP及CSS版本确认）；8767原服务保留，未提交／发布。临时额外浏览器页已关闭，既有用户页面保留；未改系统输入或网络设置。
+
+### 2026-10-25 历史滚动叙事恢复与移动端停驻候选（Codex）
+
+- 实际重读历史对话“发布页交接：图文对齐、间距与滚动阶段”、`showcase/DESIGN.md` §9／§14.1及 `showcase/review/reconstruction-20261025/before/workflow-lab.js/css`，从旧代码恢复文字浮现、前块退出、新下滑门槛和单向完成记忆。文字先以850px完整居中出现、随前块保持间距上移，到屏幕中点后脱钩；浮现完成且前块实际内容完全离屏才记基线，新增下滑才引入图片。原真实文本触边侧对齐、宽度重排及动效时长保留。
+- 当前 `workflow-lab.js/css`、`story-layout.js` 改为0×0原生sticky锚点承载可见溢出图文，轨道明确高度，由浏览器连续处理两端边界；不再由JS跨界切换relative／sticky。WebKit官方源码确认边缘扩色判断读取自身border box，但不把main源码当作iOS27.2实机验收。提前一屏sticky候选曾被用户确认跳回消失但顶底遮挡回归，已撤回，禁止继续调guard重复该分支；失败录屏及源码保留。
+- 手机只避让顶部导航，顶距safe-top+96px（14+58+24），不计快捷键栏；导航收放不移动图文。≤860px按历史要求强制上图下文，双语／全部阶段预留最大文字高度，沿用同一节点。三份入口缓存 `narrative-anchor2`；修改前备份在 `showcase/review/reconstruction-20261025/before/reading-state-restore/`。
+- 已验1000×900完整居中浮现、前块未退出不入图、记录基线后新下滑触发、真实触边侧对齐、阶段及语言位置稳定；402×800终端三阶段图片顶96px／文字顶304.54px保持，宽窄屏无横向溢出／页面错误，减少动态下9块直接可见。Mac Safari实际窄屏跨退出边界后返回，停驻图片与导航保持间距；JS语法和diff检查通过。
+- iPhone18Pro／iOS27.2已加载本候选，导航跨区到下载后返回、终端阶段按钮2→3→1实际检查图片／文字位置不变，顶部导航展开仍有留白，顶底纹理正常；证据 `showcase/review/reconstruction-20261025/ios27-narrative-anchor-{intro,download,phase1,phase2,phase3}.png`，宽屏／Safari证据同目录。**快速触摸到底回滑仍未验收**：控制工具可点按但不能可靠驱动拖动，键盘滚动也无效；本轮结果不代表该项通过，不再要求用户反复手测。录屏与键盘捕获关闭，8767原服务及8770手机预览保留；仅本地未提交／未发布。
+
+### 2026-10-25 展示块回滑空档与阶段跳动修正（Codex）
+
+- 用户确认巨大空档出现在跨展示块回滑；原 CSS transform scroll timeline 在 iOS 缺图文，桌面同位置有上一块内容。JS逐帧top候选消除空档但整块跳动；CSS timeline动画top仍跳，均已撤回。后续用户明确为同块各状态切换时整块上下跳；402宽逐阶段实测标题、说明、图片及整体高度不变，不归因为文字换行。
+- 最终 `workflow-lab.js/css` 改成进入前relative/top0、停驻段原生sticky、离开后relative/top R；仅跨边界更换定位，不逐帧移动整块，也不让离场的宽sticky祖先跨浏览器边缘。P+R占位、96px间距、阶段与入场历史保留；HTML缓存 `bounded-sticky1`。JS语法、宽窄屏往返与三阶段固定位置、中英／减少动态及控制台检查通过。
+- iPhone 18 Pro／iOS27.2本轮手势录屏跨展示块、阶段、页尾回滑及回到首屏；用户明确“切换稳定，纹理正常”。记录 `showcase/review/reconstruction-20261025/ios27-workflow-bounded-sticky.mp4` 和同名前缀contact图；本轮范围通过，不扩大为所有快速缺绘／真正文档首尾覆盖已解决。首个录屏与两候选保留同目录供追溯，不继续该失败分支。
+- 录屏及键盘捕获已关闭，临时IAB标签／视口已清理。原8767服务保留；按用户要求另开手机本地预览8770（Codex进程75735，执行会话74114，仅提供showcase/dist），HTTP 200已确认，保留供手机访问。仅本地未提交／未发布，官网仍32版。
+
+### 2026-10-25 页尾回滑顶部遮挡与快捷键漂移收敛（Codex）
+
+- 用户明确触发为“滑到最底部再往回滑，停下仍遮挡”；新录屏最后数秒确认顶部纯色持续、底部已恢复真实内容。402宽几何对照显示原 legend sticky 被 main 尾界推至 top=-69／bottom=19，跨过顶边；footer 位于 main 外。相关 WebKit 固定／sticky 颜色延伸机制支持这条线索，但不把整个浏览器实现认定为已定因。
+- `legend-floating.js/css` 最终改为永久双语最大占位，同一组件原位 relative、浮动时原生 fixed，分离可见阈值和 CSS 固定坐标；不在滚动时搬节点。scroll timeline 候选虽恢复顶部纹理却在 Safari 工具栏收放时漂移，已撤回并移除诊断分支。最终用户手动往返明确“没有漂移”，37.77秒模拟器录屏中回滑停止后顶部真实文字／纹理恢复；已设为默认，缓存 `viewport-pin1`。
+- 按用户补充，顶部导航回滑展开后停止1000ms自动收小，页首保持展开；hover仅用于精细悬停设备，键盘focus-visible保留展开。浏览器实际回滑从expanded转compact、最终40px且legend间距10px通过；模拟器已加载最新版并显示收小。中英、折叠、减少动态占位检查及JS语法通过。
+- 证据在 `showcase/review/reconstruction-20261025/ios27-bottom-reverse{,-scroll-pin,-viewport-pin}.mp4`、`ios27-viewport-pin-motion.png`、`nav-idle-compact.png`；录屏与键盘捕获均已关闭，临时桌面标签／视口已清理，8767原服务保留。仅本地未提交／未发布，官网仍32版；快速滑动缺绘、真正文档首尾纹理覆盖与初始hash时序仍未完成，不能称整体重构验收通过。
+
+### 2026-10-25 本地整体重构与 iOS 复验继续（Codex）
+
+- 用户恢复本地重构／测试后，已新增共享 `viewport-runtime.js`；`workflow-lab`／`story-layout` 改为自然流图文、双语最大占位与独立单向入场历史，移除负 margin／滚动补偿。`legend-floating` 保留同一组件，初始文字、到顶变玻璃；色场改为文档连续镜像纹理，resize 纳入原渲染节拍。官网仍第32版，未发布、未提交；未改源码或 Windows 配置。
+- iPhone 18 Pro／iOS 27.2 实测仍有上下纯色区及快速滑动缺绘，用户手动往返录屏已确认，不能称重构验收完成。取消图文原生 sticky 在部分中段有效，现以标准 CSS scroll timeline 保留停驻（支持时）；桌面位置核对通过，手机完整动态仍待验。剩余悬浮全部取消的临时对照仅完成首屏／中段，用户反馈后已恢复正常导航与快捷键，未完成真正页尾对照。WebKit 原生首尾裁切与固定元素纯色延伸是相关机制，尚未与设备构建逐项对应，不能把全部缺口归为浏览器限制。
+- 已确认并修复页脚压暗：inline 文字背景的 overlay 混合影响后续普通字；单变量 normal 对照恢复，单纯隔离层只恢复普通字而链接仍暗。最终只将 `.link`／`.wf-source a` 置于 inline-block 绘制路径，保留原色场／颗粒；模拟器中文及390宽英文深浅色清楚，无横向溢出。根静帧、文字混合与取消悬浮实验已移除，未证明根静帧能修快速缺绘。
+- 按用户新要求，主页及手册窄屏语言切换用地球，主页下载用圆圈向下箭头，600px 以上保留文字；`locale.js` 仅更新标签，保留 SVG 与可访问名称。320／390／430／600／900宽度及中英切换通过，模拟器已显示。当前图片提前约一屏加载，组件色场提前约两屏更新；这不等于浏览器完成屏外分块绘制。
+- 证据统一在 `showcase/review/reconstruction-20261025/`：`ios27-manual-roundtrip.mp4`、`ios27-text-{blend-normal,isolation,block}.png`、`reported-{top,bottom}-extension.png`、`ios27-nav-icons.png`。JS语法检查通过；当前仍欠快速双向缺绘、完整首尾覆盖及初始 hash 锚点时序验收。录屏已停止、模拟器键盘捕获已关闭，原8767服务保留；临时浏览器尺寸已恢复。下一步须先定位实际绘制瓶颈，不继续盲目增加预热距离或背景层。
+
+### 2026-10-25 用户要求暂停，下一聊天整体重构（Codex）
+
+- **当前授权：只记录、不再实施。** 用户要求先暂停，之后到咖啡店新开聊天整体重构；不是继续逐点补丁。官网保持32版，未发布新版本；没有创建新的视口／滚动重构模块。所有子代理已完成或停止；本轮8769手机预览已关闭，原8767／8768服务归属此前任务，保留。
+- **用户确认的失败：** iOS Safari快速往返后系统栏下纯色／多处宽黑带与断裂绘制复发；已入场图片回看仍缩小；02/09回看01/09时图文遮挡、图片像未计入队列；英文快捷键裸行穿过图片后方。Mac Safari快速滚动同样有来不及绘制感；用户明确Chrome也有模块遮挡，不能归为Safari专有。单向语义保持：上方离屏的已入场内容回看直接呈现；只有回看继续使其从下方完整离屏才重新武装入场。
+- **已审出的结构问题，尚未整体改造：** workflow图片／文字绝对定位、相邻feature负margin拼接；innerHeight变化可让flow/sticky布局切换并重算占位。legend在普通无玻璃inline与fixed之间拆装，measureInline还对活组件拆类测量。色场只覆盖上次JS滚动窗口，异步滚动可露出窗口外；root合成均色又覆全篇veil会二次压暗；renderer的resize直接render绕过30fps（内存桩320ms内20次resize产生20帧）；未统一VV.scroll／scrollend收敛。录屏中具体黑带归因仍需几何＋动态实证，不把假设写成已解决。
+- **未验补丁须谨慎接手：** 本轮layout_solver仅改`showcase/dist/assets/workflow-lab.js`，加入flow可见完成记忆、entryProgress高水位及data-entry-*；语法／逻辑检查过，尚未GUI动态验收、未提升HTML缓存版本、未发布。此前underpage/overscan/absolute/移除skip等本地代码及诊断仍保留；不要以已有代码当通过，不要继续叠加同类补丁。下一步应整体设计稳定占位、唯一视口/滚动状态、独立入场历史、全程背景覆盖与原生sticky玻璃控件，并覆盖中英文、深浅色、减少动态效果及Mac Safari/Chrome/iOS实际往返。
+- **证据已留在项目内：** `showcase/review/field-performance-20261025/mobile-safari/reported-123728.png`、`reported-123825.png`、`reported-124028.mov`（9.53秒/120fps）、`reported-124556.png`、`reported-124756.png`；`124028-contact.png`与`124028-4p5.png`是已提取预览。原临时上传路径不应作为唯一证据。模拟器为Device Hub里的iPhone18Pro/iOS27.2，原8767页可继续复现；不要把桌面窄屏当真机验收。
+
+### 2026-10-25 页首状态栏颜色衔接，本地手机复验（Codex）
+
+- iOS 27.2 的 y0 单变量对照确认：仅将 html background-color 设洋红，原黑带同步变洋红；对应 WebKit underPageBackgroundColor 只读取根底色、不含背景图片的路径。移除临时洋红实验，保留截图证据 `mobile-safari/ios27-root-magenta.png`。
+- 本地从同一 decodedFrame 的 viewport y0（扣除 overscan）取小样，合成当前玻璃 tint，供根纯色回退；非继承变量纳入圆角绘制白名单。减少动态效果下主题切换经下一渲染机会重取根材质，深浅色同步已在模拟器实看；中段 y464 真实文字仍可经过状态栏。新增文档顶部64px衔接层覆盖首屏独立柔光，最终手机视觉衔接仍待用户实看，不称完整纹理铺满。
+- 用户改为只要本地手机地址，已停止上线准备；官网仍32版，未保存／部署新版本，托管源码检出未修改。新增本轮局域网预览服务8769（会话13828，仅dist），HTTP200；原8767／8768保留。单向动画完整动态、页尾与快速往返仍未完成验收。
+
+### 2026-10-25 已连接 iOS 模拟器，延伸与磨砂仍在本地验收（Codex）
+
+- 修正先前“Simulator.app 缺失即无法测试”的判断：本机 Xcode 27.1 使用 Device Hub；经内部主程序启动并结束本轮启动的未完成 trampoline 后，CUA 已连接 iPhone 18 Pro / iOS 27.2，实际打开 Safari。模拟器键盘捕获已关闭；用户在模拟器拍的两张截图已保存到该模拟器 Photos。
+- 本地新增同一 WebGL 帧的上下扩展域，根背景／文字／阶段 Canvas 共用帧几何，异步解码保留旧几何；GPU 640 边长、30fps 未增加。实际 iOS 已编译并显示 webgl-shared；坐标契约通过。固定背景原路径仍造成顶部实色与磨砂边界，不能宣称已修复。
+- 显式本地 `ios-absolute=1` 保留原玻璃参数、改两背景层按文档坐标跟随；iOS 中段 y928 已看到真实图文经过顶部、上下磨砂连续。页首仍黑；放开负 top 后页首仍未通过，页尾及快速往返、单向完整动态复验未完成。当前交给用户查看 `http://127.0.0.1:8767/?lang=zh&ios-check=1&ios-absolute=1&v=skip-removed1`；面板已收起。
+- 用户要求移除屏外左上角入口，已删除主页／手册的“跳到正文”链接及相应样式／绘制匹配，语法与入口检查通过；未改 main 语义。官网保持第32版，全部本轮改动与 `ios-*` 诊断未发布；证据在 `showcase/review/field-performance-20261025/mobile-safari/`，原8767／8768服务保留。
+
+### 2026-10-25 第32版手机验收失败，暂停继续宣称已修复（Codex）
+
+- 用户真机明确反馈：Safari上下仍被系统栏遮挡；减少动态效果滚动卡住；正常模式回看仍重播。线上HTML及5资产已核对匹配32版，Cloudflare仅注入验证脚本，无旧文件／包装iframe证据；报告`target/showcase-publication-20261025/mobile32-delivery-check.json`。
+- 修正验证边界：此前只有桌面窄屏和状态检查，没有iPhone Safari验收。本机simctl列出iOS27运行时，但Simulator.app缺失、CUA无法打开图形模拟器，未启动或操作iOS设备。不得把运行时列表或桌面Safari当iPhone验证。
+- 本地workflow-lab.js／section-reveal.js窄修了阶段回看仍animateText、快速越过early return漏记完成、reduce高度变化自动scrollTo、模式切换未失效布局缓存及普通section无条件rearm。仅语法通过，尚未动态验收，未发布；官网保持32版。
+- 系统栏新依据收敛到WebKit固定边缘extension机制，不能继续调viewport-fit／theme-color并声称有效。建议只切换固定背景组件的受控对照，尚未实施或宣称真机通过；当前手机目标未完成。
+
+### 2026-10-25 手机上下延伸、扩大色场预热与单向入场上线供真机查看（Codex）
+
+- 按用户“直接上线，手机看”要求，官网第32版已`succeeded`；源码`c152ddefacd45858e5e8bdf596b30945ed3c8526`，部署`appgdep_6add66a4bfec8191a307bc07104dfac1`。相对31版仅5运行资产及3页viewport／缓存；回执`target/showcase-publication-20261025/mobile-edge-publication.json`。
+- 三页viewport加cover；根文档画布用同源实时帧与viewport尺寸、scroll坐标延伸到系统栏后，frame／size／position注册为非继承变量并在圆角observer中视为纯绘制，避免全树／全部圆角重绘。悬浮nav避safe-top，正文不加整页安全区padding；图文高度预算只扣安全top一次。iOS不可靠的background-attachment:fixed未用于根画布方案。
+- 色场从屏外60px扩大到上下各两屏，跨越半个预热带时在rAF扫描当前采样范围；保留单WebGL、640边长与同一解码帧。普通区块与story均记忆已完成入场，从上方离开后回看直接呈现；只有回滚使其从下方离开才重置，图片不倒放。
+- 基础已验：JS语法、79个本地引用；390×844下cover、根frame非继承、跨±2532px跳转后可见采样与背景同帧、无横向溢出／页面错误；单向状态逻辑边界检查通过。用户要求尽快上线，未追加Safari动态／iPhone真机系统栏验收，不把桌面尺寸模拟称真机通过。依据／备份在`showcase/review/field-performance-20261025/mobile-bottom/`、`mobile-field/`；等待用户手机实看。
+
+### 2026-10-25 Safari S217 快捷键栏收起外伸修复上线（Codex）
+
+- 官网第31版已`succeeded`；源码`9370a00dc1ad0e2cb21a35949e71a55f6bd27be7`，部署`appgdep_6add614714708191b68eab3742cfc459`。相对30版仅`legend-floating.js`、`continuous-corners.js`和3页4处缓存引用；回执`target/showcase-publication-20261025/legend-sync-publication.json`。
+- 用户09:20日志S217对应视频4.183333秒：宿主已到右侧圆点位置，旧展开底材仍向右延伸，S218恢复。源码与兼容回放确认绘制层自身子树变化被误当内容变化，重新测量提前取消宽动画；另有ResizeObserver尺寸下一rAF才提交轮廓的滞后。现过滤绘制层变化，浮动栏尺寸在RO同帧绘制；Safari实测原WAAPI宽高关键帧运行而布局直接取最终尺寸，故仅连续角兼容路径按原360ms／原缓动显式插值宽高与morph，原生corner-shape路径保留WAAPI。
+- 已验可见Safari756×859深色收起51样本／展开54样本、浅色收起56样本及无诊断正式入口，实际宽度连续变化、RO后右边缘差0–0.015625CSSpx、页面错误0；兼容路径快速反向从当前宽度接续，Chromium原生路径收起121样本宽度单调。初始Safari隐藏导致帧暂停，经用户并排保持可见后完成验收；无新增手机／Windows浏览器验收。
+- 录屏邻帧、原始与修复采样、Safari实际截图和来源匹配记录在`showcase/review/field-performance-20261025/legend-s217/`。临时probe与error监听均已从dist入口移除，检查页关闭、用户原有Safari两页保留；8767／8768服务保留。
+
+### 2026-10-25 图文宽高联动与阶段控件修复上线（Codex）
+
+- 用户授权睡后完成测试并直接上线；官网第30版已`succeeded`，源码`cd77ed35fd3a1a697ab29f45f29fbac7ad533167`，部署`appgdep_6add08e46dec81918391e511cac13956`。回执`target/showcase-publication-20261025/height-fit-publication.json`；仅8项运行资产及3页引用相对v29变化，745项原有文件保持原样，无删除。
+- 新增`story-layout.js`，按中英文所有场景／阶段测量最长控件行和最高图文组合；先消耗外侧空白，再固定文字字号与列宽缩图，按窗口可用高度计算转竖排时图宽。不同语言可在同宽度采用不同布局；确实过矮时采用可滚动自然流，避免硬裁切。窗口／语言变化保留选中阶段，并在计算各场景高度前统一重置入场基准。
+- PDF控件统一为“源码 ↦ PDF / PDF ↦ 源码”（英文Source / PDF）；动态色场恢复。沿用阶段组物理像素对齐及兼容路径三个标签同Canvas字形的边缘／字色修复；连续轮廓保持。S329–335快速切换定位为阶段高度重新测量改变阶段起点，现仅窗口／字体／语言变化更新入场距离，并使用最高阶段固定占位。
+- 已验IAB 380–1600宽度、480–1200高度及恢复、同宽930×862中英文切换、正式无检查入口与减少动态效果；Safari实际图文完整，原闪烁边界66连续采样仅一次正常阶段切换、控件y恒492。先前Safari浅深色动态边缘测试及Chromium原生／兼容路径结果沿用；无手机真机或Windows浏览器新增验收。证据在`showcase/review/field-performance-20261025/layout-height-0220/`，旧录屏对应资料在`jitter-0201/`。
+- 发布包无布局检查／手动录制入口；临时检查脚本已移至review。本地显式phase-record入口保留，8767预览服务恢复并保留，8768设置服务未改；未暂存或提交其它源码／Windows改动。
+
+### 2026-10-25 已确认闪变／下移修复发布，边缘与同组字色本地修复（Codex）
+
+- 用户确认当前本地正常并授权先发布；官网第29版已 `succeeded`，源码 `2057e4688c82210e2561cf6229154dd8f361ccc4`。冻结5个运行文件，仅同帧发布样本／失选清理与阶段文案先于测量的修复；无薄荷绿、强制不透明或录屏诊断。回执 `target/showcase-publication-20261025/accepted-phase-layout1-publication.json`（target链接实际在neovide构建目录）。
+- S526已定位旧文案宽度下先换新标题造成约62.375CSSpx单帧下压；当前593×862同轨迹IAB回放420次布局采样稳定，用户最终确认正常。S116日志明确运行临时 `_s526-before` 旧版；旧入口已停用并跳当前页，记录条／JSON加入实际源码版本。原始证据在showcase/review/field-performance-20261025/{s526,s116}。
+- 用户00:24录屏的PDF双向定位组：S105右侧少1录屏像素，S109底侧少1像素，选中字形同时偏移；S105→106两个未选中标签输出强度约减半，CSS色值未变。原日志跟踪错了屏外theme组，不能用于受影响按钮的几何结论。证据集中在`showcase/review/field-performance-20261025/edge-0024/`。
+- 本地`phase-labels1`：阶段组按DPR对齐并跟踪剩余位移动画；兼容路径三个标签共用现有Canvas绘字，未选中文字只按字体／大小／颜色变化重画，保留DOM布局与无障碍。原连续曲线、clip、底材及disabled/inert逻辑保留，原生状态／appearance／层级试验均撤回；改动为workflow-lab.js、brand-field.js/css、phase-flat-fill.js及HTML缓存。
+- 已验真实Safari27.2（574×838/DPR2）浅深色进入／返回及连续往返各18次实际截图、三个阶段切换，所测缺边与同组字色突变未再出现，3个文字Canvas且绘制失败0。Chromium156强制兼容回放481次几何读数物理像素误差0，另测原生corner路径无错误；几何读数不是Paint帧验收。新改动未发布，官网仍为已确认第29版。
+- 临时edge-probe已从运行入口移至上述review目录，自有Safari／IAB检查页已关闭、视口覆盖已恢复；用户页及8767／8768服务保留。
+
+### 2026-10-24 23:44 本地紫色闪变新对话交接（Codex）
+
+- 当前目标：查清并修复状态往返切换、上方文案高度改变引起按钮竖向位移时的异常紫色；最新复现同时涉及Safari与Chrome，不沿用“Safari专属引擎问题”的已确认结论。优先Safari S83/S86及Chrome S399，不再扫描整段找更多例子；用户要求新开本地对话继续。
+- 最新5个输入已保存在`showcase/review/field-performance-20261024/manual-2337-2340/`：safari.mov/json、chrome.mov/json、chrome-s399.png，原路径映射见inputs.json。现有本地入口`http://127.0.0.1:8767/?lang=zh&field-solid=mint&stage-opaque=1&v=mint1#feature-theme`，固定#70ffd4 PNG、全程不透明、自动S序号/JSON记录已就绪；服务未停止。
+- 本地候选由`brand-field.js/css`和`phase-flat-fill.js`对兼容路径选中按钮预合成色场/颗粒/字形，保留DOM布局与基线探针；默认渐显只乘底材alpha，字形alpha1。HTML及JS缓存mint1/flat3；local诊断文件保留。已做语法、Chrome原生/强制兼容、Safari静态920帧检查；动态录屏有采样开销且无录屏性能复核未完成，不据此宣称最终解决。源码/实验在既有investigation.md和manual-214524/flat-fix目录。
+- 上缘缺切子代理只读报告`showcase/review/field-performance-20261024/phase-corner-clip/findings.md`：轮廓拟合约0.05px，缺约1截图像素顶行，具体裁切层未定；未修改轮廓。根代理已停止操作GUI，未对最新两段录屏做新的分析或改动。
+- 发布子代理已完成官网v28，status=succeeded，源码`5db6fcb989e3d768048595bfa7525eb216cc1be6`；回执`/Users/ysrae1/Dev/neovide/target/showcase-publication-20261024/phase-flat3-publication.json`。发布源冻结8文件，未带本地mint/录屏诊断；后续调试只改local，不把发布捆进修bug。根仓库已有Windows等脏文件不动，showcase为独立main仓库。
+
+### 2026-10-24 Safari 闪变触发链与颜色标记对照（Codex）
+
+- 只分析用户指定的 S152–154→S157、S188–190→S194：暗帧按钮约RGB(124,63,91)，亮帧约(253,125,166)；同次日志固定PNG、opacity=1、无材质属性切换。S序号是rAF同步回调，不是Paint／录屏帧号，不能以跳号直接认定浏览器丢Paint。
+- 实际Safari单变量ABA：父填充仅改为绿色，按钮由粉色突变黄色；目标填充computed背景混合全normal时12秒/690视频帧没有串色，恢复normal,overlay,normal后12秒/689帧中193帧再次变黄。已证实父底材参与overlay路径的最终像素，尚未锁定WebKit内部具体错误步骤；证据及主源链接在既有investigation.md与manual-214524目录。
+- 独立伪元素颗粒混合仍串色；同源SVG按DPR2固定360²PNG后也串色，两个保留材质候选均停止并还原。运行源码未因此修改，未发布；故障尚未修复。8767 PID84232继续服务；8768旧进程退出，已由本会话恢复PID55780／session43519，/settings HTTP200，参数文件未改。
+
+
+### 2026-10-24 用户手动录屏／同钟日志对照（Codex）
+
+- 用户明确滚动症状是突发闪暗／恢复；改由用户手动操作，要求画面与日志按同一时间节点对齐。当前本地 `field-solid=1&stage-opaque=1` 用固定640×332 RGB粉色PNG替代动态色场，阶段底材与图片alpha全程1；几何滚动进度、颗粒、材质和连续轮廓保留。默认／线上路径未切换。
+- 新增显式诊断手动控制条，先录屏再点开始；画面自动同步序号Sxxxxxx与毫秒计时，日志按每个同步回调保存同源时间节点及trace-to-video偏移；不要求用户给高频闪变打点，停止后用户点击下载JSON。最长90秒，不自动滚动或截图；后续按用户新授权结合同次录屏与日志分析，不再把正常渐显当作异常证据。
+- 展开缺角子代理已以定位HTML盒包住完整SVG，缓存svg-box1；待用户观感确认。8767 PID84232与8768 PID91315均已恢复并验HTTP200，参数文件未改。此前原生Paint时间线与页面日志已保存在既有调查目录；尚未建立闪变因果链，不宣称根因已定位。线上未部署。
+
+
+### 2026-10-24 Safari 图标裁切修正与阶段按钮 inert 本地候选（Codex）
+
+- 用户反馈 alpha 遮罩候选无改善，已完整撤回；后续明确本地修改／用户反馈，不走线上上传部署，不再截图或图像分析。阶段按钮保留 group.inert 阻止交互，移除每次滚动重复写原生 disabled，增加点击入口的 inert 校验；这是待用户反馈的单变量候选，未确认明暗根因。
+- 用户补报右侧圆形说明按钮闪电缺截；源码确认 continuous-corners 的子内容裁切仅用 offsetTop，漏掉 toggle 的 translateY(-50%)。已仅为纯平移2D矩阵补回位移，保留连续圆形与完整原SVG图标；依据 CSSOM View offsetTop 忽略变换的定义。非平移路径未扩展。
+- 语法与差异检查通过；本地 index／handbook 缓存已更新。线上未上传／部署，仍沿用此前第27版；实际 Safari 观感由用户验证，8767／8768服务保留。
+
+
+### 2026-10-24 Safari 阶段按钮本地 alpha 候选（Codex）
+
+- 按用户最新要求停止图像分析，后续直接改本地代码由用户反馈；当前仍未确认根因。仅 `showcase/dist/assets/brand-field.css` 将连续角兼容路径中选中阶段按钮的整组 opacity 改为填充 alpha 遮罩，描边／外阴影单独沿原渐显进度；两 HTML 缓存引用已更新为 `safari-alpha1`。待用户实际滚动反馈，未发布。
+- 此前 normal-blend 对照没有消除所见变化；固定帧／同色资源对照未形成足以认定根因的结论，不再扩展该分支。用户明确小字无此明暗故障，撤回把小字色场变化当故障证据的判断。临时 probe 已从 dist 移到既有调查目录 `scroll-blend/`；正式连续曲线、颜色与颗粒保留。
+- 线上仍第27版；8767／8768服务保留。无新增常驻诊断进程；不再自动截图／录屏，等待用户给本地候选反馈。
+
+### 2026-10-24 20:20 先发布卡顿修复、保留连续圆角（Codex）
+
+- 按用户最新要求先发布官网第27版，部署已`succeeded`；保留第26版缓存Canvas外阴影性能修复、原连续曲线、材质、颗粒和色场。另补按钮仅更新label及失联paint重建，防止文字更新删除绘制层；没有把普通圆角作为正式降级。
+- 源码`17545268acb9e6d1387f500373b131a5158d0149`，部署`appgdep_6adca27276f08191a35c2446adb2b7f6`；唯一发布源不变，回执`target/showcase-publication-20261024/safari-performance2-receipt.json`。相对26版仅两JS与两HTML缓存引用改变；JS语法、差异检查通过，实际Safari英文浅色加载／阶段按钮可见。沿用已完成的性能验收，不冒称新的120Hz、手机或Windows Edge验收。
+- 普通圆角临时对照已在Safari加载，用户反馈仍未解决；overlay普通混合候选尚未完成动态验收即按发布优先级停止，不能报告有效或无效。所有临时开关／trace已从运行源码清除，归档在`showcase/review/field-performance-20261024/continuous-corners-diagnostics-before-release.js`，未上线；Safari已切回正式中文页面。
+- 浅色阶段按钮“滚动变暗、停下变亮”仍未解决，当前没有已确认引擎根因；后续继续先核对来源与匹配条件，再做单变量验证。没有新后台测试或常驻进程，8767／8768服务保留。
+
+### 2026-10-24 Safari 滚动明暗故障仍未解决（Codex）
+
+- 用户录屏及本机复现确认：浅色外观的阶段按钮，在文字从居中移向左侧时持续滚动变暗、停下变亮；Chrome正常。19:38的测量循环修复不能证明这一动态故障已解决，前条“闪烁修复”仅指当时确认的静止测量循环。
+- 正层级候选在实际移动录屏中无效，已撤回；停止沿层级继续试改。已查官方与社区历史，尚无完整匹配报告；条件差异及现有证据见既有`showcase/review/field-performance-20261024/investigation.md`。
+- 当时官网为第26版，按钮文字更新保留绘制节点的确定性修复未发布；现已随上条第27版上线。持续滚动明暗变化仍单独待验，诊断代码未发布，不能相互代替验收。
+- 已补强并实际重读唯一全局`~/.codex/AGENTS.md`的故障排查前置条件；没有通知或声称其他agent已重载。后续修改先交代来源、匹配与不匹配条件及唯一主要变量，按用户这段实际滚动过程验收。
+
+### 2026-10-24 19:38 Safari 外阴影性能与顶部条闪烁修复上线（Codex）
+
+- 原调色板在真实Safari27.2正常；主站正常PNG路径1.5 rAF／0.7 published fps，单独停用连续角SVG外阴影59.8／30.0。将外阴影改为同一Path2D的缓存Canvas、扣除全部内部，保留SVG描边／clip和原玻璃／色场后58.4／28.5，后续浅色静止样本60.0／30.0。未采用命名canvas／噪声候选；发布`brand-field.js`与第25版逐字节相同。
+- 静止bar闪烁已定位到测量恢复宿主时启动box-shadow过渡：36次nav测量对应34次阴影结束事件、无外部属性触发，结束又调度祖先nav。测量期间只抑制绘制过渡并先提交透明宿主，保留height／width／transform原timing；修复后静止仅2次初始化、0次阴影事件，导航缩小与legend开合已实操。标题格状阴影改同sigma drop-shadow，限定对应能力；支持原生corner-shape者不进入圆角兼容脚本。
+- 实验和证据在`showcase/review/field-performance-20261024/`；Safari浅深首屏、滚动导航／浮动符号条、文字中部点击“完整手册”进入296项手册已检查，Chrome浅深实际画面正常，IAB390px原生／强制兼容路径无横溢出。四类外阴影内部alpha为0及缓存／离屏恢复离线检查通过。物理iPhone与Windows Edge本轮未复测，不由桌面Safari／IAB结果代替。
+- 原官网第26版已`succeeded`，源码`60068c33137ba2275191bdfb31edfe3d54e5c692`，部署`appgdep_6adc98a764c481919b05c1b63beae9ce`；public受众、25版完整手册入口、精简发布资产与既有英文修复保留。唯一源仍`target/showcase-publication-20261024/source-responsive`，回执同级`safari-publication-receipt.json`。仅3个运行资源与两HTML对应cache更新；DESIGN已同步，无全局规则／Rust／Windows安装器改动，8767／8768未重启。
+
+### 2026-10-24 发布页本地交互增量（Codex）
+
+- `showcase` 独立本地 `main`，未提交／未发布，沿用8767服务。详细现行设计为 `showcase/DESIGN.md`；所有未来网页的连续曲率与Safari兼容固定策略已写入唯一全局 `~/.codex/AGENTS.md`，不声称其他agent已重载。当前依赖cache版本`20261024-scroll50`，大量原有未跟踪素材保留。
+- 八组只有一份文字构件，前组退出至少1/3才揭示、稳定gap96px；整体24px/700ms与内部8px/55ms错峰。中心固定后与前组脱钩，前组文字图片均完全退出且介绍完整后，下一新下滑才飞图；宽850→350、高度缓存插值保持Y中心。最新按介绍态实际Range最长行触边切侧对齐（替代e=.5，待本轮浏览器增量确认）。阶段底材与选中色块跟随图片同一透明度e，未到位disabled/inert、纯文字；实测e0与e0.403271图/色块一致，progress>=.999才可点。原滚动阶段24vh与空闲2000ms内帧播放保留，无滚轮截获。
+- 删除连续视频、范围控件、重复导航；字体固定自托管Inter/FiraCode/Noto。导航58→40全部同比缩小。legend同一div+button原位/浮层淡出140ms再淡入200ms，浮层导航下10px、同宽40高；圆球40×40，左端圆润三角，展开为描边闪电。宽/maxWidth/--legend-morph360ms同一动画，修正closed max-width使收起瞬跳的问题。SVG原生曲线fallback也按同一morph进度绘制；最终Safari形变仍需定向确认。
+- `continuous-corners.css/js/fallback.css`统一同源轮廓：原生支持采用校准superellipse1.44×radius1.283，不支持使用SwiftUI每角3cubic路径；不再普通圆弧作为Safari目标。清除inset rims、重复底材与边线；外阴影明确排除SourceAlpha内部。Safari实际新画面已见连续长条、正常文字与矢量图标，但新阶段字段填充曾缺失（深字无底），**仍待兼容层定位，不能称Safari全量通过**。新增仅QA查询`geometry=vector`方便在IAB定向检查，同样不证明Safari像素通过。
+- cmatrix卡片改为GoStream原C状态逻辑web移植，GPL3许可随资源，GlowMono字形125字符覆盖；M/W/L替换Apple/Windows SVG与有来源的Tux。仍待最终卡片/平台/手册整合画面确认。dark真实补录按用户要求稍后继续，PDF双向定位真实素材缺口保留。
+- 独立色场预览（冻结前记录）`dist/color-field.html` 使用固定 `@kawarp/core1.3.1` MIT 的真实WebGL域扭曲＋128²缓存Kawase模糊；当时以首页4色＋Logo6色为默认，每色一个移动空间源，显示饱和1.12、warp .45，静态细粒磨砂。速度0.25–6倍（当时默认1.5，基础轨道.09 rad/s、warp时钟×2），模糊2–12（默认8）；30fps、输出长边≤960，hidden/reduce静止。当时为用户调试中的候选，未接主站，不宣称Apple私有原生算法；当前确认值见下方冻结增量。
+- 调色面板支持新增颜色、参与开关、取色器/HEX、收起；颜色、开关、速度、模糊、暂停与收起状态用同一key自动保存。IAB独立localhost来源已实际验证修改、刷新恢复、新增项自动滚入可见区与总数更新；测试数据不覆盖用户127.0.0.1来源。主站Glow负字距裁切已补足着色空间，IAB实际截图`showcase/review/2026-10-24-scroll/hero-glow-ink.png`；此增量未做Safari实机验收。
+- 色场预览cache为`20261024-field9`：六点手柄支持跨行拖动排序，颜色/参与状态绑定并保存。IAB实际将禁用第1色拖至第7后编辑，刷新仍保留顺序、色值、开关与其他参数；无运行错误。用户页面已更新，13色与速度4/模糊9保留，截图`showcase/review/2026-10-24-scroll/color-field-reorder.png`；未声称Safari或触摸真机验收。
+- 2026-10-24，Codex：按用户“先固定这套”冻结当前14色顺序与参与状态，仅第3色 `#ffc6c2` 暂停、其余13色启用；速度2.5／模糊8／暂停false／面板收起true。共享默认入口 `showcase/dist/assets/field-preset.js`，预览cache `20261024-field10`，完整色值与来源边界见 `showcase/DESIGN.md` 4.1；Kawarp1.3.1、饱和1.12、warp .45、轨道.09、warp时钟×2及静止噪声保持。按后续要求加入颗粒强度0–0.5（步长.01，当时默认.2）、大小0.5–2倍（步长.05，当时默认1）滑块，实时调节透明度／背景尺寸并保存到同一设置。IAB已验证颗粒透明度／尺寸实时生效、强度0关闭、刷新保留及恢复14色默认；用户预览仍正常播放（time32.69→53.54）。暂停测试页已关闭，截图`showcase/review/2026-10-24-scroll/color-field-grain.png`。当时主站蒙版尚未集成，未新增Safari验收或发布。
+- 2026-10-24，Codex：主站本地接入 `field-renderer.js`／`field-preset.js`，每页单个WebGL renderer与时钟，最多30fps渲染、24fps发布解码后的共享帧；14色顺序／第3色禁用、速度2.5／模糊8保持，当时颗粒为.45／1.15。层级按用户最新要求固定为共享动态色场→高不透明黑白玻璃→原有首屏斜光束；光束自身效果保留，底部完整材质含暗角整体alpha渐变到透明以消除硬分界。主题色控件／文字按mask同坐标取底层帧形成视觉挖孔，不称物理DOM减法。可见消费者以CSSOM更新坐标与缩放补偿，避免transform祖先下fixed背景错位，不为每控件另设动画；连续角底材继承同一帧和颗粒。IAB已见主站深／浅色场，暂停后frame748／time140.23保持、恢复后继续流动；快捷键浮窗左三角朝右／右侧空心闪电已由截图确认。Safari工具无可用窗口，本轮未做真实Safari验收；IAB强制vector路径的阶段选中底材已见动态纹理，手册37处搜索匹配与平台选中态也接入同一帧；透明度6.5%→9%的同源同步及刷新保留已确认，未发布，不外推手机真机。
+- 2026-10-24，Codex：原调色面板加入玻璃透明度0–100%（步长.5%，当时默认3.5%，越大越透明），独立key `glow-field-glass-v1` 即时保存并同源同步主站；当时两主题veil alpha均.965。预览默认盖玻璃，两个按钮样例直接裁同一WebGL帧并对齐颗粒，深浅切换仅作用当前预览页；`field12`预览／`glass1`共享设置。IAB已确认按钮内色场持续更新、玻璃透明度同源同步与刷新保留、深浅玻璃切换。玻璃表面新增独立静止磨砂纹理（当时默认.115／1倍，normal混合）与24px柔化；当时颗粒控制尚待后续完成。截图`showcase/review/2026-10-24-scroll/glass-frost-preview.png`；仅本地，未发布。
+
+- 2026-10-24，Codex：最新确认默认集中于FIELD_PRESET：色场颗粒.45／1，玻璃透明度20%（veil .8）、颗粒.09／1；玻璃独立保存 `{transparency,grain,grainSize}`，控制与持久化已在前一步IAB检查。主站去除旧vignette不透明尾部，改用256×2048静态五次曲线羽化mask（54%–96%、确定性随机alpha量化），无新增动画循环；Glow字形以同场7／18px模糊恢复发光。Linux按已有SVG alpha取共享色场剪影，功能／章节大标题加入同场；最后功能组至CMATRIX按缓存尾部恢复96px间距，阶段与停驻门槛保持；修复英文四处拆分标题及requirements链接前空格。IAB已见全部8组与章节标题、三平台剪影、同色场Glow发光，英文两处截图中的空格已确认；CMATRIX与最后画面边界实测约96px，未改阶段停驻。Safari未验、未发布；30fps／长边960／128²色源15Hz／PNG桥24Hz仅为代码上限，另有全屏blur成本，没有GPU占用率实测。
+
+- 2026-10-24，Codex：用户确认无遮罩对照：停用Hero额外颗粒与暗角／整体mask，光带overflow可见，IAB首屏底边硬接缝已消失；原beam-fade-mask资产保留但不加载。玻璃颗粒改sRGB中性overlay，并新增独立亮度0–100%默认50%（同源screen颗粒提升），实时保存且不改强度／大小／透明度；IAB亮度50→70→50已验证，后续用户自调透明度12.5%／强度.1／大小1，服务保留现值。
+- 2026-10-24，Codex：跨浏览器玻璃本地同步已加入glass-settings与tools/glass-preview-server.py；实际自有服务PID51617（exec session84115）监听127.0.0.1:8768，启动命令 `python3 tools/glass-preview-server.py`，保存review/glass-preview-settings.json；原8767服务未重启。隔离API/SSE/迁移/旧客户端与JS模拟通过；IAB同步到主站及外部Chrome新预览实际读到12.5%/.1/1/.5已确认，Safari未验。静态部署不连接此本地服务。
+- 2026-10-24，Codex：用户认可Glow浅色也用原色，去掉字形深色veil，修正伪元素继承已解析veil导致黑雾；标语整行轻投影2px/3px，深色.22浅色.14。功能组h3恢复主题正文色，01/08序号功能名行改共享色场；章节h2维持色场。当前brand CSS shared18、JS shared7、glass5；仅本地，未发布。
+
+### 2026-10-24 19:02 主页完整手册文字入口上线（Codex）
+
+- 原对话按用户澄清仅修改`showcase/dist/index.html`的“打开完整手册”入口：整段原生a链接、明确下划线、44px点击高度及普通正文色，保留语言同步。六处文字命中检查与实际文字中部坐标点击通过，官网已实际跳到手册；未改Safari专项候选或其GUI。
+- 第25版已succeeded，源码`5788ddbb27fa6f2a73308b77cbd96f3d930826e8`，部署`appgdep_6adc904acc7c81919d974d00a97a03f0`。唯一发布源仅index有4行增量，后续Safari发布须保留；本地index也已同步。证据`showcase/review/manual-link-20261024/`，根因调查仍由新对话接管。
+
+### 2026-10-24 Safari 专项新对话交接（Codex）
+
+- 用户明确要求另开新对话处理：Chrome正常，iPhone／桌面Safari仍卡，另报告“Neovide Glow”大字阴影有格状纹理；**根因未证实、未解决**。官网仍是下述第24版，修好的字体／四标题／双栏对齐均已发布。原会话停止编辑，原生子代理全部完成；8767、8768及既有本地服务保留，不重启他人进程。
+- 本地未发布试验只在`showcase/dist/assets/brand-field.js`及两个HTML的brand cache（`safari-profile4`），当前候选把Kawarp直接画到命名CSS WebGL canvas，原生Safari能力与画面尚未验；不支持则PNG回退。先前命名2D canvas的drawImage实测约679ms，已弃用，勿发布该分支；9项新控制流检查仅在内存VM通过，旧`css-canvas-check.*`是废弃2D候选。
+- Safari27.2实际窗口现可用。诊断URL `http://127.0.0.1:8767/?lang=zh&field-debug=1#top`；`field-transport=png`可强制旧桥，`field-test=render/encode/no-glass`可隔离阶段。面板会报告visibility，后台hidden=0fps不得作为性能结论；用CUA切到Safari前台后曾见rAF约4／发布约2fps、PNG20–34ms＋decode4–8ms，2D桥2.3fps。`field-test=render`旧页也曾见4fps，须控好前台/缓存再判断，不能锁定PNG为唯一原因。
+- 原生AX／截图在`showcase/review/field-performance-20261024/safari-native-*`；当前Safari停在`v=safari-render&field-debug=1&field-test=render`，可能仍加载旧2D试验，需明确刷新至新候选。CUA初次按规范重载文档；原生Safari可用`cua.getApp('com.apple.Safari')`，需要前台时已验证`super+Tab`可使面板visible，勿靠IAB替代Safari。下一步先核实直连命名WebGL实际支持／同步重绘与帧率；无效即停候选，定向查GPU绘制、全屏blur/grain和标题阴影格纹。用户还反复指出“打开完整手册”六字链接区域，官网AX实点已跳转并载入296项，但尚未做原生Safari文字区域坐标实点。
+
+### 2026-10-24 18:47 Safari 路径窄修与网页样式上线（Codex）
+
+- 官网第24版已succeeded：源码`0b2c537061d0124979697381423e28aa6f28bed6`、部署`appgdep_6adc8ca98e388191ab105e2981567f35`，仍沿用唯一发布源`target/showcase-publication-20261024/source-responsive`与public受众。第23版先发布性能／字体／标题，第24版加入Windows导航与浮动说明条的滚动条宽度定位修复，17／18px及手机布局模拟通过，未冒称Windows真机通过。
+- 共享帧改局部inline变量，四个纯绘制变量不触发连续角重建（13项过滤回归）；CPU/GPU渲染前背压保留最新静态修改（生命周期检查通过）；主站色场长边640，独立预览仍960。普通蒙版、原生圆角、颗粒与配色保留。WebKit源码表明原每帧CSSOM写入可能触发全树样式重算，但没有建立与本机二进制的逐版对应。用户仍报告Safari卡、Chrome正常，**性能问题未解决**。
+- 现有字体含“变更”，只修`--mono`的无衬线及Windows微软雅黑回退；四个章节大标题恢复深色白／浅色深字，中英实际IAB样式检查通过。完整手册入口已实际点击官网并载入296项；用户仍指出文字点击区域，待Safari实点核查，不假定用户误操作。
+- 当前新一步只在本地加入`field-debug=1`的阶段诊断，未发布；实际Safari窗口现已可访问，用户同意直接在Safari检查。IAB前后帧率不稳定，不能写成Safari性能改善。证据集中`showcase/review/field-performance-20261024/`，DESIGN已同步现行640／inline／四标题规则。
+
+### 2026-10-24 18:29 九模块响应式小图版上线与手机性能调查（Codex）
+
+- 按用户明确授权发布至原官网，保留public受众。第22版部署 `appgdep_6adc87b8b044819181bc4dc446ba2ab9` 已 `succeeded`；源码 `340fda7fd36b0fdddffd1e8db539e22899427c25`，唯一发布源在 `target/showcase-publication-20261024/source-responsive`，回执在同级 `publication-receipt.json`。九模块、既有Windows2026.10.23.5双架构下载／指南／校验与中英内容均保留。首个过大源包被HTTP413拒绝、第二个较大传输按新压缩要求停止；均未部署，最终只发布约48.6MB运行文件，未带本地原图、review或内部清单。
+- 用户最新要求覆盖此前网页原尺寸无损规则：224张原3024×1840桌面图生成768／1280／1700三档WebP Q90，672个派生图全部尺寸／解码检查，原SHA不变。原桌面图合计356.7MB，1700档18.0MB、三档合计36.0MB；原图留本地。来源和参数在 `showcase/content/native-responsive-assets.json`，四份原manifest及逐像素核验逻辑保持；准备工具生成响应式字段，缺匹配派生图会报错。文字压缩对照及证据在 `showcase/review/responsive-assets-20261024/`。
+- `workflow-lab.js` 移除全九组首帧eager与整阶段预载，临近视口才挂src/srcset，逐字阶段最多当前＋后2帧；大图链接1700档，去掉未使用的窗口mask。定向加载检查通过；IAB窄屏实际初始仅1组请求，PDF双向定位第三阶段在英文浅色切换后保留，使用1280图／1700大图且无控制台错误。官网浏览器已见九组、响应式链接与完整双架构下载；后续截图通道失去标签会话，CLI直取返回403，未据此重复改站或冒称iPhone通过。
+- 色场CPU按行筛除零贡献源与指数递推，Node中位1.493→0.642ms；1,409,024像素零差。共享帧只向背景与可见样本局部发布，根变量只初始化一次；静止不读几何，滚动／长动画继续对齐。12项合成控制流检查与实际窄屏滚动／主题／语言检查通过，缓存 `20261024-mobile2`；用户仍报告iPhone卡顿，不能将上述桌面结果当手机通过。全部性能证据集中 `showcase/review/field-performance-20261024/`。
+- 只读色场调查完成，优先候选为480／640长边输出与渲染前背压，其次验证去PNG桥；GPU源shader暂缓，现有128² CPU并非已证实手机瓶颈。官方资料与边界见该目录 `investigation.md`。候选尚未实施／上线；等待用户对官网小图版的实际手机反馈，不宣称卡顿已解决。DESIGN已同步原图保留／网页派生与可见区发布规则，未改已安装程序或用户配色。
+
+### 2026-10-24 17:57 色场帧率节拍修复（Codex）
+
+- 用户反馈 iPhone Safari 正常模式色场流动帧率低。确认代码有两级独立限频：30fps渲染后再以24fps门槛发布，理想输入也会被减半至15fps；渲染端 `last=now` 另会丢失rAF时间余量。`field-renderer.js` 改为累计deadline与0.5ms容差，长延迟跳过过期工作；`brand-field.js` 移除第二层时间门槛，仅保留PNG编码／解码单项背压。
+- 同一IAB 516×778窗口、516×778画布，DOM实际已发布帧计数测得修复前27.157秒355帧（13.07fps），修复后32.214秒951帧（29.52fps）；该数据属于桌面浏览器窄屏，不能替代iPhone真机性能。减少动态后39.823秒保持同一帧，恢复后继续更新，无控制台错误。颜色、速度、模糊、纹理大小、分辨率与共享蒙版／玻璃材质均保持。
+- 实际源码VM快检覆盖60／120／30Hz及微小抖动、暂停恢复、10秒卡顿、palette／speed输入与dispose，通过；只证明调度与控制流，不模拟GPU或PNG耗时。证据与截图集中在 `showcase/review/field-performance-20261024/`。主页、手册及色场预览缓存更新为 `20261024-cadence1`，DESIGN同步单节拍约定；仅本地、未提交／发布，iPhone观感待用户复看。
+
+### 2026-10-24 17:42 恢复本地发布页预览（Codex）
+
+- 用户报告主页无法加载；实际8767无监听、连接被拒绝，原服务已停止，停止原因未确认。按既有静态入口恢复仅监听127.0.0.1的独立预览进程PID86921，根目录仍为 `showcase/dist`；8768同步服务PID51617未重启。
+- 主页、新脚本、Dark素材目录与PDF桌面图片均返回HTTP200；启动与健康检查在 `showcase/review/local-preview-20261024/`。未改网页内容、提交或发布；用户原错误页需刷新。
+
+### 2026-10-24 17:31 主页新增独立双向定位模块（Codex）
+
+- 按用户明确要求将主页扩为九组：原第4组 `feature-pdf` 保留 PDF 对照／翻页，新增第5组 `feature-pdf-sync` 展示“同窗预览→源码定位 PDF→PDF 返回源码”，后续AI、终端、补全与Git顺延。四份manifest恢复原PDF预览对象，真实双向定位补录独立保存为 `pdf-sync`，不复制／改写图片或来源。
+- 新增独立场景与中英文内容，四份素材目录、阶段与主页缓存统一 `20261024-nine1`；`DESIGN.md` 同步九组架构及已闭合素材缺口。四套目录检查、阶段索引／独立素材引用及JS语法通过。
+- IAB 1280×720实际确认九组编号01/09–09/09、新模块05/09及三阶段，中英×浅深四组合素材正确、切换保留第三阶段，无横溢出或控制台错误。截图／记录在 `showcase/review/pdf-git-retake-20261024/qa/home-nine-features-{zh.png,qa.json}`。仅本地，未提交／发布，8767／8768服务保留。
+
+### 2026-10-24 17:23 发布页 PDF 双向定位与 Light Git 补录（Codex）
+
+- 仅本地 `showcase`，未提交／发布。中英×浅深四组合的 PDF 各补三帧：同窗预览→源码定位 PDF→PDF 返回源码；保留 Neo-tree、TeX 与原生 PDF 同窗。正向实际执行 `GlowTexForward` 并采到定位高亮；反向使用真实 ⌘＋鼠标左键单击 PDF，原生 SyncTeX 序号增至1、自然返回中文45行／英文44行，未用手工移动光标替代。Light Git 中英各三帧重录，末帧实际选择 `basics/format-after.py` 并显示彩色差异。
+- 共18个状态、36张窗口／桌面 lossless WebP，桌面3024×1840、窗口2698×1536；新素材位于四目录的 `retake-20261024/`。原PNG、旧资产与四份清单备份保留在 `showcase/review/pdf-git-retake-20261024/`；四份manifest仅替换目标故事，其他故事逐项保持，来源SHA与原图核对通过。语义验收、矩阵核对及导入回执集中在该目录。
+- 现有 PDF 模块更新为三阶段，无新增首页模块；中英文案及键帽与真实操作一致，四份catalogue与阶段cache为 `20261024-pdfsync1`。`workflow-lab.js` cache `20261024-stagekeep1` 修复语言重排导致阶段回退：切换期间保持当前已入场组的阶段／内部帧，重排后校准局部阶段位置，普通滚动继续推进，未入场组不提前解锁。
+- 四份素材准备工具 `--check`、JS语法及差异空白检查通过。IAB 1280×720实际验证 PDF 第三阶段中英／浅深切换保持、向上滚动可返回前阶段、八组数量不变、无横溢出及控制台错误；画面与记录在 `qa/pdf-bidirectional-page.png`、`qa/browser-retake-qa.json`。本条闭合16:54所记 PDF 双向定位与旧Light Git末帧缺口，未新增Safari、手机真机或Windows／Linux验收。
+- 原系统Light、原Space ID 4、前台应用与桌面图标／小组件设置已恢复；自有采集进程与临时App副本已清理，见 `restore-receipt.json`。原8767／8768服务保留，已安装程序与用户窗口未替换／关闭。
+
+### 2026-10-24 16:54 发布页 Dark 原生素材补齐（Codex）
+
+- 仅本地 `showcase`，未提交／发布。中英各新录七组51帧真实Dark；首组复用原有真实Light→Dark两端并保留原始来源／历史采集身份，各形成8组53帧、合计212张窗口／桌面WebP。两份 `content/native-state-manifest{,-en}-dark.json`、`dist/assets/states{,-en}-dark/` 与Dark catalogue已生成；新原PNG及分组清单在 `showcase/review/dark-capture-20261024/`，旧Light资产、原PNG和配色均保留。
+- Desktop 3实际采集，窗口2698×1536、桌面3024×1840，上下各152px。编码逐帧核对直接PNG与lossless WebP的RGBA；两准备工具的 `--theme dark --center-desktop --check` 共106帧桌面原图／裁切核对通过。Notebook只读既有输出、AI只展示已有完整中英答复。采集工具补独立分组／逐组落盘；修正临时LazyGit中文码为 `zh-CN`、将选择键送入真实终端job，最终Dark两端03均选中 `format-after.py`。失败采集保留在review，未导入页面；中文五组清单从已完成编码的原图恢复，记录了恢复说明。
+- `workflow-lab.js`／`index.html` 接入语言×主题四份目录及主题事件，cache `20261024-dark1`；保留原scroll56布局与阶段、当前内部帧及旧解码回调失效保护。IAB 1280×720实际检查中英×浅深四组合、快速连续主题／语言切换，文件搜索仍在输入名称／10帧，最终仅一张正确中文Dark显示层，无横溢出或控制台错误。截图与验收在 `showcase/review/dark-capture-20261024/qa/`；JS语法、差异空白检查通过。
+- 已恢复原系统Light、Space ID 1、前台应用、桌面图标／小组件设置及采集实例运行语言；自有采集进程与临时App副本已清理，回执 `showcase/review/dark-capture-20261024/restore-receipt.json`。原8767／8768服务继续运行，已安装程序与用户窗口未替换／关闭。
+- 边界：PDF仍为真实预览／翻页，未补双向定位；旧Light Git 03仍停总览，本轮未改其原资产，不能将其算作真实文件选择。未新增Safari、手机真机或Windows／Linux验收；本轮没有连续视频或网站样式重做。
+
+### 2026-10-24 16:36 发布页定稿增量与 Dark 素材交接（Codex）
+
+- 仍仅本地 `showcase` main，未提交／发布。按当前预览冻结 FIELD_PRESET `glow-20261024-1616`：14色（第3色暂停），`#70ffd4` 替代旧 `#7affcc`，速度2.5、模糊8、色场颗粒.45/1；玻璃透明度12.5%、颗粒.09/1、亮度.6。共享默认及详情在DESIGN.md，用户仍可继续微调；8768同步服务PID51617/session84115继续供页面使用，不重启8767。
+- CMATRIX移除滚动空闲门槛，实际连续滚动时字雨仍更新；Linux改Simple Icons CC0复合路径，眼／嘴／腹部／脚部内部细节保留并透出同一色场。截图在 `showcase/review/2026-10-24-scroll/{cmatrix-while-scrolling,linux-field-details}.png`；旧只含外轮廓的方案已替代。
+- `workflow-lab` cache scroll56：窄屏先居中文字、再由完整上图飞入把文字推向下方；长条说明自然换行并随内容增高。触边后真实文本行同时380ms平移，反向中断接续，结束清理包装及位移，终点完全交给原DOM自然侧对齐。IAB实际验证850×778入场中段无图文重叠、宽屏跨阈值倒滚与终点（临时行9→0、最终350px栏／侧对齐）；截图 `text-alignment-final.png`、`narrow-image-entering.png`。JS语法／差异检查通过；本轮未做真实Safari增量验收。
+- 中英共168张引用桌面素材仅裁顶部28px，3024×1868→3024×1840，上下各152px；原始PNG保留，manifest记录来源与裁切。逐像素lossless比较、两份catalogue检查及幂等复跑通过，浏览器实际加载新尺寸。新的Dark采集框为 `0,62,1512,920pt`，窗口仍 `81,138,1349,768pt`，窗口图2698×1536。
+- 已回顾原聊天“丰富发布页功能展示与快捷键手册”`01a167c6-bb75-7543-8695-46d79c0dbe2f`：用户已明确允许原生AppleScript控制Desktop 3布景／居中／采集；系统级Light/Dark切换，保护现有窗口与Ayu配色。下一聊天只补录中英Dark八组相同阶段，独占GUI、核对新实例，不复用历史PID/window/socket。当前已有theme两端，其他七组尚无Dark；PDF双向定位不冒称已有，AI只展示已有答复、Notebook不启动内核。原PNG在 `~/Desktop/scr_recs/take-20261024/retake-clean/{zh,en}`；工具和计划在showcase/tools，前端尚只有中英Light两catalogue。
+
+- Dark素材任务已新建为“补录 Dark Mode 原生展示素材”，本地线程 `01a16d0e-56ce-78f0-a5ad-6e915706a74e`；当前聊天已释放GUI及素材文件，临时测试tab和 `_layout-review.html` 已清理。新线程接续上述范围与服务保护。
+
+### 2026-10-24 12:42 发布页新对话交接（Codex）
+
+- 用户要求将变慢的对话交接到全新对话；只接续 `showcase/` 发布页，独立 Git `main`，现有大量未跟踪素材均须保留，不提交或发布。旧对话停止编辑，全部子代理已完成。已有本地预览 `http://127.0.0.1:8767/` 根为 `showcase/dist`，保持服务；设计依据 `showcase/DESIGN.md` 第10节，以下增量覆盖其旧验收描述。
+- 最新优先修正：图左文右时，文字、阶段按钮、键帽及来源整体右对齐；图右文左时左对齐，不能全部居中。当前 `workflow-lab.css` 末尾全局居中规则尚未按这条修正。相邻内容现在又太近，当前 `margin-top:min(-22svh,calc(450px - 80svh))` 需适度放宽并实测，不回到整屏黑色空档。
+- 已写但尚未浏览器验收：`dist/assets/workflow-lab.js` 恢复所有8组随滚动切换阶段，入场50.6vh、每阶段24vh，按阶段数增加sticky距离；按钮滚至同一阶段区间，阶段内输入帧仍连续播放，取消定时跨阶段轮播；修复倒滚时旧解码覆盖新目标、语言/范围切换保留当前帧。JS语法及diff空白检查已过，需实际检验首组浅→深、终端各阶段、倒滚/按钮和间距。
+- `dist/index.html` 已删除泛标题“思路不必跟着窗口切换”，保留视图工具条及单次浮现，移除主视觉退出淡隐；工具条新增“演示视图设置”英文ARIA仍需同步。功能序号已显示明确功能名；各组文字浮现与媒体侧飞、透视转正保留，原曲线 E(t)=1−(1−t)^3，禁止缩放和向上退出淡隐。首页六项常用快捷键、完整296项独立handbook、中英/桌面/窗口/关键帧/连续视频保持。
+- 以前已验1280/1600宽、390窄屏、浅深主题、视频和减少动态，但本轮增量未验，不沿用旧截图作新通过凭据。资源/阶段事实见 `showcase/content/native-story-phases.json` 与各native-state/video-manifest；PDF仍为旧预览/翻页素材，双向搜索补采集因Desktop3不可达未完成，不虚称已展示。原片在 `~/Desktop/scr_recs/`，按现有recording-profile与DESIGN采集约束，仅Desktop3、不改变用户窗口大小。完成当前布局/滚动修复并给一张新实际预览截图；不重做无关历史工作。
+
 > 2026-10-23，Codex 整合更新。仅本节表示当前状态；下方历史记录保留当时结论。状态依据实际回执，不将源码／协议检查写成实际界面验收。周额度重置后先修复 Fzf 与 TeX 双向搜索；随后按用户“开始做”的新授权补齐 Windows ARM64 插件与 Notebook 依赖。2026-10-21 停止／归档记录仍作历史保留，Linux 原生开发继续暂缓。
 
 - Mac 磁盘 App 当前核对为 `nightly-211+g430c5e3-dirty`，与本轮 generic 候选 App 的 SHA 相同；用户已确认本轮约16:06手动安装，agent未执行安装命令，CLI 仍为旧版。此前菜单及 PDF 界面验收保留历史结论，本轮标题居中仍待用户重开后的 GUI 验收。Windows 配置迁移已完成，Mac80%／Windows60%默认缩放、用户主题与未保存内容保留。

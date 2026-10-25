@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "version": "v1.0",
+  "release_tag": "v1.0",
+  "release_source_commit": "34ab3ddd7f06acc13d90824e0f89613e417feeb9",
+  "freeze_policy": "Original public release assets are archived without changing their bytes or internal build versions. Previous tags and assets remain available.",
+  "website": {
+    "url": "https://ysrae1.github.io/neovide-glow/",
+    "hosting": "GitHub Pages",
+    "source_repository": "https://github.com/Ysrae1/neovide-glow",
+    "source_commit": "6a9faf2084afaeeaf4a45a3f9e6aaacbdd60e133",
+    "source_tag": "v1.0",
+    "source_archive": "https://github.com/Ysrae1/neovide-glow/archive/refs/tags/v1.0.zip",
+    "editable_source_commit": "f1e01a8ea444b6e1bce941e3d39a8d6685255b52",
+    "previous_host_policy": "Public access paused after the replacement is verified; previous source and versions retained."
+  },
+  "components": {
+    "macos_arm64": {
+      "source_release_tag": "glow-macos-20261021-preview1",
+      "source_release_url": "https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1",
+      "source_release_id": 419485657,
+      "source_release_published_at": "2026-10-21T11:40:32Z",
+      "publication_source_commit": "c5d1f2ba95b7c1be287e0458c82fc1335be8d916",
+      "binary_source_commit": "955e75faf91a518699abc2cc6ad4ac9c240b5671",
+      "configuration_repository": "https://github.com/Ysrae1/LazyVim",
+      "configuration_commit": "5687116f97156745fae6c4dcfc084e3cadd853ef",
+      "notice_source_commit": "14c3cf05cd40cb8a905ea09223f4cc2075f7a47d",
+      "internal_bundle_version": "2026.10.21",
+      "internal_stack_id": "neovide-glow-20261021-preview1",
+      "provenance_asset": "build-receipt.json",
+      "checksum_asset": "SHA256SUMS.txt",
+      "license_records": {
+        "rust": 477,
+        "native": 14
+      },
+      "limitations": [
+        "Ad-hoc signed; not Apple-notarized.",
+        "Older macOS and fresh full online deployment were not separately accepted.",
+        "Existing GUI acceptance scope is unchanged."
+      ]
+    },
+    "windows_x64_arm64": {
+      "source_release_tag": "glow-windows-core-20261025-preview1",
+      "source_release_url": "https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261025-preview1",
+      "source_release_id": 423172112,
+      "source_release_published_at": "2026-10-25T05:45:37Z",
+      "publication_source_commit": "536817e455b3446722fbc01e968c0c98afe0813e",
+      "binary_source_commit": "ac0fe0d862dda71c940d7e3bb353af4aaa71bc1c",
+      "internal_product_version": "2026.10.23.6",
+      "internal_stack_ids": {
+        "x64": "glow-windows-onboarding-20261023-x64-6",
+        "arm64": "glow-windows-onboarding-20261023-arm64-6"
+      },
+      "installer_sources_reused_from": "2026.10.23.5",
+      "installer_source_archives": {
+        "x64": "Neovide-Glow-2026.10.23.6-Windows-x64-Installer-Source.zip",
+        "arm64": "Neovide-Glow-2026.10.23.6-Windows-arm64-Installer-Source.zip"
+      },
+      "provenance_asset": "Windows-release-provenance.json",
+      "checksum_asset": "Windows-SHA256SUMS.txt",
+      "limitations": [
+        "Physical x64/ARM64 D3D/PDF, fresh optional dependency installation, clipboard/online AI and mixed-DPI acceptance remain incomplete.",
+        "Minimum supported Windows versions were not separately tested.",
+        "No new .6 x64 installation cycle; inherited .5 installer evidence and targeted .6 ARM64 checks remain separately identified.",
+        "Installer source archives are exact frozen inputs, not complete offline rebuild kits."
+      ]
+    }
+  },
+  "dependency_policy": "Keep original package manifests, pinned dependency URLs, licenses and provenance unchanged. This freeze is not a complete offline dependency mirror.",
+  "verification": {
+    "asset_count": 14,
+    "all_local_sizes_and_sha256_match_public_assets": true,
+    "binary_rebuild": false,
+    "new_installation_testing": false,
+    "scope": "Local original asset bytes compared once against GitHub public release asset sizes and SHA256 digests."
+  },
+  "assets": [
+    {
+      "name": "build-receipt.json",
+      "size": 2390,
+      "sha256": "b636799f4ed2af103f4e5943439bdfd206ffea2b211dd3acf14777d8825ca6c3",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-macos-20261021-preview1/build-receipt.json",
+      "source_release_tag": "glow-macos-20261021-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/build-receipt.json"
+    },
+    {
+      "name": "DEPLOY.md",
+      "size": 26439,
+      "sha256": "0f942de2f5bde1bbc6c30f95659926f10544877c961afc797e3020ddea6d0ad4",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-macos-20261021-preview1/DEPLOY.md",
+      "source_release_tag": "glow-macos-20261021-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/DEPLOY.md"
+    },
+    {
+      "name": "Neovide-Glow-20261021-preview1-macOS-arm64.sh",
+      "size": 37720054,
+      "sha256": "9949ee1ef65322c09f9fba1708c8a66df1f1a3119faef5f2bf6e84e79f8f3564",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-macos-20261021-preview1/Neovide-Glow-20261021-preview1-macOS-arm64.sh",
+      "source_release_tag": "glow-macos-20261021-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/Neovide-Glow-20261021-preview1-macOS-arm64.sh"
+    },
+    {
+      "name": "Neovide-Glow-20261021-preview1.zip",
+      "size": 37827820,
+      "sha256": "9d8697a196b352002f7972023ca14b4dd9d484b2ba9168af3239dfa0a59429ea",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-macos-20261021-preview1/Neovide-Glow-20261021-preview1.zip",
+      "source_release_tag": "glow-macos-20261021-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/Neovide-Glow-20261021-preview1.zip"
+    },
+    {
+      "name": "Neovide-Glow-macOS-arm64.dmg",
+      "size": 17929958,
+      "sha256": "257ca1c5aa4c103c0dd451eb4509e97707610e0cbbafd9e5888b84d00fcdd4fe",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-macos-20261021-preview1/Neovide-Glow-macOS-arm64.dmg",
+      "source_release_tag": "glow-macos-20261021-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/Neovide-Glow-macOS-arm64.dmg"
+    },
+    {
+      "name": "README.md",
+      "size": 4307,
+      "sha256": "a0cc1d6e0e17f9f8488900f198f86a285a534181e18a4ff3284665b4e48d947c",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-macos-20261021-preview1/README.md",
+      "source_release_tag": "glow-macos-20261021-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/README.md"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 545,
+      "sha256": "4ed3378cbb0898e67a5fc4f091429c59360e7c6519280d6e1351d068d5248f63",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-macos-20261021-preview1/SHA256SUMS.txt",
+      "source_release_tag": "glow-macos-20261021-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/SHA256SUMS.txt"
+    },
+    {
+      "name": "Neovide-Glow-2026.10.23.6-Windows-arm64-Core-Setup.exe",
+      "size": 95237032,
+      "sha256": "46802f909e4d16e71c69ce69883a0543ba3220634728795a648ba667a5cc4df5",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-windows-core-20261025-preview1/Neovide-Glow-2026.10.23.6-Windows-arm64-Core-Setup.exe",
+      "source_release_tag": "glow-windows-core-20261025-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/Neovide-Glow-2026.10.23.6-Windows-arm64-Core-Setup.exe"
+    },
+    {
+      "name": "Neovide-Glow-2026.10.23.6-Windows-arm64-Installer-Source.zip",
+      "size": 287161,
+      "sha256": "504707f85710270e15724d88dccf196e4fba511f99cdf98618095acf2c504e93",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-windows-core-20261025-preview1/Neovide-Glow-2026.10.23.6-Windows-arm64-Installer-Source.zip",
+      "source_release_tag": "glow-windows-core-20261025-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/Neovide-Glow-2026.10.23.6-Windows-arm64-Installer-Source.zip"
+    },
+    {
+      "name": "Neovide-Glow-2026.10.23.6-Windows-x64-Core-Setup.exe",
+      "size": 96981675,
+      "sha256": "30fce61e4562b87f3ef9eec48151ec9d52390d6f2eef0b08cca25426463f8d38",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-windows-core-20261025-preview1/Neovide-Glow-2026.10.23.6-Windows-x64-Core-Setup.exe",
+      "source_release_tag": "glow-windows-core-20261025-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/Neovide-Glow-2026.10.23.6-Windows-x64-Core-Setup.exe"
+    },
+    {
+      "name": "Neovide-Glow-2026.10.23.6-Windows-x64-Installer-Source.zip",
+      "size": 287160,
+      "sha256": "d6bf62272ef37c4ad0a319e4ef270f841e7fd5ca9df77f9d7bc79f7eff696b34",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-windows-core-20261025-preview1/Neovide-Glow-2026.10.23.6-Windows-x64-Installer-Source.zip",
+      "source_release_tag": "glow-windows-core-20261025-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/Neovide-Glow-2026.10.23.6-Windows-x64-Installer-Source.zip"
+    },
+    {
+      "name": "Windows-INSTALL.md",
+      "size": 5853,
+      "sha256": "616676fef8fedcf5445f9996eb65dc137cf3da58575a8c5b9c89c6bcaccc49d4",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-windows-core-20261025-preview1/Windows-INSTALL.md",
+      "source_release_tag": "glow-windows-core-20261025-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/Windows-INSTALL.md"
+    },
+    {
+      "name": "Windows-release-provenance.json",
+      "size": 8732,
+      "sha256": "aaaa84eeffb13167c1f5326eed123f8ad80e24cd2e953d02b7f335e59fc103ea",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-windows-core-20261025-preview1/Windows-release-provenance.json",
+      "source_release_tag": "glow-windows-core-20261025-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/Windows-release-provenance.json"
+    },
+    {
+      "name": "Windows-SHA256SUMS.txt",
+      "size": 675,
+      "sha256": "e99a3455146d413144273d4c6907a1344928a91c1003f1f9f0dca5fab11d9964",
+      "source_url": "https://github.com/Ysrae1/neovide/releases/download/glow-windows-core-20261025-preview1/Windows-SHA256SUMS.txt",
+      "source_release_tag": "glow-windows-core-20261025-preview1",
+      "download_url": "https://github.com/Ysrae1/neovide/releases/download/v1.0/Windows-SHA256SUMS.txt"
+    }
+  ]
+}
