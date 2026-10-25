@@ -9,9 +9,22 @@ explicit per-user `NeovideGlow/dependencies/selected.json` selection for Python,
 Jupytext and latex2text, and otherwise starts with Notebook unavailable. A
 missing, stale or malformed optional selection does not block the editor.
 `runtime/lua/WindowsInit.lua` registers `:GlowDependencies` for the explicit
-system dependency setup console; normal launch never installs anything. The
+graphical dependency setup; normal launch never installs anything. The
 core package intentionally omits the Python/Codex CLI shims below, so they do
 not shadow existing system tools with missing bundled runtimes.
+
+The launcher includes Chinese/English first-start messages and dependency setup.
+Inno writes `glow-ui-language.txt` in the application directory with `en` or
+`zh-CN`; the launcher reads that optional choice and passes it to the wizard.
+Without a valid choice, the Windows UI culture selects Chinese for `zh` and
+English otherwise. This does not change Windows or Neovim language settings.
+Native message-box button captions remain controlled by Windows. Both published
+`2026.10.23.5` installers include this bilingual guide and passed 14 actual
+installation/onboarding checks per architecture on Windows 11 ARM64 under
+Parallels, with x64 running through emulation. The local `.6` installers reuse
+that frozen setup logic; their later compression-only repack adds no functional
+or installation acceptance. See `../README.md` and `GLOW.md` for the current
+delivery state and remaining platform limits.
 
 These files are build inputs. Neither compiling the launcher nor installing an
 EXE alone proves that the complete Windows application has passed acceptance.
@@ -56,6 +69,20 @@ Compile with the existing Windows .NET Framework compiler, using
 /r:System.Runtime.Serialization.dll`; the release worker may also supply
 `/win32icon:...`. This uses the .NET Framework included in Windows 11, without a
 separate .NET SDK installation on the user's computer.
+
+For the core ARM64 entry, `build-core.ps1 -Architecture arm64` instead compiles
+IL-only `/platform:anycpu` and embeds `GlowLauncher.manifest`. Windows 11 24H2+
+with .NET Framework 4.8.1 can run this helper natively on ARM64; older Windows 11
+may run the helper through x64 emulation. The ARM64 installer sets a Windows 11
+22H2 minimum, whose built-in Framework is 4.8.1. AnyCPU alone does not promise native
+execution. The frontend, Neovim and in-process native modules must still pass
+their ARM64 PE checks. The x64 compilation path above is unchanged. This new
+launcher compiled on Windows with its architecture manifest present and five
+launcher fixture checks passed. A same-manifest AnyCPU fixture reported native
+ARM64 execution on the test VM. The ARM64 candidate compiled and passed 11
+actual installer/onboarding/uninstall checks; editor rendering, clipboard
+interaction and optional dependency installation remain separate acceptance.
+See the official [supportedArchitectures contract](https://learn.microsoft.com/en-us/windows/win32/sbscs/application-manifests#supportedarchitectures).
 
 On first launch, static config and data are copied atomically into
 `%LOCALAPPDATA%\NeovideGlow\profiles\<stack_id>`. The source data directory

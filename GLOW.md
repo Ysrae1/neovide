@@ -11,7 +11,83 @@
 - Windows 内嵌 PDF 双向搜索现已实现，功能源码 `fdeece58` 由最新两架构 Snap 修复版继承，三份查看路由配置已部署；此前 ARM64 实际 WebView2 的定位／回源和草稿保护通过，x64 实际加载／关闭通过，实体鼠标尚未验。Sumatra 保留为显式可选回退，详见下节。
 - Windows ARM64 原生插件、Notebook 私有环境与 24 项 Mason 工具已补齐并部署；Java 已补到 Mac、Windows ARM64／x64，当前统一清单及两份 Windows 实际 profile 均为57个语法解析库。普通 ARM64 配置实际启动检查通过；部分进程外工具保留 x64 兼容，GUI 图片显示及在线 AI 对话未验。详见下节。
 - 10月23日现场反馈的 Snap／最大化重绘已修复并编译、部署 x64／ARM64，等待用户手动验收；Windows 面板材质独立设置，后续用户已改为30并保留，Mac原参数不变，Neo-tree已换方正 Windows 图标。当前 `tool.tex` 已补齐字体发现与宏包并重编，实际 Windows 正逆 SyncTeX CLI 通过，详见下节。
-- 既有冻结版 `glow-stack-20261020-gm1` 保留；Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1)／网站第17版不变。新 Windows 精简包本轮完成构建及基础安装／卸载验收，公开下载入口仍未开放；TeX 真实登录用户父入口已在后续授权下通过，实体输入与首帧仍未验。旧 Candidate5／Core94 不作为新包通过凭据。
+- 既有冻结版 `glow-stack-20261020-gm1` 与 Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1) 保留；官网第21版已接通 x64／ARM64 同版 `2026.10.23.5` 首装／PDF图层修复预览包，两架构各14项安装验收通过。PD ARM64＋OpenGL 的实际示例 Notebook 输出及 PDF 协议检查通过，实体 D3D／PDF 像素效果仍待验证；发布与验收边界见下一节。旧 Candidate5／Core94 不作为新包通过凭据。
+
+### 2026-10-25 Windows 安装源码归属核对与本地提交（Codex）
+
+- 此前未提交的38个Windows文件与`target/glow-windows-publication-20261023-preview4/source-snapshot`逐字节相同，归属此前安装引导与双架构封包任务，复用其实际Windows回执；已分为`2bad49d`（中英文安装／依赖恢复）和`34182fe`（ARM64原生载荷与封包）两笔本地提交。
+- 本轮50项隔离Python打包检查、PowerShell7.6.8的29项依赖计划／选择／镜像／进度检查及Core运行时Lua回归通过。既有PS5.1原子JSON8项与选择9场景取最终通过收据；`pretests/receipt.json`为旧失败，JSON重试通过见`receipt-json-retry.json`。
+- 窄修`build-core.ps1`超时分支在抛错前有界排空并保存日志，失败时保留超时原因并说明输出未完整保存；新增`tests/windows_core_build.ps1`在本机PowerShell通过。Mac测试使用无操作taskkill替身及自然退出，未新增Windows taskkill／PS5.1实测。两份README更新已发布`.5`与本地`.6`状态，未改冻结包。
+- 本轮不启动VM或GUI、不重编／重装、不推送或发布；实体x64／D3D、完整可选依赖联网安装等既有缺口保留。官网文件与共享状态中的官网记录、Mac／Windows用户配置和现有安装均保留。
+- 自写文件空白检查通过；第三方`ChineseSimplified.isl`第18行尾空格按固定上游原字节保留，其SHA与验收冻结源一致，不为格式检查改写语言资源。
+
+### 2026-10-24 Windows PDF 焦点内按 q 关闭（Codex）
+
+- 用户反馈 LaTeX／双向定位后按 `q` 不能退出 PDF。此前 Mac 原生层已有 `close_requested`，Windows WebView2 只在原生 accelerator 处理 Esc 返回编辑器，普通字符 `q` 不由该回调报告，查看器页面也没有关闭消息；不是此前图层修复已覆盖的项目。提交 `ac0fe0d` 为查看器加入普通 `q` 请求，经版本／revision 验证后设置 Windows 关闭状态，由已有 Lua 轮询按预览所有者关闭；Esc 语义保持。修饰键、输入法组合、重复键、已处理事件及可编辑控件不触发关闭。
+- Rust 桥接3项、JS协议4项、Chromium集成8组、Mac本源／portable的现有预览所有者关闭回归和格式／语法检查通过；源码证据 `target/glow-pdf-q-close-20261024/`。Windows `.5` 基线经原生 focus RPC 确认 PDF DOM 获焦后，CUA 按 q 仍见两窗且源码未录宏；旧版未记录键盘事件，故只作已获焦／未关闭观察，不追认为已证实 WebView 收到该按键。
+- ARM64／x64 均已从干净 `ac0fe0d` 构建，并在 PD Windows11＋OpenGL 用各自匹配架构 Neovim 实测：真实 SyncTeX 正向定位后保持源码为 Neovim 当前窗口、直接让原生 PDF 获焦；CUA 实际 `q` 被 WebView 记录为 `isTrusted=true`，随后 PDF target 关闭，只保留源码窗口，模式正常且宏录制／执行为空。两张实时截图与事件／RPC 收据位于 `target/glow-windows-pdf-close-20261024/fixed-{arm64,x64}/`；x64只读源码 fixture `modified=false`、与磁盘逐行一致。未将该只读测试外推为可编辑草稿或实体D3D验收。
+- `2026.10.23.6` 两架构本地安装器已导出到 `target/glow-windows-pdf-close-20261024/release-assets/`，沿用 `.5` 冻结安装器与配置，只换前端及版本／来源清单。ARM64为95,237,032字节，完成隔离安装及配置保留检查并清理；x64为139,709,418字节，最终 ProductVersion.Trim／导出SHA通过，按用户要求取消新安装循环。x64首次压缩因用户关闭VM中断，后续误将停机视为故障恢复；改用仅降低压缩等级的 `lzma2/fast`，在停止清理执行前已自行完成导出，内容与同一已验stage一致。最终已正常关闭VM（stopped），自有任务／进程结束，不再继续验证；未发布官网。
+- x64初轮archive构建与缓存版本刷新失败证据保留，最终 `build-final/x64` 实际重建；现有build.rs对纯SHA版本回退显示0.16.2，修复commit由新bundle来源与SHA核对，不声称程序版本文字包含commit。未修改既有安装或用户主题。x64安装包SHA256：`f4ce4db394e7ee37496f5d284c08860571ccf14ab2922fb0e236629a5c6cedb4`；ARM64：`46802f909e4d16e71c69ce69883a0543ba3220634728795a648ba667a5cc4df5`。
+
+- 2026-10-24 重新封装（Codex，按用户最新要求）：复用上述已验 ARM64／x64 stage 与干净 `ac0fe0d` 前端，使用原冻结 ISS 的 `lzma2/ultra64` 顺序封装，两份新 EXE 位于 `target/glow-windows-pdf-close-20261024/repack-ultra64-20261024-192016/release-assets/`，此前已交付资产保留。ARM64 为95,237,032字节、封装297.298秒；x64为96,981,675字节、封装322.344秒。
+- 本轮只核对冻结 ISS／stage／前端来源、`ProductVersion.Trim()` 与跨系统导出大小／SHA256；均通过，未重编、重跑功能或安装验收、替换用户安装或发布。ARM64 SHA256 仍为 `46802f909e4d16e71c69ce69883a0543ba3220634728795a648ba667a5cc4df5`；新 x64 为 `30fce61e4562b87f3ef9eec48151ec9d52390d6f2eef0b08cca25426463f8d38`，同目录附 `SHA256SUMS.txt`，上级保留来源／封装／导出收据。用户调整压缩要求后已终止本轮 normal 尝试；全部自有封装进程结束，本轮启动的 PD VM 已正常关闭（stopped）。
+
+### 2026-10-24 中文缺字定位与两架构发布版复测（Codex）
+
+- 源示例 PDF 未损坏：与桌面原件 SHA256 相同，9 个字体子集均嵌入；Poppler 正常显示，PDF.js 6.4.299 使用随包 CMaps 时两页共535个汉字，无 CMaps 时为0。FandolSong 中文字体无 ToUnicode，需正确加载字符映射；未新增字体、依赖或修改源 PDF。
+- PD 实测官网当前 `2026.10.23.5` 的 ARM64／x64 原发布前端，各自使用匹配架构 Neovim、原内嵌查看器和独立测试配置。两架构的两页中文标题、正文、表格均经实时 CUA 截图确认，9 个字体加载成功，实际 canvas 中文区域存在字形墨迹。测试显式使用 OpenGL，仅证明该环境的发布版 PDF 字形正常，不扩展为完整 D3D12／实体 GPU 验收。
+- 缺字仅复现于此前图层测试的最小查看器：新 D3D11 对照两侧均 `topmost=false`，只把 `cMapUrl` 从相对地址改为绝对地址，第1页汉字0→208、标题墨迹0→1569像素；原相对地址产生两次字体 `Failed to fetch`，修正后中文实际可见。正式查看器本来使用 `new URL(..., import.meta.url).href`，本轮不修改产品或重发安装器，旧图层证据保留。
+- 输入检查、发布版诊断、四张双架构双页截图及字体路径对照保存在 `target/glow-pdf-cjk-20261024/`；对照实图 `windows/probe/cmap-path-comparison.jpg`，可复用修正源码在 `windows/probe/corrected/`（绝对路径分支已实测，独立修正副本未重复构建）。本轮自有进程归零、三项专用任务注销，PD 保持起始运行状态并恢复原全屏模式；清理回执 `windows/cleanup-receipt.json`。未改用户配置或已安装程序。
+
+### 2026-10-24 PD D3D11 PDF 图层对照（Codex）
+
+- 按用户要求完成独立 ARM64 D3D11 探针：Parallels Display Adapter (WDDM)、硬件 feature level 11.1；沿用 `DCompositionCreateDevice2(NULL)`、STATIC 子 HWND→WebView2 与冻结示例 PDF，左右唯一图层差异为 `CreateTargetForHwnd` 的 true／false。旧设置实际复现整页压暗，false 恢复白纸；与已发布 `.5` 内 `c174ea3` 修复一致，本轮未重编或替换 Glow。
+- 大窗→程序控制缩小→恢复大窗三阶段，两侧共6次 PDF ready，resize／present HRESULT 均成功；3张实时 CUA 截图各200×200空白区采样，旧侧RGB恒为(38,39,41)，修复侧(255,255,255)。源码、日志与原始截图：`target/glow-d3d11-layering-20261024/`；最终回执 `final-receipt.json`。
+- 本结论限 DirectComposition 子窗口层级与程序控制 resize；不是完整 Glow D3D12、物理鼠标、实体 GPU 或性能验收。最小查看器当时有中文缺字，未计作完整 PDF 字形通过；后续已定位为测试程序字体映射路径问题，见上节。原始示例、用户配置与已安装程序均未改。
+- 探针正常退出0，自有进程／WebView2后代为0，专用任务已注销，GUI确认回到原桌面；虚拟机恢复本轮开始前的挂起状态，最终状态见同目录 `vm-final-state.txt`。
+
+### 2026-10-24 x64 合并发布与 ARM64 对齐（Codex）
+
+- x64 `2026.10.23.5` 已先本地交付，再发布 `glow-windows-core-20261023-preview3`及官网第20版；96,974,539字节，SHA256 `7a90fa3ef78db915ab3c248b35b88d84ce40dc139b1151043a8aad1727e43be9`。本版14项实际安装检查通过，10453个profile文件及依赖选择保留，自有进程／临时安装和快捷方式已清理；DPI及3项桌面图标补验明确复用`.4`，未算入本轮14项。
+- 5公开资产大小／SHA256匹配，旧资产未覆盖。官网源`b9f7501fb3d950a49b3a777f05a5eaa7dd99e9f1`，部署`succeeded`，线上x64`.5`链接已核对；showcase未改。精确安装源码84文件＋2来源元数据，非完整重建套件。回执`target/glow-windows-publication-20261023-preview4/publication-receipt.json`。
+- ARM64 `.5` 已以同一 clean `c174ea3` 前端及冻结安装逻辑完成；95,250,815字节，SHA256 `3bcdf84411d7add5d07bba1aae49f6b4bfec5b04335a5188a0a9b2d3fef40d02`。14项安装检查通过，保留10,350个profile文件；84项ARM原生文件检查、实际原生启动器及14场景后端策略检查通过，17项公共PowerShell回归复用相同冻结输入证据。PD使用ARM64原生＋OpenGL、普通ARM真机默认D3D，显式环境覆盖保留；AnyCPU启动器在较早Windows版本可走托管x64回退，不称所有进程皆原生。
+- 两架构已先本地交付，再联合发布 [`glow-windows-core-20261024-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261024-preview1)；x64沿用已公开的原字节，7项公开资产远端大小／SHA256全部匹配。官网第21版源`5e83af113bc04d23415f0538cedf4ee585f225c1`部署`succeeded`，在线双下载入口及截图已核对；旧发行、showcase与用户配置保留。回执`target/glow-windows-aligned-20261024/publication-receipt.json`。
+- 示例冻结副本14文件输入SHA保持：实际ARM启动器在PD无显式OpenGL参数时选择`NEOVIDE_OPENGL=1`；WebView2／PDF.js两页ready、翻页、135%缩放、关闭通过。实际Molten运行Notebook两格得到42、全部30行及1051×451 PNG，内核关闭后为空；原项目未修改、未新增依赖。首次两处验收脚本问题已保留证据并定向修正，产品源码未改。回执`target/glow-windows-aligned-20261024/arm64/demo-test/final-receipt.json`；未验像素／实体输入、Windows重编SyncTeX或实体D3D视觉。
+- 01:01:52自有构建／测试进程、两安装目录和临时快捷方式清理确认；用户应用及配置保留，VM未擅自挂起。录屏任务明确交还GUI后，按用户要求于01:10完成锁屏，系统`IOConsoleLocked=true`已读回；本聊天未改亮度。桌面接口快捷键／菜单未生效后，沿用用户在录屏对话中直接许可的原生脚本方式成功；回执`target/glow-windows-aligned-20261024/lock-screen-receipt.json`。本阶段结束，无自有后台构建／测试待停。
+- 用户追问PD能否验证D3D：本机PD27.0.3，官方支持DirectX11.1；后续可做D3D11＋DirectComposition／WebView2子窗口的topmost前后对照，针对合成层级而非完整Glow D3D12验收。WARP可研究离屏D3D12诊断，但当前源码跳过软件适配器且交换链存在限制；本轮仅确认方案，未改源码或重测失败路径，实体GPU兼容性／性能仍需原生Windows。
+
+### 2026-10-23 首装反馈增量：DPI、图标、PDF 与终端包（Codex）
+
+- x64 `2026.10.23.4` 已本地交付，97.0MB（96,968,540字节），SHA256 `c1d898a5ad075e582358729a2bc1013ab3692f8ec7a6d6138d4f38e221c70ffd`。启动器／安装器嵌入7尺寸ICO，桌面／开始菜单显式图标及Setup窗图标补齐；Windows实际安装13项与桌面补验3项通过，保留10453个profile文件和依赖选择。证据 `target/glow-windows-publication-20261023-preview3/`；尚未公开发布，官网仍为第19版`.3`，计划合并后续修复再更新。
+- 依赖向导在创建WinForms窗口前将UI线程设为SystemAware，并补96DPI布局基准。200%缩放实测主窗／停止确认窗192DPI、10pt字体及控件边界通过，既有10场景GUI回归通过；CUA的PD窗口显示旧桌面，未取得有效视觉截图，96／144DPI和跨屏动态适配未验。`target/glow-windows-dpi-20261023/`；不以陈旧截图作通过证据。
+- 朋友物理Windows PDF整页变暗：确认D3D `CreateTargetForHwnd(hwnd,true)`与原生子HWND层级约定矛盾，旧PDF测试仅走OpenGL；窄修提交 `c174ea3` 改为false并说明裁孔关系，格式检查通过。默认物理Windows入口使用D3D，用户反馈`NEOVIDE_OPENGL`为空；x64前端已由clean `c174ea3`编译并推送，43,588,096字节，SHA256 `1a89e5096b1e909bc379f3fa8f2fb8cccd5667360f9dc5ec2e127dc31db617b0`，已进入`.5`。PD强制D3D在ResizeBuffers返回`0x887A0005`，CrossOver26.2实际D3DMetal在CreateSwapChainForComposition返回`0x80004001`且未到首帧；均不作为PDF视觉通过。未能执行用户要求的demo_project测试。证据 `target/glow-windows-pdf-layering-20261023/`与`target/glow-crossover-d3d-20261024/`。
+- 朋友Notebook已由用户确认：选择`glow-python`后单元格正常输出；系统`python3`无响应不影响该私有环境。另修复Notebook成功后TeX失败漏存选择的独立源码缺口，Windows PS5.1选择保存9场景及原子JSON8场景通过，已进入`.5`，不追认其为朋友现场根因。
+- Windows Terminal＋PowerShell独立部署包已交付：`target/glow-terminal-share-20261023/Glow-Terminal-Windows-x64-20261023.zip`，3,073,772字节，SHA256 `90d76092eec083d06c8b095191fd3acdeb596ef8f93728728b3649b6c2c2a4d1`；外观／按键白名单、官方固定Mojada、字体、预览／备份／回滚，12项隔离检查及隐私／ZIP检查通过。实际当前主题未导出，来源已明示，朋友x64渲染未验；未部署到本机或VM。
+
+### 2026-10-23 Windows x64 中文引导与 TeX 镜像修复发布（Codex）
+
+- 按用户顺序先交付本地 x64 EXE，再发布 [`glow-windows-core-20261023-preview2`](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261023-preview2) 及官网第19版；5项发行资产远端大小／SHA256逐项匹配。x64 `2026.10.23.3` 为96,855,312字节，较旧版增268,275字节（0.28%）；SHA256 `077a8e1f61d927ae9a11526319a772742570a1ac9be05f116b8f968f9ff4965e`。ARM64与旧发行资产保留，不等待其重新构建。
+- 包含中英文主流程、TeX自动／清华／中科大／Illinois选择、每候选15秒有界检查及一次安装固定源；不改全局TeX软件源、固定包SHA和签名策略。修复下载满格后的实际阶段进度；LaTeX不再自动安装Sumatra，显式备用查看器保留。前端仍复用冻结`b534ddf`，未重编Rust；Inno语法问题仅合并3处数组续行，复用已通过stage重跑压缩。
+- Windows11 ARM64（PD）以x64兼容执行：PS5.1依赖／进度／镜像／进程及中英文GUI、启动器检查通过，清华只读元数据探测通过；实际安装11项通过，涵盖默认／中文特殊路径、完整配置、中文检测与稍后完成、卸载保留。未替换用户安装，未做完整Notebook／TinyTeX安装、物理x64／Windows10或本次前端GUI／剪贴板验收；朋友电脑的超时需更新后实际重试，少量Inno系统提示仍回退英文。
+- 构建与公开源码冻结清单、验收和发布回执集中在`target/glow-windows-publication-20261023-preview2/`；`accept-final/receipt.json`和`github-assets-receipt.json`为最终证据。安装器精确源码ZIP包含83源文件且逐项匹配冻结输入，发布标签仅指已有公开基线。官网源`0d6704c73b5c7328a4bb315960469616ac9ea8f6`，部署`succeeded`，线上x64链接／96.9MB与本地深浅色下载区已检查；showcase新设计未部署。自有构建和临时预览均结束，VM原先已运行，未擅自挂起。
+
+### 2026-10-23 Windows Core 预览公开下载（Codex）
+
+- 按用户“保留现在线上版，先接通新安装包”发布 [`glow-windows-core-20261023-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261023-preview1)：x64 `2026.10.23.1` 与 ARM64 `2026.10.23.2` 安装器、两份精确安装器源码、安装说明、来源记录及校验清单，共7项；远端大小／SHA256逐项匹配。原发行资产、GM1草稿及showcase新版草稿保留。
+- [官网](https://neovide-glow.windygrass17.chatgpt.site/#download) 第18版部署成功，来源 `b59fcfae9aba2538dd8235b190bb1ec6591c549b`，仅补Windows下载与首次安装步骤；深浅色下载区和公开页面检查通过，未做手机真机验收。独立源码位于 `target/glow-windows-publication-20261023/site`，回执为同目录上级 `publication-receipt.json`、`github-assets-receipt.json`。
+- 安装／独立profile／图形引导检测与稍后继续／卸载保留数据在PD Windows11 ARM64完成：x64兼容运行10项、ARM64 11项。Windows10、物理x64、完整外部依赖安装及本次包原生编辑器GUI／剪贴板仍未验；官网新用户实际下载安装尚待用户操作。安装到同一目录可能更新应用文件，演练使用独立目录及默认配置，用户既有配置不清空。
+
+### 2026-10-23 Windows 中英文安装引导源码（Codex）
+
+- 按用户汉化要求，`installer.iss` 加入中英文选择及25组自定义提示，`languages/` 固定与Inno6.3.3标准消息匹配的简体中文资源和MIT许可证；应用目录内保存语言，launcher首次配置与`Setup-Wizard.ps1`沿用，`Setup-Locale.ps1`集中翻译计划、进度和恢复说明。用户配置与系统语言不改，稳定的Setup快捷方式保留。
+- `core-package.py`已包含语言模块；18项本地打包检查、编码／消息参数／语言保存顺序及固定资源SHA检查通过。更新了launcher、引导和安装验收入口，覆盖英文安装、中文Unicode目录安装及中文计划／稍后完成；Windows编译、PowerShell执行及GUI验收尚未运行，不能沿用已发布包的通过结论。
+- 用户已要求弹出ZHITAI，虚拟机已挂起；本轮未重新挂载／启动。接回后需携带整个`portable/windows/languages/`、新语言模块及更新入口，以新版本重新构建x64／ARM64并验收后发布。官网第18版与公开2026.10.23.1／.2仍为原英文安装器，不替换旧资产。
+
+### 2026-10-23 Windows 首装现场反馈与依赖修正（Codex）
+
+- 用户提供错误并通过 ToDesk 展示实际阶段日志：TinyTeX v2026.10 下载／解压完成，自更新命令后在 `verify-self-update-complete` 的180秒上限停止；该日志仅到 Illinois CTAN 源的 `start load`，保留 `timed_out=True`、`output_drain_complete=True` 和自有进程树终止结果。范围已缩到仓库加载阶段，具体连接／下载原因及替代镜像在该电脑的可达性仍待验证；没有重装、删除环境或改动朋友电脑的安装文件。
+- 源码已移除 LaTeX 自动安装 SumatraPDF 的旧关联，改用 Git＋WebView2，显式 `-InstallTool pdf` 保留；TinyTeX 子阶段通过捕获父任务状态路径的回调更新向导，下载满格转为运行中，并加入中文联网更新／检查提示。时限、软件源和签名验证策略未改；`README.md` 补可选查看器及具体失败日志说明。
+- 原生 Mac PowerShell 7.6.8 的依赖计划与新增 `windows_tex_progress.ps1` 通过，覆盖显式外部查看器、父 dot-source／子调用作用域、状态路径、进度清零、中文和独立运行无回调；`windows_latex_parent.ps1` 已改为内嵌查看器断言但未运行 Windows 验收。回执 `target/glow-powershell-validation-20261023/plan-test-fresh/receipt.json`、`target/tex-progress-check-20261023-1/receipt.json`。未重新构建／发布，官网公开英文包仍保持原版，朋友的 TinyTeX 超时尚未解决。
 
 ### 2026-10-23 配置结构整理与发布准备（Codex）
 

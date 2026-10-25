@@ -55,7 +55,18 @@ function Invoke-CoreBuild([string]$Executable,[string[]]$Arguments,[string]$Name
             try { $null=$stop.Start();$a=$stop.StandardOutput.ReadToEndAsync();$b=$stop.StandardError.ReadToEndAsync();if(-not $stop.WaitForExit(5000)){$stop.Kill();$null=$stop.WaitForExit(1000)} }
             finally { $stop.Dispose() }
             $null=$process.WaitForExit(5000)
-            throw ('Build phase timed out: '+$Name+'. Partial output is preserved in '+$work)
+            $timeoutMessage='Build phase timed out: '+$Name
+            try {
+                if ([Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($stdout,$stderr),2000)) {
+                    [IO.File]::WriteAllText((Join-Path $work ($Name+'.log')),($stdout.GetAwaiter().GetResult()+$stderr.GetAwaiter().GetResult()),[Text.UTF8Encoding]::new($false))
+                    $timeoutMessage+='. See '+(Join-Path $work ($Name+'.log'))
+                } else {
+                    $timeoutMessage+='. Complete output was not saved because build output did not drain.'
+                }
+            } catch {
+                $timeoutMessage+='. Complete output could not be saved: '+$_.Exception.Message
+            }
+            throw $timeoutMessage
         }
         if (-not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($stdout,$stderr),2000)) { throw ('Build output did not drain: '+$Name) }
         [IO.File]::WriteAllText((Join-Path $work ($Name+'.log')),($stdout.GetAwaiter().GetResult()+$stderr.GetAwaiter().GetResult()),[Text.UTF8Encoding]::new($false))
