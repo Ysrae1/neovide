@@ -18,7 +18,7 @@
 
 双架构 `2026.10.23.5` 已联合发布，均包含简体中文与英文引导，并在 Parallels 的 Windows 11 ARM64 中各完成14项安装／引导检查；x64 使用兼容运行，ARM64 使用匹配架构载荷。物理 x64 和完整可选依赖联网安装仍待验证，不同架构的验收不能混用。
 
-`2026.10.23.6` 两架构安装器已在本地交付，补上 PDF 获得焦点后按 `q` 关闭的处理，沿用 `.5` 冻结安装逻辑与配置。两架构真实按键已在 PD＋OpenGL 验证；ARM64 完成隔离安装及配置保留检查，x64 按用户要求取消新安装循环。后续最高压缩重封仅核对来源、版本与导出完整性，没有新增功能／安装验收，也尚未发布。
+`2026.10.23.6` 两架构安装器已发布为 [`glow-windows-core-20261025-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261025-preview1)，补上 PDF 获得焦点后按 `q` 关闭的处理，沿用 `.5` 冻结安装逻辑与配置。两架构真实按键已在 PD＋OpenGL 验证；ARM64 完成隔离安装及配置保留检查，x64 按用户要求取消新安装循环。后续最高压缩重封仅核对来源、版本与导出完整性，没有新增功能／安装验收；7项公开资产的远端大小与SHA256均已匹配。
 
 `2026.10.23.4` 安装器源码补齐启动器、安装程序、桌面／开始菜单快捷方式和初始设置窗口的 Glow 图标。依赖引导在创建窗口前启用系统 DPI 感知，使用 96 DPI 布局基准，避免高缩放下被 Windows 以位图拉伸；这不代表跨不同缩放显示器移动时的动态 DPI 适配。192 DPI（200%）的主窗口及停止确认窗口已检查字体尺寸和控件边界，96／144 DPI 与跨显示器移动未实测。实际发布版本以发行页为准。
 
@@ -54,11 +54,13 @@ releases and their assets are unchanged. Bilingual x64 and ARM64
 `2026.10.23.5` installers are published as
 [`glow-windows-core-20261024-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261024-preview1).
 Each passed 14 actual installation/onboarding checks on Windows 11 ARM64 under
-Parallels; x64 used emulation. Both local `.6` installers retain that frozen
+Parallels; x64 used emulation. Both `.6` installers retain that frozen
 installation logic and update the frontend to `ac0fe0d` for focused-PDF `q`
 closing. Their later maximum-compression repack checked provenance, version and
 export integrity only, without repeating functional or installation acceptance.
-The `.6` installers have not been published.
+The `.6` installers are published as
+[`glow-windows-core-20261025-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261025-preview1).
+All seven public asset sizes and SHA256 digests match the local publication inputs.
 
 Do not infer download sizes from older candidates. Physical x64 hardware,
 complete optional dependency downloads, clipboard behavior and external Copilot

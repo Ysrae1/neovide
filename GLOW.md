@@ -13,6 +13,12 @@
 - 10月23日现场反馈的 Snap／最大化重绘已修复并编译、部署 x64／ARM64，等待用户手动验收；Windows 面板材质独立设置，后续用户已改为30并保留，Mac原参数不变，Neo-tree已换方正 Windows 图标。当前 `tool.tex` 已补齐字体发现与宏包并重编，实际 Windows 正逆 SyncTeX CLI 通过，详见下节。
 - 既有冻结版 `glow-stack-20261020-gm1` 与 Mac 预览 [`glow-macos-20261021-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-macos-20261021-preview1) 保留；官网第21版已接通 x64／ARM64 同版 `2026.10.23.5` 首装／PDF图层修复预览包，两架构各14项安装验收通过。PD ARM64＋OpenGL 的实际示例 Notebook 输出及 PDF 协议检查通过，实体 D3D／PDF 像素效果仍待验证；发布与验收边界见下一节。旧 Candidate5／Core94 不作为新包通过凭据。
 
+### 2026-10-25 Windows .6 双架构推送与发布（Codex）
+
+- 按用户后续授权，将`glow-preview`从`c174ea3`推送至`536817e`，包含既有PDF `q`关闭修复及本轮三笔安装源码提交。新预发布[`glow-windows-core-20261025-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261025-preview1)已公开，标签指向`536817e`；前端实际仍为干净`ac0fe0d`，未重编或重新封包。
+- 使用此前已交付的`lzma2/ultra64`两EXE：x64为96,981,675字节，ARM64为95,237,032字节。双安装器、双精确安装源码ZIP、安装说明、来源记录和SHA清单共7项公开资产，远端大小／SHA256全部匹配；本轮无新增功能或安装验收，既有平台限制保留。
+- 发布收据与公开资产位于`target/glow-windows-publication-20261025-preview1/`。两份README更新为已发布状态；旧发行、用户安装与配置保留，未修改或部署官网。
+
 ### 2026-10-25 Windows 安装源码归属核对与本地提交（Codex）
 
 - 此前未提交的38个Windows文件与`target/glow-windows-publication-20261023-preview4/source-snapshot`逐字节相同，归属此前安装引导与双架构封包任务，复用其实际Windows回执；已分为`2bad49d`（中英文安装／依赖恢复）和`34182fe`（ARM64原生载荷与封包）两笔本地提交。

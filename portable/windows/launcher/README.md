@@ -21,7 +21,7 @@ English otherwise. This does not change Windows or Neovim language settings.
 Native message-box button captions remain controlled by Windows. Both published
 `2026.10.23.5` installers include this bilingual guide and passed 14 actual
 installation/onboarding checks per architecture on Windows 11 ARM64 under
-Parallels, with x64 running through emulation. The local `.6` installers reuse
+Parallels, with x64 running through emulation. Published `.6` installers reuse
 that frozen setup logic; their later compression-only repack adds no functional
 or installation acceptance. See `../README.md` and `GLOW.md` for the current
 delivery state and remaining platform limits.
