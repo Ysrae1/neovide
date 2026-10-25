@@ -15,6 +15,21 @@ import sys
 from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
+MACHINES = {"x64": 0x8664, "arm64": 0xAA64}
+PROVENANCE_ARCHITECTURES = {"x64": "x86_64", "arm64": "aarch64"}
+ARCHITECTURE_ALIASES = {"x64": "x64", "x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}
+
+
+def sealed_architecture(metadata):
+    # The original offline builder only produced x64 and omitted this field.
+    # Preserve those sealed inputs without letting an old stage become ARM64
+    # merely because the caller supplied a new frontend or target argument.
+    if "architecture" not in metadata:
+        return "x64", "legacy_x64_default"
+    declared = metadata["architecture"]
+    if not isinstance(declared, str) or declared.lower() not in ARCHITECTURE_ALIASES:
+        raise ValueError("Unsupported sealed source architecture: " + repr(declared))
+    return ARCHITECTURE_ALIASES[declared.lower()], "bundle_metadata"
 
 
 def digest(path):
@@ -41,7 +56,10 @@ def retained(relative):
         # Keep fixed plugins, their prebuilt native modules and parsers.
         return True
     if path.parts[0] == "bin":
-        return path.name in {"neovide.exe", "nvim.exe", "cmatrix-gm.exe"} or path.suffix.lower() == ".dll"
+        # Keep Neovim's upstream helper programs alongside its runtime, while
+        # still excluding the old offline Python/Node/Codex command shims.
+        return path.name in {"neovide.exe", "nvim.exe", "cmatrix-gm.exe",
+                             "tee.exe", "win32yank.exe", "xxd.exe"} or path.suffix.lower() == ".dll"
     return relative in {"neovide.ico", "LICENSE"}
 
 
@@ -54,7 +72,8 @@ def package_dependency_notices(destination):
     # predate the explicitly supplied frontend and its Rust dependencies.
     root = HERE.parents[1]
     subprocess.run([sys.executable, "-I", "-B", "-X", "utf8", str(root / "scripts/generate-third-party-notices.py"),
-                    "--output", str(destination / "licenses/THIRD-PARTY-NOTICES.txt")], check=True)
+                    "--output", str(destination / "licenses/THIRD-PARTY-NOTICES.txt")], check=True,
+                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), capture_output=True, text=True)
     shutil.copy2(root / "licenses/third-party/manifest.json", destination / "licenses/THIRD-PARTY-NOTICES.json")
 
 
@@ -81,7 +100,10 @@ def size_breakdown(root, files):
             "largest_files": sorted(largest, key=lambda item: -item["bytes"])[:20]}
 
 
-def frontend_provenance(frontend, checksum, source_commit, source_state, source_fingerprint):
+def frontend_provenance(frontend, checksum, source_commit, source_state, source_fingerprint,
+                        architecture="x64"):
+    if architecture not in MACHINES:
+        raise ValueError("Architecture must be x64 or arm64")
     if not checksum or not re.fullmatch(r"[0-9a-fA-F]{64}", checksum):
         raise ValueError("An explicit frontend requires its expected SHA256")
     if source_commit and not re.fullmatch(r"[0-9a-fA-F]{40}", source_commit):
@@ -100,10 +122,12 @@ def frontend_provenance(frontend, checksum, source_commit, source_state, source_
         offset = struct.unpack_from("<I", header, 0x3C)[0]
         stream.seek(offset)
         pe = stream.read(26)
-    if len(pe) != 26 or pe[:4] != b"PE\0\0" or struct.unpack_from("<H", pe, 4)[0] != 0x8664 or struct.unpack_from("<H", pe, 24)[0] != 0x20B:
-        raise ValueError("The frontend override must be a Windows x64 PE32+ executable")
+    if (len(pe) != 26 or pe[:4] != b"PE\0\0" or
+            struct.unpack_from("<H", pe, 4)[0] != MACHINES[architecture] or
+            struct.unpack_from("<H", pe, 24)[0] != 0x20B):
+        raise ValueError(f"The frontend override must be a Windows {architecture} PE32+ executable")
     record = {"origin": "explicit_build_artifact", "sha256": checksum.lower(), "bytes": frontend.stat().st_size,
-              "architecture": "x86_64", "source_state": source_state}
+              "architecture": PROVENANCE_ARCHITECTURES[architecture], "source_state": source_state}
     if source_commit:
         record["source_base_commit"] = source_commit.lower()
     if source_fingerprint:
@@ -112,7 +136,10 @@ def frontend_provenance(frontend, checksum, source_commit, source_state, source_
 
 
 def build(source, destination, launcher, stack_id, frontend=None, frontend_sha256=None,
-          frontend_source_commit=None, frontend_source_state=None, frontend_source_fingerprint=None):
+          frontend_source_commit=None, frontend_source_state=None, frontend_source_fingerprint=None,
+          parser_supplement=None, architecture="x64"):
+    if architecture not in MACHINES:
+        raise ValueError("Architecture must be x64 or arm64")
     source, destination, launcher = source.resolve(), destination.resolve(), launcher.resolve()
     if destination.exists():
         raise ValueError("Core destination must be fresh; existing files were preserved")
@@ -120,11 +147,21 @@ def build(source, destination, launcher, stack_id, frontend=None, frontend_sha25
         raise ValueError("Core output must be outside the sealed source stage")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,100}", stack_id):
         raise ValueError("Invalid core stack identifier")
+    arm64_stack = bool(re.search(r"(?:^|[-_.])arm64(?:$|[-_.])", stack_id, re.I))
+    if arm64_stack != (architecture == "arm64"):
+        raise ValueError("ARM64 stack identifiers must contain a separate arm64 component; "
+                         "x64 must not reuse an ARM64 stack identifier")
     metadata = json.loads((source / "bundle.json").read_text(encoding="utf-8"))
     source_stack = metadata.get("stack_id")
     checksums = json.loads((source / "bundle-sha256.json").read_text(encoding="utf-8"))
     if metadata.get("schema_version") != 1 or metadata.get("distribution") == "core" or not checksums:
         raise ValueError("Input must be a sealed offline bundle")
+    if checksums.get("bundle.json") != digest(source / "bundle.json"):
+        raise ValueError("Sealed source checksum differs: bundle.json")
+    source_architecture, architecture_origin = sealed_architecture(metadata)
+    if source_architecture != architecture:
+        raise ValueError(f"Sealed source architecture {source_architecture} does not match target {architecture}; "
+                         "prepare a complete independently sealed stage for the target architecture")
     if metadata.get("stack_id") == stack_id:
         raise ValueError("Core must use a new stack identifier to preserve existing profiles")
     if not launcher.is_file():
@@ -133,7 +170,7 @@ def build(source, destination, launcher, stack_id, frontend=None, frontend_sha25
     if frontend is not None:
         frontend = frontend.resolve()
         override = frontend_provenance(frontend, frontend_sha256, frontend_source_commit,
-                                       frontend_source_state, frontend_source_fingerprint)
+                                       frontend_source_state, frontend_source_fingerprint, architecture)
     elif any((frontend_sha256, frontend_source_commit, frontend_source_state, frontend_source_fingerprint)):
         raise ValueError("Frontend provenance options require an explicit frontend artifact")
     selected = []
@@ -159,6 +196,27 @@ def build(source, destination, launcher, stack_id, frontend=None, frontend_sha25
     # Refresh current config without changing the frozen plugin/native ABI set.
     if digest(payload / "nvim/lazy-lock.json") != checksums["profile/config/nvim/lazy-lock.json"]:
         raise ValueError("Current configuration has a different plugin lock; rebuild native dependencies first")
+    supplements = []
+    if parser_supplement:
+        supplement = json.loads(parser_supplement.read_text(encoding="utf-8-sig"))
+        if (supplement.get("schema_version") != 1 or
+                supplement.get("plugin_lock_sha256") != checksums["profile/config/nvim/lazy-lock.json"] or
+                not isinstance(supplement.get("files"), list) or not supplement["files"]):
+            raise ValueError("Parser supplement must bind the same frozen plugin lock")
+        seen = set()
+        for entry in supplement["files"]:
+            relative = str(safe_relative(entry["path"]))
+            path = PurePosixPath(relative)
+            if (path.parts[:-1] != ("profile", "data", "nvim", "lazy", "nvim-treesitter", "parser") or
+                    not re.fullmatch(r"[a-z][a-z0-9_]*\.so", path.name) or relative in seen):
+                raise ValueError("Parser supplement path is invalid or repeated")
+            original = Path(entry["source"])
+            expected = entry["sha256"]
+            if (not original.is_absolute() or original.is_symlink() or not original.is_file() or
+                    not re.fullmatch(r"[a-f0-9]{64}", expected) or digest(original) != expected):
+                raise ValueError("Parser supplement differs from its explicit SHA256")
+            seen.add(relative)
+            supplements.append((relative, original, expected))
     for name in ("nvim", "yazi"):
         for path in (payload / name).rglob("*"):
             if path.is_symlink() or path.name.casefold() in {"auth.json", "credentials.json", ".credentials.json", ".env", ".codex", ".git"}:
@@ -178,7 +236,19 @@ def build(source, destination, launcher, stack_id, frontend=None, frontend_sha25
             metadata["dependency_stage_neovide_commit"] = metadata.pop("neovide_commit")
         metadata["frontend_provenance"] = override
     else:
-        metadata["frontend_provenance"] = {"origin": "sealed_dependency_stage", "sha256": checksums["bin/neovide.exe"]}
+        metadata["frontend_provenance"] = {"origin": "sealed_dependency_stage", "sha256": checksums["bin/neovide.exe"],
+                                           "architecture": PROVENANCE_ARCHITECTURES[architecture]}
+    for relative, original, expected in supplements:
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(original, target)
+        if digest(target) != expected:
+            raise ValueError("Parser supplement changed while being copied")
+        if relative not in required:
+            required.append(relative)
+    if supplements:
+        metadata["parser_supplement"] = {"manifest_sha256": digest(parser_supplement),
+            "files": [{"path": relative, "sha256": expected} for relative, _, expected in supplements]}
     # Frozen offline stages used the system title bar. New core installs use
     # the same frameless default as the verified Windows desktop entry.
     neovide_config = destination / "config/neovide.toml"
@@ -209,7 +279,7 @@ def build(source, destination, launcher, stack_id, frontend=None, frontend_sha25
     shutil.copy2(HERE / "runtime/WindowsInit.lua", runtime / "WindowsInit.lua")
     dependencies = destination / "dependencies"
     dependencies.mkdir()
-    for name in ("Setup-Dependencies.ps1", "dependencies.json", "WebView2.ps1", "Dependency-Helpers.ps1", "system-assets.lock.json", "Setup-LaTeX.ps1", "Setup-Notebook.ps1", "setup-notebook.py", "Setup-ACP.ps1"):
+    for name in ("Setup-Dependencies.ps1", "Setup-Wizard.ps1", "Setup-Locale.ps1", "dependencies.json", "WebView2.ps1", "Dependency-Helpers.ps1", "system-assets.lock.json", "Setup-LaTeX.ps1", "Setup-Notebook.ps1", "setup-notebook.py", "Setup-ACP.ps1"):
         shutil.copy2(HERE / name, dependencies / name)
     (dependencies / "codex-acp").mkdir()
     for name in ("package.json", "package-lock.json"):
@@ -218,7 +288,8 @@ def build(source, destination, launcher, stack_id, frontend=None, frontend_sha25
     shutil.copy2(payload / "nvim/lua/config/media/runtime/requirements.txt", dependencies / "notebook-requirements.txt")
     shutil.copy2(payload / "requirements-latex.lock", dependencies / "latex-requirements.lock")
     package_dependency_notices(destination)
-    metadata.update({"stack_id": stack_id, "distribution": "core", "native_required": sorted(required), "tool_paths": []})
+    metadata.update({"stack_id": stack_id, "distribution": "core", "architecture": architecture,
+                     "native_required": sorted(required), "tool_paths": []})
     write_json(destination / "bundle.json", metadata)
     source_bytes = sum((source / path).stat().st_size for path in checksums) + (source / "bundle-sha256.json").stat().st_size
     for path in destination.rglob("*"):
@@ -228,7 +299,8 @@ def build(source, destination, launcher, stack_id, frontend=None, frontend_sha25
     write_json(destination / "bundle-sha256.json", output)
     final_files = [*output, "bundle-sha256.json"]
     core_bytes = sum((destination / relative).stat().st_size for relative in final_files)
-    return {"distribution": "core", "source_bytes": source_bytes, "core_bytes": core_bytes,
+    return {"distribution": "core", "architecture": architecture, "source_architecture": source_architecture,
+            "source_architecture_origin": architecture_origin, "source_bytes": source_bytes, "core_bytes": core_bytes,
             "core_files": len(final_files), "omitted_input_files": len(checksums) - len(selected),
             "source_stack": source_stack, "stack_id": stack_id,
             "frontend": metadata["frontend_provenance"],
@@ -242,16 +314,19 @@ def main():
     parser.add_argument("--destination", required=True, type=Path)
     parser.add_argument("--launcher", required=True, type=Path)
     parser.add_argument("--stack-id", required=True)
+    parser.add_argument("--architecture", choices=MACHINES, default="x64")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--frontend", type=Path)
     parser.add_argument("--frontend-sha256")
     parser.add_argument("--frontend-source-commit")
     parser.add_argument("--frontend-source-state", choices=("clean", "dirty", "unknown"))
     parser.add_argument("--frontend-source-fingerprint")
+    parser.add_argument("--parser-supplement", type=Path,
+                        help="Explicit hash-locked parser additions for the same frozen plugin lock")
     args = parser.parse_args()
     report = build(args.source, args.destination, args.launcher, args.stack_id, args.frontend,
                    args.frontend_sha256, args.frontend_source_commit, args.frontend_source_state,
-                   args.frontend_source_fingerprint)
+                   args.frontend_source_fingerprint, args.parser_supplement, args.architecture)
     if args.report:
         write_json(args.report, report)
     print(json.dumps(report, indent=2))
