@@ -8,18 +8,17 @@ if vim.g.neovide_glow_windows_runtime == root then return end
 local runtime = require("config.media.runtime")
 local core = vim.env.NEOVIDE_GLOW_DISTRIBUTION == "core"
 if core then
-  -- Default invocation is a read-only local audit. Downloads/package changes
-  -- require explicit selections in the visible dependency console.
+  -- The GUI first reviews local dependencies. Downloads/package changes require
+  -- an explicit action in that window; no terminal or console is created.
   vim.api.nvim_create_user_command("GlowDependencies", function()
-    local script = vim.env.NEOVIDE_GLOW_DEPENDENCY_SETUP
-    if not script or vim.fn.filereadable(script) ~= 1 then
-      vim.notify("Dependency setup is missing; reinstall the Glow core package.", vim.log.levels.ERROR)
+    local launcher = root .. "/Glow.exe"
+    if vim.fn.executable(launcher) ~= 1 then
+      vim.notify("Glow Setup is missing; reinstall the Glow core package.", vim.log.levels.ERROR)
       return
     end
-    vim.cmd("botright new")
-    vim.fn.jobstart({ "powershell.exe", "-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", script }, { term = true })
-    vim.cmd("startinsert")
-  end, { desc = "Review optional system dependencies" })
+    local job = vim.fn.jobstart({ launcher, "--setup", "--notebook", "--latex" }, { detach = true })
+    if job <= 0 then vim.notify("Cannot open Glow Setup. Use the Glow Setup shortcut to try again.", vim.log.levels.ERROR) end
+  end, { desc = "Open Glow Setup to review optional features" })
   if not vim.env.GLOW_PYTHON or not vim.env.GLOW_JUPYTEXT then
     function runtime.ready() return false end
     function runtime.python() return "" end

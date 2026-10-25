@@ -1,6 +1,7 @@
 #requires -Version 5.1
-<# Run from the logged-on Windows user, with existing complete TeX, Git and SumatraPDF.
+<# Run from the logged-on Windows user, with existing complete TeX, Git and WebView2.
    Calls the real TeX-only parent without a redirected PowerShell supervisor.
+   The default embedded viewer is reused; SumatraPDF is not required or selected.
    An independent watchdog bounds the test, including native grandchildren.
    No downloads, new installations, user selection writes, Python imports or GUI. #>
 param(
@@ -71,8 +72,11 @@ try{
     $report=& (Join-Path $SourceRoot 'portable\windows\Setup-Dependencies.ps1') -InstallLatex -Python (Join-Path $WorkRoot 'intentionally-absent-python.exe') -Json -DependencyRoot $deps -SelectionRoot $selection|ConvertFrom-Json
     Save-TestJson (Join-Path $WorkRoot 'parent-report.json') $report
     if($report.status -cne 'passed' -or -not $report.latex_checked -or -not $report.latex_ready){throw 'Real TeX parent did not pass.'}
-    $viewer=$report.tools|Where-Object {$_.role -eq 'pdf'}|Select-Object -First 1
-    if(-not $viewer -or -not $viewer.available -or -not (Test-Path -LiteralPath $viewer.path -PathType Leaf)){throw 'The existing bidirectional PDF viewer was not detected.'}
+    $viewer=$report.tools|Where-Object {$_.role -eq 'webview2'}|Select-Object -First 1
+    $viewerPlan=$report.plan.items|Where-Object {$_.role -eq 'webview2'}|Select-Object -First 1
+    if(-not $viewer -or -not $viewer.available -or -not $viewerPlan -or $viewerPlan.status -cne 'reuse'){throw 'The existing embedded WebView2 runtime was not reused.'}
+    if(@($report.plan.items|Where-Object {$_.role -eq 'pdf'}).Count){throw 'LaTeX-only setup unexpectedly selected the optional external PDF viewer.'}
+    if($report.plan.known_download_bytes -ne 0){throw 'Reuse-only LaTeX setup planned a dependency download.'}
     if(@($report.python_probes).Count){throw 'The TeX-only check repeated Python imports.'}
     $runs=@(Get-ChildItem -LiteralPath (Join-Path $deps 'runs') -Directory)
     if($runs.Count -ne 1){throw 'Expected one parent run.'}
@@ -92,6 +96,7 @@ try{
     if((Test-Hash $userSelection) -cne $before){throw 'Actual user selection changed.'}
     if(@(Get-ChildItem -LiteralPath (Join-Path $deps 'downloads-v1') -Force).Count -ne 1 -or (Test-Path -LiteralPath (Join-Path $deps 'programs-v1')) -or (Test-Path -LiteralPath (Join-Path $deps 'notebook-v1'))){throw 'Reuse-only guard changed or a new environment was created.'}
     $receipt.state='passed';$receipt.process_checks=$checks;$receipt.tex_reused=$true
+    $receipt.webview2_reused=$true;$receipt.external_pdf_requested=$false
     $receipt.pdf=@{path=$pdf;bytes=(Get-Item -LiteralPath $pdf).Length;sha256=Test-Hash $pdf}
     $receipt.synctex=@{path=$synctex;bytes=(Get-Item -LiteralPath $synctex).Length;sha256=Test-Hash $synctex}
     $receipt.selection_fields_preserved=$true
@@ -106,4 +111,4 @@ finally{
     Save-TestJson (Join-Path $WorkRoot 'receipt.json') $receipt
     $watchdog.Dispose()
 }
-Write-Output 'PASS real logged-on-user TeX parent, Chinese XeLaTeX PDF, SyncTeX, retained selection and no download/install'
+Write-Output 'PASS real logged-on-user TeX parent, reused WebView2, no automatic external viewer, Chinese XeLaTeX PDF, SyncTeX, retained selection and no download/install'

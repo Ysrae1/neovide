@@ -12,11 +12,26 @@
 #ifndef Distribution
   #define Distribution "offline"
 #endif
+#ifndef TargetArchitecture
+  #define TargetArchitecture "x64"
+#endif
+#if TargetArchitecture != "x64" && TargetArchitecture != "arm64"
+  #error TargetArchitecture must be x64 or arm64.
+#endif
+#if TargetArchitecture == "arm64" && Distribution != "core"
+  #error The legacy offline pipeline is x64-only. Use the architecture-verified core pipeline for ARM64.
+#endif
 #if Distribution == "core"
   #define PackageSuffix "Core-Setup"
-  #define InstallDirectoryName "Neovide Glow Core"
-  #define ShortcutName "Neovide Glow Preview"
-  #define ProductId "2BE1E0A6-180C-4700-8453-FB29359286D9"
+  #if TargetArchitecture == "arm64"
+    #define InstallDirectoryName "Neovide Glow Core ARM64"
+    #define ShortcutName "Neovide Glow Preview ARM64"
+    #define ProductId "9AC25A16-EF9A-41BE-96EF-6AB247FDBE23"
+  #else
+    #define InstallDirectoryName "Neovide Glow Core"
+    #define ShortcutName "Neovide Glow Preview"
+    #define ProductId "2BE1E0A6-180C-4700-8453-FB29359286D9"
+  #endif
 #else
   #define PackageSuffix "Setup"
   #define InstallDirectoryName "Neovide Glow"
@@ -26,11 +41,16 @@
 #if !FileExists(StageDir + "\Glow.exe") || !FileExists(StageDir + "\bundle.json")
   #error StageDir is missing the compiled launcher or bundle metadata.
 #endif
+#if !FileExists(StageDir + "\neovide.ico")
+  #error StageDir is missing the Neovide Glow icon.
+#endif
 
 ; Inno Setup 6 does not consistently support extended-length destination paths.
 ; Measure this exact payload instead of allowing extraction to fail halfway through.
-#define GlowMaxRelativeFile 0
-#define GlowMaxRelativeDirectory 0
+; Include the bundled translation license installed outside StageDir as well.
+; Its path is also longer than the generated glow-ui-language.txt marker.
+#define GlowMaxRelativeFile Len("licenses\InnoSetup-ChineseSimplified-LICENSE.txt")
+#define GlowMaxRelativeDirectory Len("licenses")
 #define GlowDirectoryCount 1
 #define GlowDirectoryIndex 0
 #define GlowFindHandle 0
@@ -72,15 +92,27 @@ AppSupportURL=https://github.com/Ysrae1/neovide/issues
 DefaultDirName={localappdata}\Programs\{#InstallDirectoryName}
 DefaultGroupName={#ShortcutName}
 PrivilegesRequired=lowest
+#if TargetArchitecture == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+; Windows 11 22H2 includes the managed launcher's .NET Framework 4.8.1.
+; Windows 10 ARM64 cannot supply the older-system x64 emulation fallback.
+MinVersion=10.0.22621
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19041
+#endif
 DisableProgramGroupPage=yes
 DisableDirPage=no
 UsePreviousAppDir=yes
-UninstallDisplayIcon={app}\Glow.exe
+LanguageDetectionMethod=uilanguage
+ShowLanguageDialog=yes
+UsePreviousLanguage=no
+SetupIconFile={#StageDir}\neovide.ico
+UninstallDisplayIcon={app}\neovide.ico
 OutputDir={#OutputDir}
-OutputBaseFilename=Neovide-Glow-{#AppVersion}-Windows-x64-{#PackageSuffix}
+OutputBaseFilename=Neovide-Glow-{#AppVersion}-Windows-{#TargetArchitecture}-{#PackageSuffix}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -94,21 +126,82 @@ VersionInfoDescription=Neovide Glow {#Distribution} installer
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "chinesesimplified"; MessagesFile: "languages\ChineseSimplified.isl"
+
+[CustomMessages]
+english.GlowDesktopShortcut=Create a desktop shortcut
+chinesesimplified.GlowDesktopShortcut=创建桌面快捷方式
+english.GlowShortcuts=Shortcuts:
+chinesesimplified.GlowShortcuts=快捷方式：
+english.GlowSetupComment=Check tools and finish the initial setup
+chinesesimplified.GlowSetupComment=检查工具并完成初始设置
+english.GlowLaunch=Launch Neovide Glow
+chinesesimplified.GlowLaunch=启动 Neovide Glow
+english.GlowChooseFeatures=Choose features
+chinesesimplified.GlowChooseFeatures=选择功能
+english.GlowFeaturesSubtitle=Reuse compatible tools and download only missing components.
+chinesesimplified.GlowFeaturesSubtitle=复用已有的兼容工具，仅下载缺失组件。
+english.GlowFeaturesDescription=This installer includes the editor, Neovim, plugins and fonts. After copying them, a setup window checks this PC and shows which tools can be reused and what needs downloading. Downloads start only after you confirm the plan.%n%nBase tools provide search, the file manager, Git and embedded PDF. Notebook, TeX packages and a missing WebView2 runtime require additional downloads; the total size varies. You can finish later by reopening the Setup shortcut.
+chinesesimplified.GlowFeaturesDescription=本安装包包含编辑器、Neovim、插件和字体。复制完成后，初始设置窗口会检查本机，列出可复用的工具和需要下载的组件。确认方案后才会开始下载。%n%n基础工具提供搜索、文件管理、Git 和内嵌 PDF。Notebook、TeX 宏包及缺失的 WebView2 运行时需要额外下载，总大小以检测结果为准。也可以稍后通过 Setup（初始设置）快捷方式继续。
+english.GlowNotebook=Notebook / Python (CPython up to 26 MiB, plus Python packages)
+chinesesimplified.GlowNotebook=Notebook / Python（CPython 最多 26 MiB，另需 Python 包）
+english.GlowLatex=LaTeX / Chinese PDF (TinyTeX up to 71 MiB, plus TeX packages)
+chinesesimplified.GlowLatex=LaTeX / 中文 PDF（TinyTeX 最多 71 MiB，另需 TeX 宏包）
+english.GlowReviewDependencies=Review the detected tools and download plan in the Glow setup window.
+chinesesimplified.GlowReviewDependencies=请在 Glow 初始设置窗口中查看工具检测结果和下载方案。
+english.GlowDependenciesLaunchFailed=The application files were installed, but a selected dependency did not finish. Existing environments and partial downloads were preserved. See %1 for the error, then reopen the Neovide Glow Setup shortcut to continue.
+chinesesimplified.GlowDependenciesLaunchFailed=应用文件已安装，但所选依赖尚未完成。已有环境和部分下载均已保留。请在 %1 查看错误，再打开 Neovide Glow 的 Setup（初始设置）快捷方式继续。
+english.GlowDependenciesPending=The editor is installed. Reopen the Neovide Glow Setup shortcut to finish dependencies.
+chinesesimplified.GlowDependenciesPending=编辑器已安装。请重新打开 Neovide Glow 的 Setup（初始设置）快捷方式，完成依赖安装。
+english.GlowOfflineDirectory=This folder contains an offline runtime. Choose a separate folder for Neovide Glow Core. The existing application and its user profiles will be preserved.
+chinesesimplified.GlowOfflineDirectory=此文件夹包含离线运行环境。请为 Neovide Glow Core 选择另一个文件夹。已有应用及其用户配置会保留。
+english.GlowOtherPackageDirectory=This folder belongs to another Glow package. Choose a separate folder for the core installation.
+chinesesimplified.GlowOtherPackageDirectory=此文件夹属于另一个 Glow 安装包。请为核心版选择另一个安装文件夹。
+english.GlowArchitectureDirectory=This folder contains a different or unrecognized processor architecture. Choose a separate folder for the %1 package. Existing application files and profiles were preserved.
+chinesesimplified.GlowArchitectureDirectory=此文件夹中的程序使用不同或无法识别的处理器架构。请为 %1 安装包选择另一个文件夹。已有应用文件和配置均已保留。
+english.GlowDirectoryTooLong=This installation folder is too long for this package. Choose a shorter folder, such as C:\Glow. The folder path must contain at most %1 characters; the selected path contains %2.
+chinesesimplified.GlowDirectoryTooLong=此安装包的目标路径过长。请选择更短的文件夹，例如 C:\Glow。路径最多可包含 %1 个字符；当前路径包含 %2 个字符。
+english.GlowPathRejectedLog=Glow path preflight: rejected before installation; folder length=%1, maximum=%2
+chinesesimplified.GlowPathRejectedLog=Glow 路径预检：已在安装前拒绝；路径长度=%1，最大长度=%2
+english.GlowFontRegistryPreserved=Preserved an existing font registry entry: %1
+chinesesimplified.GlowFontRegistryPreserved=已保留已有的字体注册表项：%1
+english.GlowFontPreserved=Preserved a different existing user font: %1
+chinesesimplified.GlowFontPreserved=已保留已有的不同版本用户字体：%1
+english.GlowFontDirectoryFailed=Unable to create the per-user font directory.
+chinesesimplified.GlowFontDirectoryFailed=无法创建当前用户的字体文件夹。
+english.GlowFontCopyFailed=Unable to install the per-user font: %1
+chinesesimplified.GlowFontCopyFailed=无法安装当前用户的字体：%1
+english.GlowFontRegisterFailed=Unable to register the per-user font: %1
+chinesesimplified.GlowFontRegisterFailed=无法注册当前用户的字体：%1
+english.GlowFontDirectoryMissing=The package must include its default fonts.
+chinesesimplified.GlowFontDirectoryMissing=安装包必须包含默认字体文件夹。
+english.GlowFontFilesMissing=The package does not contain its default font files.
+chinesesimplified.GlowFontFilesMissing=安装包中缺少默认字体文件。
+english.GlowLanguageSaveFailed=Unable to save the setup language in the application folder.
+chinesesimplified.GlowLanguageSaveFailed=无法在应用文件夹中保存安装语言。
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:GlowDesktopShortcut}"; GroupDescription: "{cm:GlowShortcuts}"; Flags: unchecked
 
 [Files]
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "languages\ChineseSimplified-LICENSE.txt"; DestDir: "{app}\licenses"; DestName: "InnoSetup-ChineseSimplified-LICENSE.txt"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#ShortcutName}"; Filename: "{app}\Glow.exe"; WorkingDir: "{userdocs}"
-Name: "{autodesktop}\{#ShortcutName}"; Filename: "{app}\Glow.exe"; WorkingDir: "{userdocs}"; Tasks: desktopicon
+Name: "{autoprograms}\{#ShortcutName}"; Filename: "{app}\Glow.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\neovide.ico"
+Name: "{autodesktop}\{#ShortcutName}"; Filename: "{app}\Glow.exe"; WorkingDir: "{userdocs}"; Tasks: desktopicon; IconFilename: "{app}\neovide.ico"
+#if Distribution == "core"
+Name: "{autoprograms}\{#ShortcutName} Setup"; Filename: "{app}\Glow.exe"; Parameters: "--setup --notebook --latex"; WorkingDir: "{userdocs}"; Comment: "{cm:GlowSetupComment}"; IconFilename: "{app}\neovide.ico"
+#endif
 
 [Run]
-Filename: "{app}\Glow.exe"; Description: "Launch Neovide Glow"; WorkingDir: "{userdocs}"; Flags: nowait postinstall skipifsilent unchecked
+Filename: "{app}\Glow.exe"; Description: "{cm:GlowLaunch}"; WorkingDir: "{userdocs}"; Flags: nowait postinstall skipifsilent unchecked
 
-; User profiles are outside {app}; no UninstallDelete or broad registry cleanup.
+; Delete only the generated application-local language marker, never user profiles.
+[UninstallDelete]
+Type: files; Name: "{app}\glow-ui-language.txt"
+
+; User profiles are outside {app}; no broad registry or directory cleanup.
 ; Fonts added to the user's shared font collection are retained on uninstall.
 [Code]
 const
@@ -124,13 +217,10 @@ var
 
 procedure InitializeWizard;
 begin
-  GlowFeaturePage := CreateInputOptionPage(wpSelectDir, 'Choose features',
-    'Existing compatible tools will be reused. Only missing components are downloaded.',
-    'Base tools are included in setup: search, file manager, Git and PDF runtime. ' +
-    'Their official downloads total up to 75 MiB, plus WebView2 only if missing. ' +
-    'Shared dependencies are installed outside the Glow application.', False, False);
-  GlowFeaturePage.Add('Notebook / Python (CPython up to 26 MiB, plus Python packages)');
-  GlowFeaturePage.Add('LaTeX / Chinese PDF (TinyTeX up to 71 MiB, plus TeX packages)');
+  GlowFeaturePage := CreateInputOptionPage(wpSelectDir, CustomMessage('GlowChooseFeatures'),
+    CustomMessage('GlowFeaturesSubtitle'), CustomMessage('GlowFeaturesDescription'), False, False);
+  GlowFeaturePage.Add(CustomMessage('GlowNotebook'));
+  GlowFeaturePage.Add(CustomMessage('GlowLatex'));
   GlowFeaturePage.Values[0] := True;
   GlowFeaturePage.Values[1] := True;
 end;
@@ -142,17 +232,46 @@ var
 begin
   { Automated packaging smoke tests must not install external software. }
   if WizardSilent and (ExpandConstant('{param:INSTALLDEPS|0}') <> '1') then Exit;
-  Arguments := '-NoProfile -ExecutionPolicy Bypass -File "' +
-    ExpandConstant('{app}\dependencies\Setup-Dependencies.ps1') + '" -InstallBase';
-  if GlowFeaturePage.Values[0] then Arguments := Arguments + ' -InstallNotebook';
-  if GlowFeaturePage.Values[1] then Arguments := Arguments + ' -InstallLatex';
-  WizardForm.StatusLabel.Caption := 'Checking existing tools and installing selected missing dependencies...';
-  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Arguments,
-    ExpandConstant('{app}'), SW_SHOWNORMAL, ewWaitUntilTerminated, ExitCode) or (ExitCode <> 0) then
-    RaiseException('The application files were installed, but a selected dependency did not finish. ' +
-      'Existing environments and partial downloads were preserved. See ' +
-      ExpandConstant('{localappdata}\NeovideGlow\dependencies\runs') +
-      ' for the error, then rerun this installer to continue.');
+  { The GUI launcher creates PowerShell with CREATE_NO_WINDOW before it starts. }
+  Arguments := '--setup';
+  if GlowFeaturePage.Values[0] then Arguments := Arguments + ' --notebook';
+  if GlowFeaturePage.Values[1] then Arguments := Arguments + ' --latex';
+  WizardForm.StatusLabel.Caption := CustomMessage('GlowReviewDependencies');
+  if not Exec(ExpandConstant('{app}\Glow.exe'), Arguments,
+    ExpandConstant('{app}'), SW_SHOWNORMAL, ewWaitUntilTerminated, ExitCode) then
+    RaiseException(FmtMessage(CustomMessage('GlowDependenciesLaunchFailed'), [ExpandConstant('{localappdata}\NeovideGlow\dependencies\runs')]));
+  if ExitCode <> 0 then
+    WizardForm.StatusLabel.Caption := CustomMessage('GlowDependenciesPending');
+end;
+#endif
+
+#if Distribution == "core"
+{ Normalize JSON whitespace without altering quoted values or escaped quotes. }
+function GlowCompactBundle(const Value: AnsiString): AnsiString;
+var
+  I: Integer;
+  C: AnsiString;
+  Quoted, Escaped: Boolean;
+begin
+  Result := '';
+  Quoted := False;
+  Escaped := False;
+  for I := 1 to Length(Value) do
+  begin
+    C := Copy(Value, I, 1);
+    if Quoted then
+    begin
+      Result := Result + C;
+      if Escaped then Escaped := False
+      else if C = '\' then Escaped := True
+      else if C = '"' then Quoted := False;
+    end
+    else if (C <> ' ') and (C <> #9) and (C <> #10) and (C <> #13) then
+    begin
+      Result := Result + C;
+      if C = '"' then Quoted := True;
+    end;
+  end;
 end;
 #endif
 
@@ -170,16 +289,36 @@ begin
   if FileExists(AddBackslash(Directory) + 'runtime\python\python.exe') or
      FileExists(AddBackslash(Directory) + 'bin\python.exe') then
   begin
-    Result := 'This folder contains an offline runtime. Choose a separate folder for Neovide Glow Core. ' +
-      'The existing application and its user profiles will be preserved.';
+    Result := CustomMessage('GlowOfflineDirectory');
     Exit;
   end;
-  if FileExists(AddBackslash(Directory) + 'Glow.exe') then
+  if FileExists(AddBackslash(Directory) + 'Glow.exe') or
+     FileExists(AddBackslash(Directory) + 'bundle.json') or
+     FileExists(AddBackslash(Directory) + 'bin\neovide.exe') then
   begin
-    if not LoadStringFromFile(AddBackslash(Directory) + 'bundle.json', ExistingBundle) or
-      (Pos('"distribution": "core"', ExistingBundle) = 0) then
+    if not LoadStringFromFile(AddBackslash(Directory) + 'bundle.json', ExistingBundle) then
     begin
-      Result := 'This folder belongs to another Glow package. Choose a separate folder for the core installation.';
+      Result := CustomMessage('GlowOtherPackageDirectory');
+      Exit;
+    end;
+    ExistingBundle := GlowCompactBundle(ExistingBundle);
+    if Pos('"distribution":"core"', ExistingBundle) = 0 then
+    begin
+      Result := CustomMessage('GlowOtherPackageDirectory');
+      Exit;
+    end;
+#if TargetArchitecture == "arm64"
+    { Older unlabelled stages are x64; they must not be adopted by ARM64. }
+    if Pos('"architecture":"arm64"', ExistingBundle) = 0 then
+#else
+    if (Pos('"architecture":"arm64"', ExistingBundle) <> 0) or
+       (Pos('"architecture":"aarch64"', ExistingBundle) <> 0) or
+       ((Pos('"architecture":', ExistingBundle) <> 0) and
+        (Pos('"architecture":"x64"', ExistingBundle) = 0) and
+        (Pos('"architecture":"x86_64"', ExistingBundle) = 0)) then
+#endif
+    begin
+      Result := FmtMessage(CustomMessage('GlowArchitectureDirectory'), ['{#TargetArchitecture}']);
       Exit;
     end;
   end;
@@ -191,12 +330,8 @@ begin
   RootLength := Length(RemoveBackslashUnlessRoot(Directory));
   if RootLength > MaximumRootLength then
   begin
-    Result := 'This installation folder is too long for this package. ' +
-      'Choose a shorter folder, such as C:\Glow. The folder path must contain at most ' +
-      IntToStr(MaximumRootLength) + ' characters; the selected path contains ' +
-      IntToStr(RootLength) + '.';
-    Log('Glow path preflight: rejected before installation; folder length=' +
-      IntToStr(RootLength) + ', maximum=' + IntToStr(MaximumRootLength));
+    Result := FmtMessage(CustomMessage('GlowDirectoryTooLong'), [IntToStr(MaximumRootLength), IntToStr(RootLength)]);
+    Log(FmtMessage(CustomMessage('GlowPathRejectedLog'), [IntToStr(RootLength), IntToStr(MaximumRootLength)]));
   end;
 end;
 
@@ -241,7 +376,7 @@ begin
   begin
     if CompareText(ExistingValue, Destination) <> 0 then
     begin
-      Log('Preserved an existing font registry entry: ' + FontName);
+      Log(FmtMessage(CustomMessage('GlowFontRegistryPreserved'), [FontName]));
       Exit;
     end;
   end;
@@ -249,20 +384,20 @@ begin
   begin
     if CompareText(GetSHA256OfFile(Source), GetSHA256OfFile(Destination)) <> 0 then
     begin
-      Log('Preserved a different existing user font: ' + FontName);
+      Log(FmtMessage(CustomMessage('GlowFontPreserved'), [FontName]));
       Exit;
     end;
   end
   else
   begin
     if not ForceDirectories(FontDirectory) then
-      RaiseException('Unable to create the per-user font directory.');
+      RaiseException(CustomMessage('GlowFontDirectoryFailed'));
     if not FileCopy(Source, Destination, True) then
-      RaiseException('Unable to install the per-user font: ' + FontName);
+      RaiseException(FmtMessage(CustomMessage('GlowFontCopyFailed'), [FontName]));
   end;
   if not RegWriteStringValue(HKCU,
     'Software\Microsoft\Windows NT\CurrentVersion\Fonts', RegistryName, Destination) then
-    RaiseException('Unable to register the per-user font: ' + FontName);
+    RaiseException(FmtMessage(CustomMessage('GlowFontRegisterFailed'), [FontName]));
   GlowAddFontResourceEx(Destination, 0, 0);
 end;
 
@@ -275,7 +410,7 @@ var
 begin
   Directory := ExpandConstant('{app}\fonts');
   if not DirExists(Directory) then
-    RaiseException('The complete offline package must include its default fonts.');
+    RaiseException(CustomMessage('GlowFontDirectoryMissing'));
   FontCount := 0;
   if FindFirst(AddBackslash(Directory) + '*', Found) then
   begin
@@ -296,15 +431,27 @@ begin
     end;
   end;
   if FontCount = 0 then
-    RaiseException('The offline package does not contain its default font files.');
+    RaiseException(CustomMessage('GlowFontFilesMissing'));
   GlowSendMessageTimeout(GlowHwndBroadcast, GlowWmFontChange, 0, 0,
     GlowSmtoAbortIfHung, 1000, MessageResult);
+end;
+
+procedure GlowSaveUiLanguage;
+var
+  LanguageCode: AnsiString;
+begin
+  LanguageCode := 'en';
+  if ActiveLanguage = 'chinesesimplified' then LanguageCode := 'zh-CN';
+  { These ASCII language codes are UTF-8 without a BOM. Keep the marker app-local. }
+  if not SaveStringToFile(ExpandConstant('{app}\glow-ui-language.txt'), LanguageCode, False) then
+    RaiseException(CustomMessage('GlowLanguageSaveFailed'));
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
+    GlowSaveUiLanguage;
     GlowInstallUserFonts;
 #if Distribution == "core"
     GlowInstallSelectedDependencies;

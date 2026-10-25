@@ -23,5 +23,9 @@ $arguments = @((Join-Path $PSScriptRoot 'setup-notebook.py'), '--data-root', $Da
     '--config-root', $ConfigRoot, '--nvim', $Nvim, '--requirements', $RequirementsPath,
     '--latex-requirements', $LatexRequirementsPath, '--report', $ReportPath)
 if ($Install) { $arguments += '--install' }
-& $Python @arguments
-if ($LASTEXITCODE -ne 0) { throw "Notebook setup failed; see $ReportPath" }
+. (Join-Path $PSScriptRoot 'Dependency-Helpers.ps1')
+$script:DependencyRun=Split-Path -Parent ([IO.Path]::GetFullPath($ReportPath))
+$script:DependencyChecks=@()
+$null=New-Item -ItemType Directory -Path $script:DependencyRun -Force
+try { Invoke-DependencyProcess $Python $arguments 'prepare-private-Notebook' 900 }
+catch { throw ('Notebook setup failed; see '+$ReportPath+'. '+$_.Exception.Message) }

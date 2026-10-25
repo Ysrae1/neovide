@@ -8,13 +8,17 @@ param(
     [switch]$InstallNotebook,
     [switch]$InstallBase,
     [switch]$InstallLatex,
+    [ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror='auto',
     [switch]$InstallACP,
     [string]$NvimDataRoot,
     [string]$ACPNodePath,
     [ValidateSet('x64','arm64')][string]$ACPArchitecture,
     [ValidateSet('powershell','git','search','find','yazi','fzf','node','latex','pdf','webview2')]
     [string[]]$InstallTool = @(),
+    [switch]$PlanOnly,
     [switch]$Json,
+    [string]$ReportPath,
+    [string]$StatusPath,
     [string]$DependencyRoot = (Join-Path $env:LOCALAPPDATA 'NeovideGlow\dependencies'),
     [string]$SelectionRoot = (Join-Path $env:LOCALAPPDATA 'NeovideGlow\dependencies')
 )
@@ -26,6 +30,15 @@ if ($InstallACP -and (-not $NvimDataRoot -or -not $ACPNodePath -or -not $ACPArch
 if ($InstallTool -contains 'latex') {
     $InstallLatex=$true
     $InstallTool=@($InstallTool|Where-Object {$_ -ne 'latex'})
+}
+
+function Get-RequestedDependencyRoles([string[]]$Tools,[bool]$Base,[bool]$Latex) {
+    $roles=@($Tools)
+    if ($Base) { $roles+=@('search','find','yazi','fzf','git','webview2') }
+    # The default PDF/SyncTeX viewer is embedded, including LaTeX-only setup.
+    # Sumatra remains detectable and is installed only with explicit -InstallTool pdf.
+    if ($Latex) { $roles+=@('git','webview2') }
+    $roles|Select-Object -Unique
 }
 
 function Quote-Argument([string]$Value) {
@@ -212,10 +225,29 @@ function Save-Selection($Selected) {
     $temporary = $receipt + '.preparing-' + [Guid]::NewGuid().ToString('N')
     try {
         [IO.File]::WriteAllText($temporary, ($contents | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
-        if (Test-Path -LiteralPath $receipt) { [IO.File]::Replace($temporary, $receipt, [System.Management.Automation.Language.NullString]::Value) }
+        if (Test-Path -LiteralPath $receipt) { [IO.File]::Replace($temporary, $receipt, $backup) }
         else { [IO.File]::Move($temporary, $receipt) }
     }
     finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary } }
+}
+
+function Save-ToolSelection {
+    $selection=Join-Path $SelectionRoot 'selected.json'
+    $script:SelectedToolPaths=@($script:SelectedToolPaths|Select-Object -Unique)
+    $record=@{schema_version=1;tool_paths=$script:SelectedToolPaths}
+    if (Test-Path -LiteralPath $selection) {
+        $previous=Get-Content -LiteralPath $selection -Raw -Encoding UTF8|ConvertFrom-Json
+        foreach ($property in $previous.PSObject.Properties) {
+            if ($property.Name -notin @('schema_version','tool_paths')) { $record[$property.Name]=$property.Value }
+        }
+        # A later successful phase need not rewrite an unchanged selection.
+        if ($previous.schema_version -eq 1 -and $previous.PSObject.Properties['tool_paths'] -and
+            (ConvertTo-Json -InputObject @($previous.tool_paths) -Compress) -ceq
+            (ConvertTo-Json -InputObject @($script:SelectedToolPaths) -Compress)) { return $false }
+    }
+    $null=New-Item -ItemType Directory -Path $SelectionRoot -Force
+    Write-DependencyJson $selection $record
+    return $true
 }
 
 
@@ -226,9 +258,12 @@ $assetLock=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'system-assets.lock
 if ($manifest.schema_version -ne 1 -or $assetLock.schema_version -ne 1) { throw 'Unsupported dependency manifest.' }
 $script:SelectedToolPaths=@(Get-DependencySelectedPaths (Join-Path $SelectionRoot 'selected.json'))
 $script:DependencyChecks=@(); $script:DependencyRun=$null; $script:PythonProbeDiagnostics=@()
+$script:DependencyStatusPath=if ($PlanOnly) { $null } else { $StatusPath }
+Set-DependencyStatus 'running' 'detection' 'Checking existing tools and Notebook environments; no downloads have started.'
 $dependencyMutex=$null; $mutexAcquired=$false
-$mutating=$InstallBase -or $InstallNotebook -or $SelectPython -or $InstallLatex -or $InstallACP -or $InstallTool.Count -gt 0
+$mutating=(-not $PlanOnly) -and ($InstallBase -or $InstallNotebook -or $SelectPython -or $InstallLatex -or $InstallACP -or $InstallTool.Count -gt 0)
 $acpReady=$false
+$selectionSaved=$false
 $mapping=@{search='rg';find='fd';yazi='yazi';fzf='fzf';git='git'}
 $minimumVersions=@{search='14.0';find='10.0';yazi='26.5.6';fzf='0.65.0';git='2.30.0'}
 function Find-DependencyCommand([string]$Role,[string]$Name) {
@@ -346,7 +381,10 @@ else {
 $interpreters=@($candidates|Select-Object -Unique|ForEach-Object {$probe=Probe-Python $_; if ($probe) {$probe}})
 $selected=$interpreters|Where-Object {$_.ready}|Select-Object -First 1
 $base=$interpreters|Where-Object {$_.compatible}|Select-Object -First 1
+$roles=@(Get-RequestedDependencyRoles -Tools $InstallTool -Base ([bool]$InstallBase) -Latex ([bool]$InstallLatex))
+$plan=New-DependencyPlan -Tools $tools -Assets $assetLock.assets -Root $DependencyRoot -Roles $roles -Notebook ([bool]$InstallNotebook) -Latex ([bool]$InstallLatex) -Selected $selected -Base $base -UnknownPython (@($script:PythonProbeDiagnostics|Where-Object {$_.status -eq 'unknown'}).Count -gt 0)
 # Always show the detection result before any network request or installation.
+if (-not $Json) {
 $tools|Format-Table role,available,@{Label='Download';Expression={if ($_.available) {'reuse'} elseif ($_.download_bytes) {'{0:N1} MiB' -f ($_.download_bytes/1MB)} else {'provider size'}}},path -AutoSize|Out-Host
 $interpreters|Format-Table version,compatible,ready,python -AutoSize|Out-Host
 $script:PythonProbeDiagnostics|Where-Object {$_.status -eq 'unknown'}|Format-Table status,seconds,exit_code,timed_out,python,error -AutoSize|Out-Host
@@ -357,7 +395,18 @@ if ($InstallNotebook) {
     elseif ($base) { Write-Host ('Notebook: reuse CPython '+$base.version+'; download packages into a separate environment (package size is resolved by pip).') }
     else { Write-Host ('Notebook: download official CPython 3.12 x64 ('+[Math]::Round($assetLock.assets.python.download_size/1MB,1)+' MiB), then packages into a separate environment.') }
 }
-if ($InstallLatex) { Write-Host 'LaTeX: reuse a verified complete TeX installation and SumatraPDF for bidirectional search; otherwise install missing dependencies only.' }
+if ($InstallLatex) { Write-Host 'LaTeX: reuse a verified complete TeX installation; install missing Git and WebView2 for embedded PDF/search. SumatraPDF is an optional external viewer selected with -InstallTool pdf.' }
+Write-Host ('Known selected downloads: '+[Math]::Round($plan.known_download_bytes/1MB,1)+' MiB. '+$plan.download_note)
+foreach ($note in $plan.dynamic_downloads) { Write-Host $note }
+}
+if ($PlanOnly) {
+    $report=[pscustomobject]@{schema_version=1;status='planned';plan=$plan;tools=$tools;python=$interpreters;
+        python_probes=@($script:PythonProbeDiagnostics);notebook_ready=[bool]$selected;selection_saved=$false;webview2=$webview2}
+    if ($ReportPath) { Write-DependencyJson $ReportPath $report }
+    if ($Json) { $report|ConvertTo-Json -Depth 10 }
+    else { Write-Host 'Plan only. No dependencies, selections, or user configuration were changed.' }
+    return
+}
 try {
     if ($mutating) {
         $dependencyMutex=New-Object Threading.Mutex($false,'Local\NeovideGlowDependenciesV1')
@@ -366,12 +415,18 @@ try {
         $script:DependencyRun=Join-Path $DependencyRoot ('runs\'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffff'))
         $null=New-Item -ItemType Directory -Path $script:DependencyRun -Force
         Write-Host ('Setup log: '+$script:DependencyRun)
+        Set-DependencyStatus 'running' 'preparation' ('Setup log: '+$script:DependencyRun)
+        Write-DependencyJson (Join-Path $script:DependencyRun 'plan.json') $plan
         Write-DependencyJson (Join-Path $script:DependencyRun 'python-probes.json') @($script:PythonProbeDiagnostics)
     }
     Assert-NotebookProbeKnown $selected ([bool]($InstallNotebook -or $SelectPython))
-    $roles=@($InstallTool)
-    if ($InstallBase) { $roles+=@('search','find','yazi','fzf','git','webview2') }
-    if ($InstallLatex) { $roles+=@('git','pdf') }
+    # A complete reused provider must survive an unrelated later install failure.
+    if (($SelectPython -or $InstallNotebook) -and $selected) {
+        Save-Selection $selected
+        $selectionSaved=$true
+    } elseif ($SelectPython -and -not $InstallNotebook) {
+        throw 'No compatible complete Notebook environment was found.'
+    }
     foreach ($role in @($roles|Select-Object -Unique)) {
         $tool=$tools|Where-Object {$_.role -eq $role}|Select-Object -First 1
         if ($tool.available) { Write-Host ('Reusing '+$role); continue }
@@ -399,14 +454,15 @@ try {
             $winget=Get-Command winget.exe -CommandType Application -ErrorAction Stop
             # This exact selected package only. Microsoft/App Installer verifies
             # its manifest hash; license/elevation prompts remain interactive.
-            & $winget.Source install --id $tool.package --exact --source winget --no-upgrade --interactive
-            if ($LASTEXITCODE -ne 0) { throw ('System package installation was not completed: '+$role) }
+            $null=Invoke-DependencyProcess $winget.Source @('install','--id',$tool.package,'--exact','--source','winget','--no-upgrade','--interactive') ('install-'+$role) 1200
             $spec=$manifest.tools|Where-Object {$_.role -eq $role}|Select-Object -First 1
             $tool.path=Find-DependencyCommand $role $spec.command; $tool.available=[bool]$tool.path
             if (-not $tool.available) { throw ('New '+$role+' command is not available in this session. Reopen setup to detect it before use.') }
         }
     }
     foreach ($tool in $tools) {
+        # Requested TeX is selected only after its own runtime checks pass.
+        if ($InstallLatex -and $tool.role -eq 'latex') { continue }
         if ($tool.available -and $tool.path) { $script:SelectedToolPaths+=Split-Path -Parent $tool.path }
     }
     $git=$tools|Where-Object {$_.role -eq 'git' -and $_.available}|Select-Object -First 1
@@ -414,6 +470,7 @@ try {
         $helpers=[IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $git.path) '..\usr\bin'))
         if (Test-Path -LiteralPath (Join-Path $helpers 'file.exe')) { $script:SelectedToolPaths+=$helpers }
     }
+    if ($mutating -and $roles.Count -gt 0) { $selectionSaved=(Save-ToolSelection) -or $selectionSaved }
     if ($InstallNotebook -and -not $selected) {
         if (-not $base) { $base=Install-DependencyPython $assetLock.assets.python }
         $nativeArm=$base.platform -eq 'win-arm64'
@@ -430,10 +487,12 @@ try {
         $selected=Probe-Python $privatePython
         if (-not $selected -or -not $selected.ready) { throw 'Installed Notebook dependencies failed import validation; nothing was selected.' }
         $interpreters+=@($selected)
+        Save-Selection $selected
+        $selectionSaved=$true
     }
     if ($InstallLatex) {
         # Keep the process helper's script-scoped run/checks in this setup scope.
-        . (Join-Path $PSScriptRoot 'Setup-LaTeX.ps1') -DependencyRoot $DependencyRoot -RunRoot (Join-Path $script:DependencyRun 'tex') -ToolPaths $script:SelectedToolPaths
+        . (Join-Path $PSScriptRoot 'Setup-LaTeX.ps1') -DependencyRoot $DependencyRoot -RunRoot (Join-Path $script:DependencyRun 'tex') -ToolPaths $script:SelectedToolPaths -TeXMirror $TeXMirror
         if (-not $?) { throw 'LaTeX setup did not pass.' }
         $texBin=Join-Path $env:APPDATA 'TinyTeX\bin\windows'
         $texSelection=Join-Path $script:DependencyRun 'tex\selected.json'
@@ -441,6 +500,8 @@ try {
         $script:SelectedToolPaths+=$texBin
         $texTool=$tools|Where-Object {$_.role -eq 'latex'}|Select-Object -First 1
         $texTool.path=Join-Path $texBin 'xelatex.exe'; $texTool.available=Test-Path -LiteralPath $texTool.path -PathType Leaf
+        if (-not $texTool.available) { throw 'Validated LaTeX executable is missing; its path was not selected.' }
+        $selectionSaved=(Save-ToolSelection) -or $selectionSaved
     }
     if ($InstallACP) {
         $acpEvidence=Join-Path $script:DependencyRun 'acp'
@@ -452,28 +513,15 @@ try {
         if ($acpResult.state -notin @('installed','already_ready')) { throw 'ACP runtime did not pass its version, lock and architecture checks.' }
         $acpReady=$true
     }
-    $script:SelectedToolPaths=@($script:SelectedToolPaths|Select-Object -Unique)
-    if ($SelectPython -or $InstallNotebook) {
-        if (-not $selected) { throw 'No compatible complete Notebook environment was found.' }
-        Save-Selection $selected
-    } elseif ($mutating) {
-        $selectionRoot=$SelectionRoot
-        $null=New-Item -ItemType Directory -Path $selectionRoot -Force
-        $selection=Join-Path $selectionRoot 'selected.json'
-        $record=@{schema_version=1;tool_paths=$script:SelectedToolPaths}
-        if (Test-Path -LiteralPath $selection) {
-            $previous=Get-Content -LiteralPath $selection -Raw -Encoding UTF8|ConvertFrom-Json
-            foreach ($property in $previous.PSObject.Properties) { if ($property.Name -notin @('schema_version','tool_paths')) { $record[$property.Name]=$property.Value } }
-            Copy-Item -LiteralPath $selection -Destination ($selection+'.before-'+[Guid]::NewGuid().ToString('N'))
-        }
-        Write-DependencyJson $selection $record
-    }
-    $report=[pscustomobject]@{schema_version=1;status='passed';tools=$tools;python=$interpreters;python_probes=@($script:PythonProbeDiagnostics);notebook_ready=[bool]$selected;selection_saved=[bool]$mutating;webview2=$webview2;latex_checked=[bool]$InstallLatex;latex_ready=[bool]$InstallLatex;acp_checked=[bool]$InstallACP;acp_ready=$acpReady;checks=$script:DependencyChecks}
+    if ($mutating) { $selectionSaved=(Save-ToolSelection) -or $selectionSaved }
+    $report=[pscustomobject]@{schema_version=1;status='passed';plan=$plan;run_path=$script:DependencyRun;tools=$tools;python=$interpreters;python_probes=@($script:PythonProbeDiagnostics);notebook_ready=[bool]$selected;selection_saved=$selectionSaved;webview2=$webview2;latex_checked=[bool]$InstallLatex;latex_ready=[bool]$InstallLatex;acp_checked=[bool]$InstallACP;acp_ready=$acpReady;checks=$script:DependencyChecks}
     if ($mutating) {
         Write-DependencyJson (Join-Path $script:DependencyRun 'python-probes.json') @($script:PythonProbeDiagnostics)
         Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') $report
     }
-    if ($Json) { $report|ConvertTo-Json -Depth 8 }
+    Set-DependencyStatus 'passed' 'complete' 'Selected dependencies passed. Open Glow from its shortcut to use them.'
+    if ($ReportPath) { Write-DependencyJson $ReportPath $report }
+    if ($Json) { $report|ConvertTo-Json -Depth 10 }
     else {
         if ($mutating) { Write-Host 'Selected dependencies passed. Reopen Glow to use them.' }
         else { Write-Host 'Detection only. The installer installs missing base tools and selected Notebook / LaTeX features.' }
@@ -481,6 +529,8 @@ try {
     }
 } catch {
     $failure=$_
+    try { Set-DependencyStatus 'failed' 'failed' 'Setup stopped. Logs and owned partial downloads are preserved. Retry the same feature selection to continue; move aside a reported corrupt cache file before retrying.' -ErrorMessage $failure.Exception.Message }
+    catch { Write-Warning ('Could not save setup status: '+$_.Exception.Message) -WarningAction Continue }
     $diagnosticWriteErrors=@()
     if ($script:DependencyRun) {
         try { Write-DependencyJson (Join-Path $script:DependencyRun 'python-probes.json') @($script:PythonProbeDiagnostics) }
@@ -490,7 +540,7 @@ try {
         }
         try {
             Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') @{schema_version=1;status='failed';error=$failure.Exception.Message;
-                python_probes=@($script:PythonProbeDiagnostics);checks=$script:DependencyChecks;diagnostic_write_errors=$diagnosticWriteErrors}
+                selection_saved=$selectionSaved;python_probes=@($script:PythonProbeDiagnostics);checks=$script:DependencyChecks;diagnostic_write_errors=$diagnosticWriteErrors}
         } catch { Write-Warning ('Could not save setup failure receipt: '+$_.Exception.Message+'. Original setup error: '+$failure.Exception.Message) -WarningAction Continue }
     }
     throw $failure

@@ -53,7 +53,7 @@
       "role": "pdf",
       "command": "SumatraPDF.exe",
       "package": "SumatraPDF.SumatraPDF",
-      "purpose": "TeX forward and inverse search"
+      "purpose": "Optional external PDF/SyncTeX fallback (explicit selection only)"
     },
     {
       "role": "webview2",

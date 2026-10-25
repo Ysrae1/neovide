@@ -18,6 +18,24 @@ assert(vim.fn.isdirectory(profile) == 0, "missing optional Python must not creat
 local ok, message = pcall(runtime.convert)
 assert(not ok and tostring(message):find("GlowDependencies", 1, true), "Notebook reports actionable missing dependencies")
 
+local original_jobstart, original_notify = vim.fn.jobstart, vim.notify
+local setup_job, setup_notification
+vim.fn.executable = function(path) return path == root .. "/app/Glow.exe" and 1 or original_executable(path) end
+vim.fn.jobstart = function(command, options)
+  setup_job = { command = command, options = options }
+  return 17
+end
+vim.cmd("GlowDependencies")
+assert(vim.deep_equal(setup_job.command, { root .. "/app/Glow.exe", "--setup", "--notebook", "--latex" }),
+  "dependency entry uses the GUI launcher and explicit feature switches")
+assert(setup_job.options.detach == true and not setup_job.options.term, "setup opens without a terminal")
+assert(vim.api.nvim_get_current_buf() == 1, "setup must not create a terminal/scratch buffer")
+vim.fn.jobstart = function() return -1 end
+vim.notify = function(text) setup_notification = text end
+vim.cmd("GlowDependencies")
+assert(setup_notification and setup_notification:find("Glow Setup shortcut", 1, true), "failed spawn gives an actionable setup shortcut")
+vim.fn.jobstart, vim.fn.executable, vim.notify = original_jobstart, original_executable, original_notify
+
 local python, jupytext = root .. "/existing user env/python.exe", root .. "/existing user env/Scripts/jupytext.exe"
 vim.env.NEOVIDE_GLOW_ROOT = root .. "/second app"
 vim.env.GLOW_PYTHON, vim.env.GLOW_JUPYTEXT = python, jupytext
@@ -36,5 +54,5 @@ assert(specification.argv[1] == python, "kernel references reused system environ
 assert(vim.fn.filereadable(profile .. "/rplugin.vim") == 0, "test never starts a host or kernel")
 vim.fn.has, vim.fn.executable, vim.fn.stdpath = original_has, original_executable, original_stdpath
 vim.fn.delete(root, "rf")
-print("PASS core runtime: optional dependencies, explicit setup, reused Python and isolated kernel metadata")
+print("PASS core runtime: optional dependencies, console-free GUI setup, reused Python and isolated kernel metadata")
 vim.cmd("qa!")

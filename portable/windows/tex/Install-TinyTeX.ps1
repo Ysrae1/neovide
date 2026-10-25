@@ -6,7 +6,9 @@ param(
     [string]$RunRoot = (Join-Path $env:LOCALAPPDATA ('NeovideGlow\tex-setup\tinytex-v1-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffff'))),
     [switch]$Resume,
     [switch]$NoUserPath,
-    [switch]$AllowSeparateExistingTools
+    [switch]$AllowSeparateExistingTools,
+    [ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror = 'auto',
+    [scriptblock]$ProgressCallback
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -42,13 +44,77 @@ $utf8 = New-Object Text.UTF8Encoding($false)
 $receipt = [ordered]@{schema=1;operation='glow-system-tinytex-v1';status='started';install_root=$InstallRoot;started_utc=[DateTime]::UtcNow.ToString('o');checks=@();user_path_changed=$false;execution_context=@{identity_sid=$identitySid;session_id=[Diagnostics.Process]::GetCurrentProcess().SessionId;is_64_bit_process=[Environment]::Is64BitProcess;service_identity=$false}}
 $savedEnvironment = @{}
 foreach ($variable in @('PATH','TL_GNUPG','TL_GNUPGHOME')) { $savedEnvironment[$variable] = [Environment]::GetEnvironmentVariable($variable,'Process') }
-function Progress([string]$Message) {
+function Progress([string]$Message,[string]$Phase) {
     $line = [DateTime]::UtcNow.ToString('HH:mm:ss') + ' ' + $Message
     Write-Host $line
     [IO.File]::AppendAllText($progress,$line + [Environment]::NewLine,$utf8)
+    if ($Phase -and $ProgressCallback) { & $ProgressCallback $Phase $Message }
 }
 function Save-Receipt {
     [IO.File]::WriteAllText($receiptPath,($receipt | ConvertTo-Json -Depth 7),$utf8)
+}
+function Get-TeXMirrorCandidates {
+    param([ValidateSet('auto','tuna','ustc','illinois')][string]$Mirror,
+        [string]$UICulture = [Globalization.CultureInfo]::CurrentUICulture.Name)
+    $repositories = @{
+        tuna='https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet'
+        ustc='https://mirrors.ustc.edu.cn/CTAN/systems/texlive/tlnet'
+        illinois='https://ctan.math.illinois.edu/systems/texlive/tlnet'
+    }
+    $names = if ($Mirror -ne 'auto') { @($Mirror) }
+        elseif ($UICulture -match '^zh(?:-|$)') { @('tuna','ustc','illinois') }
+        else { @('illinois','tuna','ustc') }
+    foreach ($name in $names) { [pscustomobject]@{name=$name;repository=$repositories[$name]} }
+}
+function Test-TeXMirrorMetadata {
+    param([string]$Repository,[int]$TimeoutSeconds=15)
+    # Read-only reachability check, never a substitute for tlmgr signature
+    # verification. Buffer and total request time are both bounded; redirects
+    # cannot silently change the selected repository or downgrade HTTPS.
+    if (([uri]$Repository).Scheme -cne 'https') { throw 'TeX mirror must use HTTPS.' }
+    Add-Type -AssemblyName System.Net.Http
+    $handler = New-Object Net.Http.HttpClientHandler
+    $handler.AllowAutoRedirect = $false
+    $client = New-Object Net.Http.HttpClient($handler)
+    $response = $null
+    try {
+        $client.Timeout = [TimeSpan]::FromSeconds($TimeoutSeconds)
+        $client.MaxResponseContentBufferSize = 4096
+        $response = $client.GetAsync($Repository+'/tlpkg/texlive.tlpdb.sha512').GetAwaiter().GetResult()
+        if ([int]$response.StatusCode -ne 200) { throw ('Metadata returned HTTP '+[int]$response.StatusCode) }
+        $content = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        if ($content.Trim() -notmatch '\A[0-9a-fA-F]{128}(?:[ \t]+\*?texlive\.tlpdb)?\z') { throw 'Metadata did not contain a valid TeX Live SHA512 record.' }
+    } finally {
+        if ($response) { $response.Dispose() }
+        $client.Dispose(); $handler.Dispose()
+    }
+}
+function Select-TeXRepository {
+    param([ValidateSet('auto','tuna','ustc','illinois')][string]$Mirror,
+        [string]$UICulture = [Globalization.CultureInfo]::CurrentUICulture.Name)
+    $receipt.tex_mirror = $Mirror
+    $receipt.mirror_probes = @()
+    foreach ($candidate in @(Get-TeXMirrorCandidates -Mirror $Mirror -UICulture $UICulture)) {
+        Progress ('Checking TeX mirror '+$candidate.name+': '+$candidate.repository) 'select-tex-mirror'
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        $probe = [ordered]@{name=$candidate.name;repository=$candidate.repository;timeout_seconds=15;passed=$false}
+        try {
+            Test-TeXMirrorMetadata -Repository $candidate.repository -TimeoutSeconds 15
+            $probe.passed = $true
+        } catch { $probe.error = $_.Exception.Message }
+        $timer.Stop(); $probe.elapsed_ms = $timer.ElapsedMilliseconds
+        $receipt.mirror_probes += $probe
+        Save-Receipt
+        if ($probe.passed) {
+            $receipt.selected_mirror = $candidate.name
+            $receipt.selected_repository = $candidate.repository
+            $receipt.repository = $candidate.repository
+            Save-Receipt
+            Progress ('Selected TeX mirror '+$candidate.name+': '+$candidate.repository) 'select-tex-mirror'
+            return $candidate.repository
+        }
+    }
+    throw ('No reachable TeX mirror for selection "'+$Mirror+'". Each candidate was checked once (15 seconds maximum). See mirror_probes in receipt.json; no TeX installation or repository change was started.')
 }
 function Quote-Argument([string]$Value) {
     $quoted = New-Object Text.StringBuilder
@@ -64,7 +130,7 @@ function Quote-Argument([string]$Value) {
 }
 function Invoke-Bounded {
     param([string]$Executable,[string[]]$Arguments,[string]$Name,[int]$TimeoutSeconds=120,[string]$Directory=$RunRoot)
-    Progress ('Running ' + $Name)
+    Progress ('Running ' + $Name) $Name
     $start = New-Object Diagnostics.ProcessStartInfo
     $start.FileName = $Executable; $start.UseShellExecute = $false; $start.CreateNoWindow = $true
     $start.WorkingDirectory = $Directory
@@ -222,6 +288,7 @@ try {
     if ($lock.repository -cne 'rstudio/tinytex-releases' -or $lock.tag -cne 'v2026.10' -or
         $lock.filename -cne 'TinyTeX-1-windows-v2026.10.exe' -or
         $lock.sha256 -cne '36c329c644683d981a668419d13c8804696e2816ae4d287ad755788fee231a31') { throw 'Unexpected TeX asset lock; nothing was installed.' }
+    Progress 'Checking official TinyTeX archive size and SHA256.' 'verify-tinytex-archive'
     $archive = Join-Path $AssetDirectory $lock.filename
     if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) { throw 'Verified official TinyTeX archive is missing.' }
     if ((Get-Item -LiteralPath $archive).Length -ne $lock.size -or
@@ -237,6 +304,9 @@ try {
         $existing = Find-Application $command
         if (-not $AllowSeparateExistingTools -and $existing -and -not $existing.StartsWith($InstallRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw ('Existing TeX tool preserved: '+$command+'. No new distribution was installed or selected.') }
     }
+    # Select once, before extraction or any change to this distribution. All
+    # online tlmgr operations below remain bound to this exact repository.
+    $repository = Select-TeXRepository -Mirror $TeXMirror
     if (-not (Test-Path -LiteralPath $InstallRoot)) {
         $extract = Join-Path $RunRoot ('extract-' + [Guid]::NewGuid().ToString('N'))
         $null = New-Item -ItemType Directory -Path $extract
@@ -276,10 +346,7 @@ try {
     foreach ($option in @('desktop_integration','fileassocs','multiuser')) {
         $null = Invoke-Bounded -Executable $perl -Arguments @($tlmgr,'option',$option,'0') -Name ('option-'+$option)
     }
-    # A fixed official CTAN mirror keeps infrastructure and package metadata in
-    # one repository snapshot rather than following different redirect targets.
-    $repository = 'https://ctan.math.illinois.edu/systems/texlive/tlnet'
-    $receipt.repository = $repository
+    # Keep infrastructure and package metadata on the one selected mirror.
     $verified = @($tlmgr,'--repository',$repository,'--verify-repo=all')
     $tlmgrBatch = Join-Path $bin 'tlmgr.bat'
     if (-not (Test-Path -LiteralPath $tlmgrBatch -PathType Leaf)) { throw 'Official Windows tlmgr watchdog is missing.' }

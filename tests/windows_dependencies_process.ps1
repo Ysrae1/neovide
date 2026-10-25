@@ -1,5 +1,5 @@
 #requires -Version 5.1
-<# Native process-boundary regression. Only test-owned PowerShell children and
+<# Native process-boundary regression. Only test-owned .NET/PowerShell children and
    synthetic files; no installers, network requests, user config or GUI. #>
 param([string]$SourceRoot=(Split-Path -Parent $PSScriptRoot),[Parameter(Mandatory=$true)][string]$WorkRoot)
 Set-StrictMode -Version Latest
@@ -21,6 +21,29 @@ $ps=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
 function Child-Arguments([string]$Program) {
  return @('-NoLogo','-NoProfile','-NonInteractive','-WindowStyle','Hidden','-EncodedCommand',[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($Program)))
 }
+# powershell.exe -File parses its own script arguments and drops empty values
+# on 5.1; use a plain managed executable to inspect the native argv boundary.
+$argumentSource=Join-Path $WorkRoot 'argument fixture.cs'
+$argumentExe=Join-Path $WorkRoot 'argument fixture.exe'
+$argumentProgram=@'
+using System;
+public static class GlowArgumentFixture {
+ public static void Main(string[] args) {
+  Console.Write("[" + String.Join(",", Array.ConvertAll(args, value =>
+   "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"")) + "]");
+ }
+}
+'@
+[IO.File]::WriteAllText($argumentSource,$argumentProgram)
+$compiler=@('Microsoft.NET\Framework64\v4.0.30319\csc.exe','Microsoft.NET\Framework\v4.0.30319\csc.exe')|ForEach-Object {Join-Path $env:WINDIR $_}|Where-Object {Test-Path -LiteralPath $_ -PathType Leaf}|Select-Object -First 1
+if(-not $compiler){throw 'Native argv fixture requires the Windows .NET Framework C# compiler.'}
+$null=Invoke-DependencyProcess $compiler @('/nologo','/target:exe',('/out:'+$argumentExe),$argumentSource) 'compile-argument-fixture' 30
+$argumentValues=@('space value','quote"value','C:\trailing space\','',"apostrophe'value")
+$argumentOutput=Invoke-DependencyProcess $argumentExe $argumentValues 'argument-roundtrip' 30
+$roundtrip=ConvertFrom-Json -InputObject $argumentOutput
+if($roundtrip.Count -ne $argumentValues.Count){throw 'Native argument count changed.'}
+for($index=0;$index -lt $argumentValues.Count;$index++){if($roundtrip[$index] -cne $argumentValues[$index]){throw 'Native argument quoting changed a path/value.'}}
+Write-Output 'PASS hidden native process preserves spaces, quotes, trailing slashes and empty arguments'
 $output=Invoke-DependencyProcess $ps (Child-Arguments '[Console]::Out.WriteLine("child success");exit 0') 'success' 30
 if($output -notlike '*child success*' -or $script:DependencyChecks[-1].exit_code -ne 0){throw 'Successful child changed behavior'}
 $failed=$false

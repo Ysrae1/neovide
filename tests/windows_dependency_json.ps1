@@ -1,7 +1,7 @@
 #requires -Version 5.1
 <# Native Windows PowerShell 5.1 atomic-JSON regression. Uses only synthetic
    files in a fresh WorkRoot; no installers, executables, downloads or GUI.
-   Run after committing the corresponding source/test changes. #>
+   Runs directly against the supplied source tree. #>
 param(
     [string]$SourceRoot=(Split-Path -Parent $PSScriptRoot),
     [Parameter(Mandatory=$true)][string]$WorkRoot
@@ -39,7 +39,8 @@ function Read-SourceAst([string]$Path) {
 }
 function Find-Definition($Ast,[string]$Name) {
     $definitions=@($Ast.FindAll({param($node)
-        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $Name
+        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $Name -and
+        $node.Parent -eq $Ast.EndBlock
     },$true))
     Require ($definitions.Count -eq 1) ('Expected one trusted definition: '+$Name)
     return $definitions[0]
@@ -139,6 +140,7 @@ try {
     Pass 'Write-DependencyJson creates UTF-8 JSON in the combined special-character path'
 
     $updated=@{schema_version=1;revision='updated';tool_paths=@($toolTwo,$toolOne);nested=@{label=$specialName;enabled=$true}}
+    $createdJsonBytes=[IO.File]::ReadAllBytes($jsonPath)
     Write-DependencyJson $jsonPath $updated
     $changed=Read-Json $jsonPath
     Require ($changed.schema_version -eq 1 -and $changed.revision -ceq 'updated' -and
@@ -146,6 +148,9 @@ try {
         $changed.tool_paths[0] -ceq $toolTwo -and $changed.tool_paths[1] -ceq $toolOne -and
         $changed.nested.label -ceq $specialName -and $changed.nested.enabled -eq $true) 'Write-DependencyJson replacement changed schema or content.'
     Assert-NoPreparing $jsonPath
+    $jsonBackups=@(Get-SelectionBackups $jsonPath)
+    Require ($jsonBackups.Count -eq 1) 'JSON replacement did not create an explicit previous-file backup.'
+    Assert-SameBytes $jsonBackups[0].FullName $createdJsonBytes 'JSON replacement backup differs from its prior bytes.'
     Pass 'Write-DependencyJson replaces existing JSON and cleans its temporary file'
 
     $oldBytes=[IO.File]::ReadAllBytes($jsonPath)
@@ -220,6 +225,7 @@ try {
     $script:PythonProbeDiagnostics=@()
     $script:DependencyChecks=@()
     $script:SyntheticDiagnosticWrites=@()
+    $selectionSaved=$false
     # Deliberately replace the real writer only after all real-writer cases.
     function Write-DependencyJson([string]$Path,$Value) {
         $script:SyntheticDiagnosticWrites+=@($Path)

@@ -39,15 +39,115 @@ function Get-JupyterPythonCandidates([string[]]$DataRoots) {
         }
     }
 }
-function Write-DependencyJson([string]$Path,$Value) {
+function Write-DependencyJson([string]$Path,$Value,[string]$BackupPath) {
     $temporary=$Path+'.preparing-'+[Guid]::NewGuid().ToString('N')
     try {
         [IO.File]::WriteAllText($temporary,($Value|ConvertTo-Json -Depth 8),(New-Object Text.UTF8Encoding($false)))
-        # A bare $null can bind as an empty backup path in Windows PowerShell.
-        # NullString passes the CLR null required by File.Replace for no backup.
-        if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($temporary,$Path,[System.Management.Automation.Language.NullString]::Value) }
+        # Always use a real same-volume backup path on Windows PowerShell 5.1.
+        if (Test-Path -LiteralPath $Path) {
+            if (-not $BackupPath) { $BackupPath=$Path+'.before-'+[Guid]::NewGuid().ToString('N') }
+            [IO.File]::Replace($temporary,$Path,$BackupPath)
+        }
         else { [IO.File]::Move($temporary,$Path) }
     } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary } }
+}
+function Set-DependencyStatus {
+    param([string]$State,[string]$Phase,[string]$Detail,[long]$DownloadedBytes=0,[long]$TotalBytes=0,[string]$ErrorMessage,
+        [string]$StatusPath,[string]$RunPath)
+    if (-not $PSBoundParameters.ContainsKey('StatusPath')) {
+        $setting=Get-Variable -Name DependencyStatusPath -Scope Script -ErrorAction SilentlyContinue
+        if ($setting) { $StatusPath=$setting.Value }
+    }
+    if (-not $StatusPath) { return }
+    if (-not $PSBoundParameters.ContainsKey('RunPath')) {
+        $run=Get-Variable -Name DependencyRun -Scope Script -ErrorAction SilentlyContinue
+        if ($run) { $RunPath=$run.Value }
+    }
+    $record=@{schema_version=1;state=$State;phase=$Phase;detail=$Detail;
+        downloaded_bytes=$DownloadedBytes;total_bytes=$TotalBytes;updated_utc=[DateTime]::UtcNow.ToString('o');run_path=$null;error=$ErrorMessage}
+    $record.run_path=$RunPath
+    Write-DependencyJson $StatusPath $record ($StatusPath+'.previous')
+}
+function New-DependencyPhaseCallback {
+    # A separately invoked child has its own script scope. Capture the parent's
+    # status destination, run identity and helpers before crossing that boundary.
+    $setting=Get-Variable -Name DependencyStatusPath -Scope Script -ErrorAction SilentlyContinue
+    $statusPath=if ($setting) { $setting.Value } else { $null }
+    $run=Get-Variable -Name DependencyRun -Scope Script -ErrorAction SilentlyContinue
+    $runPath=if ($run) { $run.Value } else { $null }
+    $setStatus=${function:Set-DependencyStatus}
+    $writeJson=${function:Write-DependencyJson}
+    return {
+        param([string]$Phase,[string]$Detail)
+        function Write-DependencyJson { param($Path,$Value,$BackupPath); & $writeJson $Path $Value $BackupPath }
+        & $setStatus -State 'running' -Phase $Phase -Detail $Detail -StatusPath $statusPath -RunPath $runPath
+    }.GetNewClosure()
+}
+function Get-DependencyDownloadBytes($Asset,[string]$Root) {
+    $cache=Join-Path $Root 'downloads-v1'
+    $marker=Join-Path $cache '.glow-dependency-owner.json'
+    $file=Join-Path $cache $Asset.filename
+    if ((Test-Path -LiteralPath $marker -PathType Leaf) -and (Test-Path -LiteralPath $file -PathType Leaf)) {
+        try {
+            $owner=Get-Content -LiteralPath $marker -Raw -Encoding UTF8|ConvertFrom-Json
+            if ($owner.schema_version -eq 1 -and $owner.owner -ceq 'glow-download-cache-v1' -and
+                (Get-Item -LiteralPath $file).Length -eq $Asset.download_size -and
+                (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $Asset.sha256) { return 0L }
+        } catch {} # The install path will explain invalid/locked cache bytes.
+    }
+    return [long]$Asset.download_size
+}
+function New-DependencyPlan {
+    param($Tools,$Assets,[string]$Root,[string[]]$Roles,[bool]$Notebook,[bool]$Latex,$Selected,$Base,[bool]$UnknownPython)
+    $mapping=@{search='rg';find='fd';yazi='yazi';fzf='fzf';git='git';webview2='webview2'}
+    $items=@(); $dynamic=@(); $known=0L
+    foreach ($role in @($Roles|Select-Object -Unique)) {
+        $tool=$Tools|Where-Object {$_.role -eq $role}|Select-Object -First 1
+        if (-not $tool) { continue }
+        $bytes=0L; $note='Existing compatible tool will be reused.'; $status='reuse'
+        if (-not $tool.available) {
+            $status='missing'
+            if ($mapping.ContainsKey($role)) {
+                $asset=$Assets.($mapping[$role]); $bytes=Get-DependencyDownloadBytes $asset $Root
+                $note=if ($bytes) {'Locked x64-compatible tool download; existing tools are preserved.'} else {'Verified cached download will be reused.'}
+                if ($role -eq 'webview2') {
+                    $note='Microsoft bootstrapper; the device runtime is an additional provider download.'
+                    $dynamic+=@('WebView2 runtime: Microsoft determines device-specific download size.')
+                    if ($tool.status -eq 'unknown') { $status='blocked'; $note='Runtime registration is unreadable; setup stops without installing a replacement.' }
+                }
+            } else {
+                $bytes=$null; $note='Selected package provider determines the download size and may ask for installation approval.'
+                $dynamic+=@($role+': package provider determines download size.')
+            }
+        }
+        if ($null -ne $bytes) { $known+=$bytes }
+        $items+=@([pscustomobject]@{role=$role;status=$status;reuse_path=$tool.path;download_bytes=$bytes;download_note=$note})
+    }
+    if ($Notebook) {
+        $bytes=0L; $status='reuse'; $path=$null
+        if ($Selected) { $path=$Selected.python; $note='Complete existing Notebook environment will be reused.' }
+        elseif ($UnknownPython) { $status='blocked'; $note='An existing Python inspection is inconclusive; setup stops before downloading packages.' }
+        else {
+            $status='missing'; $note='Packages go into a separate Glow environment; existing Python/Conda packages are preserved.'
+            if ($Base) { $path=$Base.python }
+            else { $bytes=Get-DependencyDownloadBytes $Assets.python $Root; $note+=' The locked CPython 3.12 x64 installer is used when no compatible Python is found.' }
+            $dynamic+=@('Notebook wheels and text converter: pip resolves the package download size for the selected Python architecture.')
+        }
+        $known+=$bytes
+        $items+=@([pscustomobject]@{role='notebook';status=$status;reuse_path=$path;download_bytes=$bytes;download_note=$note})
+    }
+    if ($Latex) {
+        $tex=$Tools|Where-Object {$_.role -eq 'latex'}|Select-Object -First 1
+        $bytes=0L; $status='check'; $note='Existing TeX is reused after Chinese XeLaTeX / latexmk / SyncTeX checks; a failed check can require separate TinyTeX.'
+        if (-not $tex.available) { $status='missing'; $bytes=Get-DependencyDownloadBytes $Assets.tinytex $Root; $note='Install a separate owned TinyTeX; existing TeX directories are preserved.' }
+        else { $dynamic+=@('TeX fallback: a failed existing-TeX check may require the locked TinyTeX archive ('+$Assets.tinytex.download_size+' bytes).') }
+        $dynamic+=@('TeX packages: additional selected packages are downloaded by TeX Live; size is determined by its repository.')
+        $known+=$bytes
+        $items+=@([pscustomobject]@{role='latex';status=$status;reuse_path=$tex.path;download_bytes=$bytes;download_note=$note})
+    }
+    [pscustomobject]@{items=@($items);known_download_bytes=$known;dynamic_downloads=@($dynamic);
+        features=@{base=(@($Roles) -contains 'search');notebook=$Notebook;latex=$Latex};
+        download_note='Known bytes exclude provider downloads and partial-file resume savings. Verified cached archives count as zero. Shared CLI fallbacks are locked x64 binaries, including on ARM64 Windows.'}
 }
 function Initialize-DependencyDirectory([string]$Path,[string]$Owner) {
     $marker=Join-Path $Path '.glow-dependency-owner.json'
@@ -61,11 +161,19 @@ function Initialize-DependencyDirectory([string]$Path,[string]$Owner) {
         Write-DependencyJson $marker @{schema_version=1;owner=$Owner}
     }
 }
+function ConvertTo-DependencyArgumentString([string[]]$Arguments) {
+    (@($Arguments|ForEach-Object {
+        # CommandLineToArgvW quoting, including a trailing backslash in a path.
+        $value=[string]$_
+        '"'+[regex]::Replace([regex]::Replace($value,'(\\*)"','$1$1\"'),'(\\+)$','$1$1')+'"'
+    }) -join ' ')
+}
 function Invoke-DependencyProcess {
     param([string]$Executable,[string[]]$Arguments,[string]$Name,[int]$TimeoutSeconds=1200,[string]$Directory=$script:DependencyRun)
     Write-Host ('Installing / checking: '+$Name)
+    Set-DependencyStatus 'running' $Name ('Installing / checking: '+$Name)
     $start=New-Object Diagnostics.ProcessStartInfo
-    $start.FileName=$Executable; $start.Arguments=(@($Arguments|ForEach-Object { Quote-Argument $_ }) -join ' ')
+    $start.FileName=$Executable; $start.Arguments=ConvertTo-DependencyArgumentString $Arguments
     # Console output is relayed through setup; GUI installers retain their UI.
     $start.UseShellExecute=$false; $start.CreateNoWindow=$true; $start.WorkingDirectory=$Directory
     $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
@@ -83,8 +191,18 @@ function Invoke-DependencyProcess {
             Write-Progress -Activity 'Neovide Glow setup' -Status $Name
             if ([DateTime]::UtcNow -ge $deadline) {
                 $check.timed_out=$true
-                try { & (Join-Path $env:WINDIR 'System32\taskkill.exe') /PID $process.Id /T /F 2>&1 | Out-Null }
-                catch { $check['stop_error']=$_.Exception.Message }
+                $killer=New-Object Diagnostics.Process
+                $killer.StartInfo.FileName=Join-Path $env:WINDIR 'System32\taskkill.exe'
+                $killer.StartInfo.Arguments='/PID '+$process.Id+' /T /F'
+                $killer.StartInfo.UseShellExecute=$false; $killer.StartInfo.CreateNoWindow=$true
+                $killer.StartInfo.RedirectStandardOutput=$true; $killer.StartInfo.RedirectStandardError=$true
+                try {
+                    if (-not $killer.Start()) { throw 'Could not start owned-tree termination.' }
+                    $killOut=$killer.StandardOutput.ReadToEndAsync(); $killErr=$killer.StandardError.ReadToEndAsync()
+                    if (-not $killer.WaitForExit(5000)) { $killer.Kill(); $null=$killer.WaitForExit(1000) }
+                    if ($killer.HasExited -and $killer.ExitCode -ne 0) { $check['stop_error']='Owned-tree termination returned '+$killer.ExitCode }
+                } catch { $check['stop_error']=$_.Exception.Message }
+                finally { $killer.Dispose() }
                 $null=$process.WaitForExit(5000)
                 break
             }
@@ -121,13 +239,17 @@ function Get-DependencyAsset($Asset) {
     $destination=Join-Path $cache $Asset.filename
     if (Test-Path -LiteralPath $destination -PathType Leaf) {
         if ((Get-Item -LiteralPath $destination).Length -eq $Asset.download_size -and
-            (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $Asset.sha256) { return $destination }
-        throw ('Cached asset failed verification; preserved: '+$destination)
+            (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $Asset.sha256) {
+            Set-DependencyStatus 'running' 'download' ('Reusing verified download: '+$Asset.filename) $Asset.download_size $Asset.download_size
+            return $destination
+        }
+        throw ('Cached asset failed verification; preserved: '+$destination+'. Move this file aside, then retry the same feature selection to download a verified copy.')
     }
     $partial=$destination+'.part'
     $offset=0L
     if (Test-Path -LiteralPath $partial -PathType Leaf) { $offset=(Get-Item -LiteralPath $partial).Length }
-    if ($offset -gt $Asset.download_size) { throw 'Partial download exceeds the locked size; preserved.' }
+    if ($offset -gt $Asset.download_size) { throw ('Partial download exceeds the locked size; preserved: '+$partial+'. Move this file aside, then retry the same feature selection.') }
+    Set-DependencyStatus 'running' 'download' ('Downloading '+$Asset.filename+'; retrying the same selection resumes retained partial bytes.') $offset $Asset.download_size
     if ($offset -lt $Asset.download_size) {
         [Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
         $request=[Net.HttpWebRequest]::Create($Asset.url); $request.Timeout=60000; $request.ReadWriteTimeout=60000
@@ -142,20 +264,26 @@ function Get-DependencyAsset($Asset) {
             } else { $offset=0L; $mode=[IO.FileMode]::Create }
             $file=New-Object IO.FileStream($partial,$mode,[IO.FileAccess]::Write,[IO.FileShare]::None)
             $input=$response.GetResponseStream(); $buffer=New-Object byte[] 131072
+            $nextStatus=[DateTime]::UtcNow
             try {
                 while (($read=$input.Read($buffer,0,$buffer.Length)) -gt 0) {
                     $file.Write($buffer,0,$read); $offset+=$read
                     if ($offset -gt $Asset.download_size) { throw 'Download exceeds the locked size; no asset was executed.' }
                     Write-Progress -Activity ('Downloading '+$Asset.filename) -Status ('{0:N1} / {1:N1} MiB' -f ($offset/1MB),($Asset.download_size/1MB)) -PercentComplete ([Math]::Min(100,[int](100*$offset/$Asset.download_size)))
+                    if ([DateTime]::UtcNow -ge $nextStatus) {
+                        Set-DependencyStatus 'running' 'download' ('Downloading '+$Asset.filename) $offset $Asset.download_size
+                        $nextStatus=[DateTime]::UtcNow.AddMilliseconds(500)
+                    }
                 }
             } finally { $input.Dispose(); $file.Dispose(); Write-Progress -Activity ('Downloading '+$Asset.filename) -Completed }
         } finally { $response.Dispose() }
     }
     if ((Get-Item -LiteralPath $partial).Length -ne $Asset.download_size -or
         (Get-FileHash -LiteralPath $partial -Algorithm SHA256).Hash.ToLowerInvariant() -cne $Asset.sha256) {
-        throw ('Download size/SHA256 mismatch. No asset was executed; bytes preserved: '+$partial)
+        throw ('Download size/SHA256 mismatch. No asset was executed; bytes preserved: '+$partial+'. Move this file aside, then retry the same feature selection.')
     }
     [IO.File]::Move($partial,$destination)
+    Set-DependencyStatus 'running' 'download' ('Verified '+$Asset.filename) $Asset.download_size $Asset.download_size
     return $destination
 }
 function Expand-DependencyZip([string]$Archive,[string]$Destination) {

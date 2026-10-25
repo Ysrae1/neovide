@@ -1,7 +1,8 @@
 #requires -Version 5.1
 [CmdletBinding()]
 param([Parameter(Mandatory=$true)][string]$DependencyRoot,
-    [Parameter(Mandatory=$true)][string]$RunRoot,[string[]]$ToolPaths=@())
+    [Parameter(Mandatory=$true)][string]$RunRoot,[string[]]$ToolPaths=@(),
+    [ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror='auto')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 # Entered only after an explicit LaTeX feature selection. Never upgrade an
@@ -42,6 +43,7 @@ try {
     if (-not $reused) {
         $lock=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'system-assets.lock.json') -Raw -Encoding UTF8|ConvertFrom-Json
         $archive=Get-DependencyAsset $lock.assets.tinytex
+        Set-DependencyStatus 'running' 'prepare-tinytex' 'Preparing verified TinyTeX for installation.'
         # TeX installer needs only the hash lock, fixture, and verified archive.
         $assets=Join-Path $RunRoot 'assets'; $null=New-Item -ItemType Directory -Path $assets
         foreach ($name in @('asset-lock.json','fixture.tex')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot ('tex\'+$name)) -Destination (Join-Path $assets $name) }
@@ -52,7 +54,7 @@ try {
         catch { Copy-Item -LiteralPath $archive -Destination $target }
         $target=Get-DependencyTeXTarget (Join-Path $env:APPDATA 'TinyTeX') (Join-Path $env:LOCALAPPDATA 'Programs\NeovideGlow-TinyTeX')
         $install=$target.root
-        & (Join-Path $PSScriptRoot 'tex\Install-TinyTeX.ps1') -AssetDirectory $assets -InstallRoot $install -RunRoot (Join-Path $RunRoot 'install') -Resume:$target.resume -NoUserPath -AllowSeparateExistingTools
+        & (Join-Path $PSScriptRoot 'tex\Install-TinyTeX.ps1') -AssetDirectory $assets -InstallRoot $install -RunRoot (Join-Path $RunRoot 'install') -Resume:$target.resume -NoUserPath -AllowSeparateExistingTools -TeXMirror $TeXMirror -ProgressCallback (New-DependencyPhaseCallback)
         if (-not $?) { throw 'TinyTeX installation did not pass its compile checks.' }
         $bin=Join-Path $install 'bin\windows'
     }

@@ -26,12 +26,15 @@ internal static class WindowsLauncherCore
     }
     private static int Main()
     {
+        // Match the GUI entry point before the first fixture filesystem call:
+        // .NET caches its path handling switches on first IO initialization.
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(GlowLauncher).TypeHandle);
         string root = Path.Combine(Path.GetTempPath(), "glow-core-test-" + Guid.NewGuid().ToString("N"));
         try
         {
             foreach (string path in new string[] { "bin/neovide.exe", "bin/nvim.exe", "share/nvim/runtime/filetype.lua", "config/neovide.toml",
                 "runtime/lua/WindowsInit.lua", "profile/config/nvim/init.lua", "profile/config/nvim/lazy-lock.json",
-                "profile/data/nvim/lazy/plugin/plugin.lua", "native.dll", "dependencies/Setup-Dependencies.ps1",
+                "profile/data/nvim/lazy/plugin/plugin.lua", "native.dll", "dependencies/Setup-Wizard.ps1", "dependencies/Setup-Locale.ps1", "dependencies/Setup-Dependencies.ps1",
                 "dependencies/WebView2.ps1", "dependencies/dependencies.json", "dependencies/Dependency-Helpers.ps1", "dependencies/system-assets.lock.json", "dependencies/Setup-LaTeX.ps1" }) Write(root, path, "fixture");
             Write(root, "bundle.json", Metadata("core"));
             Validate(root);
@@ -47,6 +50,12 @@ internal static class WindowsLauncherCore
             if (!rejected) throw new Exception("Unknown distribution accepted");
             Console.WriteLine("PASS unsupported distribution rejected");
             Write(root, "bundle.json", Metadata("core"));
+            File.Delete(Path.Combine(root, "dependencies", "Setup-Wizard.ps1"));
+            rejected = false;
+            try { Validate(root); } catch (FileNotFoundException error) { rejected = error.Message.Contains("Setup-Wizard.ps1"); }
+            if (!rejected) throw new Exception("Core validation accepted a missing setup GUI");
+            Console.WriteLine("PASS core requires its setup GUI before launcher-check succeeds");
+            Write(root, "dependencies/Setup-Wizard.ps1", "fixture");
             File.Delete(Path.Combine(root, "native.dll"));
             rejected = false;
             try { Validate(root); } catch (FileNotFoundException) { rejected = true; }

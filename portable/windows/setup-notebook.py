@@ -41,7 +41,8 @@ def main():
                 # Stop only this invocation's process tree, including a provider
                 # started by the isolated Neovim registration process.
                 subprocess.run(['taskkill.exe', '/PID', str(process.pid), '/T', '/F'],
-                               stdout=output, stderr=subprocess.STDOUT, timeout=15)
+                               stdout=output, stderr=subprocess.STDOUT, timeout=15,
+                               creationflags=subprocess.CREATE_NO_WINDOW)
                 process.wait(timeout=10)
                 raise RuntimeError(f'{label} exceeded {timeout} seconds; see {label}.log')
         if result:
