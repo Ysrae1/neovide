@@ -9,6 +9,8 @@ param(
     [switch]$InstallBase,
     [switch]$InstallLatex,
     [ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror='auto',
+    [ValidateSet('pypi','tuna','ustc')][string]$NotebookMirror='pypi',
+    [string]$TeXInstallRoot,
     [switch]$InstallACP,
     [string]$NvimDataRoot,
     [string]$ACPNodePath,
@@ -383,6 +385,8 @@ $selected=$interpreters|Where-Object {$_.ready}|Select-Object -First 1
 $base=$interpreters|Where-Object {$_.compatible}|Select-Object -First 1
 $roles=@(Get-RequestedDependencyRoles -Tools $InstallTool -Base ([bool]$InstallBase) -Latex ([bool]$InstallLatex))
 $plan=New-DependencyPlan -Tools $tools -Assets $assetLock.assets -Root $DependencyRoot -Roles $roles -Notebook ([bool]$InstallNotebook) -Latex ([bool]$InstallLatex) -Selected $selected -Base $base -UnknownPython (@($script:PythonProbeDiagnostics|Where-Object {$_.status -eq 'unknown'}).Count -gt 0)
+$notebookSource=@{name=$NotebookMirror;index_url=(Get-NotebookIndexUrl $NotebookMirror)}
+$plan|Add-Member -NotePropertyName notebook_source -NotePropertyValue $notebookSource
 # Always show the detection result before any network request or installation.
 if (-not $Json) {
 $tools|Format-Table role,available,@{Label='Download';Expression={if ($_.available) {'reuse'} elseif ($_.download_bytes) {'{0:N1} MiB' -f ($_.download_bytes/1MB)} else {'provider size'}}},path -AutoSize|Out-Host
@@ -401,7 +405,7 @@ foreach ($note in $plan.dynamic_downloads) { Write-Host $note }
 }
 if ($PlanOnly) {
     $report=[pscustomobject]@{schema_version=1;status='planned';plan=$plan;tools=$tools;python=$interpreters;
-        python_probes=@($script:PythonProbeDiagnostics);notebook_ready=[bool]$selected;selection_saved=$false;webview2=$webview2}
+        python_probes=@($script:PythonProbeDiagnostics);notebook_ready=[bool]$selected;selection_saved=$false;webview2=$webview2;notebook_source=$notebookSource}
     if ($ReportPath) { Write-DependencyJson $ReportPath $report }
     if ($Json) { $report|ConvertTo-Json -Depth 10 }
     else { Write-Host 'Plan only. No dependencies, selections, or user configuration were changed.' }
@@ -482,8 +486,9 @@ try {
         Initialize-DependencyDirectory $environment ($owner+$requirementsSha)
         $null=Invoke-DependencyProcess $base.python @('-I','-m','venv',$environment) 'prepare-Notebook-environment' 120
         $privatePython=Join-Path $environment 'Scripts\python.exe'
-        $null=Invoke-DependencyProcess $privatePython @('-I','-m','pip','--isolated','install','--index-url','https://pypi.org/simple','--disable-pip-version-check','--only-binary=:all:','-r',$requirements) 'install-Notebook-packages' 1200
-        $null=Invoke-DependencyProcess $privatePython @('-I','-m','pip','--isolated','install','--index-url','https://pypi.org/simple','--disable-pip-version-check','--require-hashes','-r',(Join-Path $PSScriptRoot 'latex-requirements.lock')) 'install-LaTeX-text-converter' 180
+        # pip compares this string to Python's os.devnull, case-sensitively.
+        $null=Invoke-DependencyProcess $privatePython (Get-NotebookPipArguments -Mirror $NotebookMirror -Requirements $requirements -LogPath (Join-Path $script:DependencyRun 'notebook-pip.log')) 'install-Notebook-packages' 1200 -EnvironmentOverrides @{PIP_CONFIG_FILE='nul'}
+        $null=Invoke-DependencyProcess $privatePython (Get-NotebookPipArguments -Mirror $NotebookMirror -Requirements (Join-Path $PSScriptRoot 'latex-requirements.lock') -LogPath (Join-Path $script:DependencyRun 'latex-converter-pip.log') -RequireHashes) 'install-LaTeX-text-converter' 180 -EnvironmentOverrides @{PIP_CONFIG_FILE='nul'}
         $selected=Probe-Python $privatePython
         if (-not $selected -or -not $selected.ready) { throw 'Installed Notebook dependencies failed import validation; nothing was selected.' }
         $interpreters+=@($selected)
@@ -492,7 +497,7 @@ try {
     }
     if ($InstallLatex) {
         # Keep the process helper's script-scoped run/checks in this setup scope.
-        . (Join-Path $PSScriptRoot 'Setup-LaTeX.ps1') -DependencyRoot $DependencyRoot -RunRoot (Join-Path $script:DependencyRun 'tex') -ToolPaths $script:SelectedToolPaths -TeXMirror $TeXMirror
+        . (Join-Path $PSScriptRoot 'Setup-LaTeX.ps1') -DependencyRoot $DependencyRoot -RunRoot (Join-Path $script:DependencyRun 'tex') -ToolPaths $script:SelectedToolPaths -TeXMirror $TeXMirror -TeXInstallRoot $TeXInstallRoot
         if (-not $?) { throw 'LaTeX setup did not pass.' }
         $texBin=Join-Path $env:APPDATA 'TinyTeX\bin\windows'
         $texSelection=Join-Path $script:DependencyRun 'tex\selected.json'
@@ -514,7 +519,7 @@ try {
         $acpReady=$true
     }
     if ($mutating) { $selectionSaved=(Save-ToolSelection) -or $selectionSaved }
-    $report=[pscustomobject]@{schema_version=1;status='passed';plan=$plan;run_path=$script:DependencyRun;tools=$tools;python=$interpreters;python_probes=@($script:PythonProbeDiagnostics);notebook_ready=[bool]$selected;selection_saved=$selectionSaved;webview2=$webview2;latex_checked=[bool]$InstallLatex;latex_ready=[bool]$InstallLatex;acp_checked=[bool]$InstallACP;acp_ready=$acpReady;checks=$script:DependencyChecks}
+    $report=[pscustomobject]@{schema_version=1;status='passed';plan=$plan;run_path=$script:DependencyRun;tools=$tools;python=$interpreters;python_probes=@($script:PythonProbeDiagnostics);notebook_ready=[bool]$selected;notebook_source=$notebookSource;selection_saved=$selectionSaved;webview2=$webview2;latex_checked=[bool]$InstallLatex;latex_ready=[bool]$InstallLatex;acp_checked=[bool]$InstallACP;acp_ready=$acpReady;checks=$script:DependencyChecks}
     if ($mutating) {
         Write-DependencyJson (Join-Path $script:DependencyRun 'python-probes.json') @($script:PythonProbeDiagnostics)
         Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') $report
@@ -540,7 +545,7 @@ try {
         }
         try {
             Write-DependencyJson (Join-Path $script:DependencyRun 'receipt.json') @{schema_version=1;status='failed';error=$failure.Exception.Message;
-                selection_saved=$selectionSaved;python_probes=@($script:PythonProbeDiagnostics);checks=$script:DependencyChecks;diagnostic_write_errors=$diagnosticWriteErrors}
+                selection_saved=$selectionSaved;notebook_source=$notebookSource;python_probes=@($script:PythonProbeDiagnostics);checks=$script:DependencyChecks;diagnostic_write_errors=$diagnosticWriteErrors}
         } catch { Write-Warning ('Could not save setup failure receipt: '+$_.Exception.Message+'. Original setup error: '+$failure.Exception.Message) -WarningAction Continue }
     }
     throw $failure

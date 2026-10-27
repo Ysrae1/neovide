@@ -4,12 +4,14 @@
 [CmdletBinding()]
 param([switch]$InstallNotebook,[switch]$InstallLatex,
     [ValidateSet('auto','en','zh-CN')][string]$Language='auto',
-    [ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror='auto')
+    [ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror='auto',
+    [ValidateSet('pypi','tuna','ustc')][string]$NotebookMirror='pypi',[string]$TeXInstallRoot)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Setup-Locale.ps1')
 $script:SetupLanguage=Resolve-SetupLanguage $Language
 $script:texMirrorValues=@('auto','tuna','ustc','illinois')
+$script:notebookMirrorValues=@('pypi','tuna','ustc')
 # PowerShell 5.1 is DPI-unaware. Set the UI thread before any WinForms HWND
 # exists so Windows renders text at system DPI instead of stretching a bitmap.
 # This deliberately promises system-DPI clarity, not dynamic cross-monitor DPI.
@@ -44,6 +46,7 @@ function Quote([string]$Value) {
 function Set-Busy([bool]$Busy) {
     $notebook.Enabled=-not $Busy; $latex.Enabled=-not $Busy
     $mirrorOptions.Enabled=(-not $Busy -and $latex.Checked)
+    $notebookOptions.Enabled=(-not $Busy -and $notebook.Checked)
     $detect.Enabled=-not $Busy; $install.Enabled=(-not $Busy -and $null -ne $script:plan -and -not $script:blocked)
     $close.Text=if ($Busy) {(Get-SetupText 'Stop setup')} else {(Get-SetupText 'Finish later')}
 }
@@ -59,6 +62,8 @@ function Start-Setup([bool]$Apply) {
     if ($notebook.Checked) { $arguments+='-InstallNotebook' }
     if ($latex.Checked) { $arguments+='-InstallLatex' }
     $arguments+=@('-TeXMirror',$script:texMirrorValues[$mirror.SelectedIndex])
+    $arguments+=@('-NotebookMirror',$script:notebookMirrorValues[$notebookMirrorBox.SelectedIndex])
+    if ($latex.Checked -and $texRoot.Text.Trim()) { $arguments+=@('-TeXInstallRoot',$texRoot.Text.Trim()) }
     $start=[Diagnostics.ProcessStartInfo]::new()
     $start.FileName=Join-Path $PSHOME 'powershell.exe'
     $start.Arguments=(@($arguments|ForEach-Object {Quote $_}) -join ' ')
@@ -118,7 +123,9 @@ function Show-Plan($Report) {
     $script:plan=$Report.plan
     $script:blocked=@($Report.plan.items|Where-Object {$_.status -eq 'blocked'}).Count -gt 0
     $lines=@((Get-SetupText 'Review what will be reused or downloaded:'),'')
+    if ($notebook.Checked) { $lines+=((Get-SetupText 'Notebook package source: {0}') -f [string]$notebookMirrorBox.SelectedItem); $lines+='' }
     if ($latex.Checked) { $lines+=((Get-SetupText 'TeX download source: {0}') -f [string]$mirror.SelectedItem); $lines+='' }
+    if ($latex.Checked -and $texRoot.Text.Trim()) { $lines+=((Get-SetupText 'New TeX installation folder: {0}') -f $texRoot.Text.Trim()); $lines+='' }
     foreach ($item in $Report.plan.items) {
         $line=(Get-SetupRole ([string]$item.role))+': '+(Get-SetupPlanStatus ([string]$item.status))
         if ($item.reuse_path) { $line+=' — '+$item.reuse_path }
@@ -139,14 +146,14 @@ $form=[Windows.Forms.Form]::new(); $form.SuspendLayout(); $form.Text=(Get-SetupT
 $iconPath=Join-Path (Split-Path -Parent $PSScriptRoot) 'neovide.ico'
 if (Test-Path -LiteralPath $iconPath -PathType Leaf) { $form.Icon=[Drawing.Icon]::new($iconPath) }
 $form.AutoScaleDimensions=[Drawing.SizeF]::new(96,96); $form.AutoScaleMode='Dpi'
-$form.Size=[Drawing.Size]::new(800,650); $form.MinimumSize=[Drawing.Size]::new(650,540)
+$form.Size=[Drawing.Size]::new(800,780); $form.MinimumSize=[Drawing.Size]::new(650,700)
 $form.StartPosition='CenterScreen'
 $fontName=if ($script:SetupLanguage -eq 'zh-CN') {'Microsoft YaHei UI'} else {'Segoe UI'}
 $form.Font=[Drawing.Font]::new($fontName,10)
 $layout=[Windows.Forms.TableLayoutPanel]::new(); $layout.Dock='Fill'; $layout.Padding=[Windows.Forms.Padding]::new(20)
-$layout.ColumnCount=1; $layout.RowCount=7
+$layout.ColumnCount=1; $layout.RowCount=8
 $null=$layout.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new('Percent',100))
-foreach ($row in 0..3) { $null=$layout.RowStyles.Add([Windows.Forms.RowStyle]::new('AutoSize')) }
+foreach ($row in 0..4) { $null=$layout.RowStyles.Add([Windows.Forms.RowStyle]::new('AutoSize')) }
 $null=$layout.RowStyles.Add([Windows.Forms.RowStyle]::new('Percent',100))
 $null=$layout.RowStyles.Add([Windows.Forms.RowStyle]::new('Absolute',24)); $null=$layout.RowStyles.Add([Windows.Forms.RowStyle]::new('AutoSize'))
 $intro=[Windows.Forms.Label]::new(); $intro.Dock='Fill'; $intro.AutoSize=$true; $intro.Margin=[Windows.Forms.Padding]::new(3,3,3,12)
@@ -155,6 +162,18 @@ $choices=[Windows.Forms.FlowLayoutPanel]::new(); $choices.Dock='Fill'; $choices.
 $notebook=[Windows.Forms.CheckBox]::new(); $notebook.Text=(Get-SetupText 'Notebook / Python'); $notebook.AutoSize=$true; $notebook.Checked=[bool]$InstallNotebook
 $latex=[Windows.Forms.CheckBox]::new(); $latex.Text=(Get-SetupText 'LaTeX / Chinese PDF'); $latex.AutoSize=$true; $latex.Checked=[bool]$InstallLatex
 $choices.Controls.AddRange([Windows.Forms.Control[]]@($notebook,$latex))
+$notebookOptions=[Windows.Forms.FlowLayoutPanel]::new(); $notebookOptions.Dock='Fill'; $notebookOptions.AutoSize=$true
+$notebookOptions.WrapContents=$true; $notebookOptions.Enabled=$notebook.Checked
+$notebookSourceLabel=[Windows.Forms.Label]::new(); $notebookSourceLabel.Text=Get-SetupText 'Notebook package source'; $notebookSourceLabel.AutoSize=$true
+$notebookSourceLabel.Margin=[Windows.Forms.Padding]::new(3,8,10,3)
+$notebookMirrorBox=[Windows.Forms.ComboBox]::new(); $notebookMirrorBox.Name='SetupNotebookMirror'; $notebookMirrorBox.AccessibleName=Get-SetupText 'Notebook package source'
+$notebookMirrorBox.DropDownStyle='DropDownList'; $notebookMirrorBox.Width=210
+foreach ($label in @('PyPI (official)','Tsinghua University','USTC')) { $null=$notebookMirrorBox.Items.Add((Get-SetupText $label)) }
+$notebookMirrorBox.SelectedIndex=[Array]::IndexOf($script:notebookMirrorValues,$NotebookMirror)
+$notebookHint=[Windows.Forms.Label]::new(); $notebookHint.AutoSize=$true
+$notebookHint.Text=Get-SetupText 'Applies to pip packages only. Python and base tools keep their original download sources. No system settings are changed.'
+$notebookHint.Margin=[Windows.Forms.Padding]::new(3,4,3,8)
+$notebookOptions.Controls.AddRange([Windows.Forms.Control[]]@($notebookSourceLabel,$notebookMirrorBox,$notebookHint)); $notebookOptions.SetFlowBreak($notebookMirrorBox,$true)
 $mirrorOptions=[Windows.Forms.FlowLayoutPanel]::new(); $mirrorOptions.Dock='Fill'; $mirrorOptions.AutoSize=$true
 $mirrorOptions.WrapContents=$true; $mirrorOptions.Enabled=$latex.Checked
 $mirrorLabel=[Windows.Forms.Label]::new(); $mirrorLabel.Text=Get-SetupText 'TeX download source'; $mirrorLabel.AutoSize=$true
@@ -167,6 +186,19 @@ $mirrorHint=[Windows.Forms.Label]::new(); $mirrorHint.AutoSize=$true
 $mirrorHint.Text=Get-SetupText 'Automatic tries Chinese mirrors first on Chinese Windows and Illinois first on other systems. The source is checked only when installing LaTeX; system settings are unchanged.'
 $mirrorHint.Margin=[Windows.Forms.Padding]::new(3,4,3,8)
 $mirrorOptions.Controls.AddRange([Windows.Forms.Control[]]@($mirrorLabel,$mirror,$mirrorHint)); $mirrorOptions.SetFlowBreak($mirror,$true)
+$mirrorOptions.SetFlowBreak($mirrorHint,$true)
+$texRootLabel=[Windows.Forms.Label]::new(); $texRootLabel.AutoSize=$true; $texRootLabel.Text=Get-SetupText 'TeX installation folder (optional)'
+$texRoot=[Windows.Forms.TextBox]::new(); $texRoot.Name='SetupTeXInstallRoot'; $texRoot.AccessibleName=Get-SetupText 'TeX installation folder (optional)'; $texRoot.Width=480; $texRoot.Text=$TeXInstallRoot
+$texBrowse=[Windows.Forms.Button]::new(); $texBrowse.Name='SetupTeXBrowse'; $texBrowse.Text=Get-SetupText 'Browse...'; $texBrowse.AutoSize=$true
+$texRootHint=[Windows.Forms.Label]::new(); $texRootHint.AutoSize=$true; $texRootHint.Margin=[Windows.Forms.Padding]::new(3,4,3,8)
+$texRootHint.Text=Get-SetupText 'Blank uses the automatic location. If no usable alias exists, choose a writable ASCII folder without spaces. Existing TeX is preserved.'
+$mirrorOptions.Controls.AddRange([Windows.Forms.Control[]]@($texRootLabel,$texRoot,$texBrowse,$texRootHint))
+$mirrorOptions.SetFlowBreak($texRootLabel,$true); $mirrorOptions.SetFlowBreak($texBrowse,$true)
+$texBrowse.Add_Click({
+    $dialog=[Windows.Forms.FolderBrowserDialog]::new(); $dialog.Description=Get-SetupText 'Choose a parent folder; setup will use its NeovideGlow-TinyTeX subfolder.'
+    try { if ($dialog.ShowDialog($form) -eq [Windows.Forms.DialogResult]::OK) { $texRoot.Text=Join-Path $dialog.SelectedPath 'NeovideGlow-TinyTeX' } }
+    finally { $dialog.Dispose() }
+})
 $status=[Windows.Forms.Label]::new(); $status.Dock='Fill'; $status.AutoSize=$true; $status.Margin=[Windows.Forms.Padding]::new(3,8,3,8)
 $details=[Windows.Forms.TextBox]::new(); $details.Dock='Fill'; $details.Multiline=$true; $details.ReadOnly=$true
 $details.ScrollBars='Vertical'; $details.WordWrap=$true; $details.AccessibleName=(Get-SetupText 'Detected dependencies and download plan')
@@ -181,12 +213,14 @@ foreach ($entry in @(@($close,'SetupClose'),@($install,'SetupInstall'),@($detect
 }
 $notebook.Name='SetupNotebook'; $latex.Name='SetupLatex'; $details.Name='SetupDetails'; $status.Name='SetupStatus'
 $buttons.Controls.AddRange([Windows.Forms.Control[]]@($close,$install,$detect,$logs))
-foreach ($control in @($intro,$choices,$mirrorOptions,$status,$details,$progress,$buttons)) { $layout.Controls.Add($control) }
+foreach ($control in @($intro,$choices,$notebookOptions,$mirrorOptions,$status,$details,$progress,$buttons)) { $layout.Controls.Add($control) }
 $form.Controls.Add($layout)
 $resizeText={
     $width=[Math]::Max(200,$layout.ClientSize.Width-$layout.Padding.Horizontal-8)
     $intro.MaximumSize=[Drawing.Size]::new($width,0); $status.MaximumSize=[Drawing.Size]::new($width,0)
     $mirrorHint.MaximumSize=[Drawing.Size]::new($width,0)
+    $notebookHint.MaximumSize=[Drawing.Size]::new($width,0); $texRootHint.MaximumSize=[Drawing.Size]::new($width,0)
+    $texRoot.Width=[Math]::Min(480,$width-140)
 }
 $layout.Add_SizeChanged($resizeText); & $resizeText
 $form.ResumeLayout($true)
@@ -243,10 +277,13 @@ $install.Add_Click({Start-Setup $true})
 $selectionChanged={
     $script:plan=$null; $script:exitCode=2; $close.Text=Get-SetupText 'Finish later'; $install.Enabled=$false
     $mirrorOptions.Enabled=$latex.Checked
+    $notebookOptions.Enabled=$notebook.Checked
     $status.Text=Get-SetupText 'Selection changed. Choose Check again to refresh the download plan.'
 }
 foreach ($choice in @($notebook,$latex)) { $choice.Add_CheckedChanged($selectionChanged) }
 $mirror.Add_SelectedIndexChanged($selectionChanged)
+$notebookMirrorBox.Add_SelectedIndexChanged($selectionChanged)
+$texRoot.Add_TextChanged($selectionChanged)
 $logs.Add_Click({
     $directory=if (Get-Variable lastRun -Scope Script -ErrorAction SilentlyContinue) {$script:lastRun} else {$script:work}
     $start=[Diagnostics.ProcessStartInfo]::new(); $start.FileName='explorer.exe'; $start.Arguments=Quote $directory; $start.UseShellExecute=$false

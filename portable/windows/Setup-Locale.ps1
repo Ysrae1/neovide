@@ -8,6 +8,15 @@ function Resolve-SetupLanguage {
     return 'en'
 }
 $script:SetupChinese=@{
+    'Notebook package source'='Notebook 软件源'
+    'Notebook package source: {0}'='Notebook 软件源：{0}'
+    'PyPI (official)'='PyPI（官方）'
+    'Applies to pip packages only. Python and base tools keep their original download sources. No system settings are changed.'='仅影响 Python 软件包；Python 安装程序和基础工具仍使用各自原有来源。不改系统设置。'
+    'TeX installation folder (optional)'='TeX 安装目录（可选）'
+    'New TeX installation folder: {0}'='新 TeX 安装目录：{0}'
+    'Browse...'='浏览…'
+    'Blank uses the automatic location. If no usable alias exists, choose a writable ASCII folder without spaces. Existing TeX is preserved.'='留空时自动选择。若仍提示目录不可用，可另选有写入权限、仅含英文等 ASCII 字符且无空格的目录。已有 TeX 会保留。'
+    'Choose a parent folder; setup will use its NeovideGlow-TinyTeX subfolder.'='请选择存放位置；向导将使用其中的 NeovideGlow-TinyTeX 子目录。'
     'Connecting to TeX source: {0}'='正在连接 TeX 软件源：{0}'
     'Selected TeX source: {0}'='已选择 TeX 软件源：{0}'
     'TeX download source'='TeX 软件源'

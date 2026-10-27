@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param([Parameter(Mandatory=$true)][string]$DependencyRoot,
     [Parameter(Mandatory=$true)][string]$RunRoot,[string[]]$ToolPaths=@(),
-    [ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror='auto')
+    [ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror='auto',[string]$TeXInstallRoot)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 # Entered only after an explicit LaTeX feature selection. Never upgrade an
@@ -41,6 +41,19 @@ try {
         }
     }
     if (-not $reused) {
+        # Preflight before downloading. An existing Windows short alias keeps
+        # TeX in this user's directory even when the account name has spaces.
+        if ($TeXInstallRoot) {
+            # Explicit choice never silently falls back to a different folder.
+            $texTarget=Get-DependencyTeXTarget $TeXInstallRoot $TeXInstallRoot
+        } else {
+            $texTarget=Get-DependencyTeXTarget (Join-Path $env:APPDATA 'TinyTeX') (Join-Path $env:LOCALAPPDATA 'Programs\NeovideGlow-TinyTeX')
+        }
+        if ((Test-Path -LiteralPath $texTarget.root) -and -not $texTarget.resume) {
+            throw ('The selected TeX folder already exists and is not owned by Glow: '+$texTarget.root+'. Choose a new folder; existing files were preserved and no TeX download was started.')
+        }
+        $texInstaller=Join-Path $PSScriptRoot 'tex\Install-TinyTeX.ps1'
+        $install=& $texInstaller -InstallRoot $texTarget.root -ResolveInstallRootOnly
         $lock=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'system-assets.lock.json') -Raw -Encoding UTF8|ConvertFrom-Json
         $archive=Get-DependencyAsset $lock.assets.tinytex
         Set-DependencyStatus 'running' 'prepare-tinytex' 'Preparing verified TinyTeX for installation.'
@@ -52,9 +65,7 @@ try {
         $target=Join-Path $assets $lock.assets.tinytex.filename
         try { $null=New-Item -ItemType HardLink -Path $target -Target $archive -ErrorAction Stop }
         catch { Copy-Item -LiteralPath $archive -Destination $target }
-        $target=Get-DependencyTeXTarget (Join-Path $env:APPDATA 'TinyTeX') (Join-Path $env:LOCALAPPDATA 'Programs\NeovideGlow-TinyTeX')
-        $install=$target.root
-        & (Join-Path $PSScriptRoot 'tex\Install-TinyTeX.ps1') -AssetDirectory $assets -InstallRoot $install -RunRoot (Join-Path $RunRoot 'install') -Resume:$target.resume -NoUserPath -AllowSeparateExistingTools -TeXMirror $TeXMirror -ProgressCallback (New-DependencyPhaseCallback)
+        & (Join-Path $PSScriptRoot 'tex\Install-TinyTeX.ps1') -AssetDirectory $assets -InstallRoot $install -RunRoot (Join-Path $RunRoot 'install') -Resume:$texTarget.resume -NoUserPath -AllowSeparateExistingTools -TeXMirror $TeXMirror -ProgressCallback (New-DependencyPhaseCallback)
         if (-not $?) { throw 'TinyTeX installation did not pass its compile checks.' }
         $bin=Join-Path $install 'bin\windows'
     }

@@ -1,5 +1,20 @@
 #requires -Version 5.1
 # Sourced by Setup-Dependencies.ps1. No top-level writes, downloads, or installs.
+function Get-NotebookIndexUrl {
+    param([ValidateSet('pypi','tuna','ustc')][string]$Mirror='pypi')
+    @{pypi='https://pypi.org/simple';tuna='https://pypi.tuna.tsinghua.edu.cn/simple';ustc='https://mirrors.ustc.edu.cn/pypi/simple'}[$Mirror]
+}
+function Get-NotebookPipArguments {
+    param([ValidateSet('pypi','tuna','ustc')][string]$Mirror='pypi',
+        [Parameter(Mandatory=$true)][string]$Requirements,
+        [Parameter(Mandatory=$true)][string]$LogPath,[switch]$RequireHashes)
+    # One explicitly selected index per run. Version locks and TLS remain in
+    # force; the caller disables pip config only in this new child process.
+    $arguments=@('-I','-m','pip','--isolated','install','--index-url',(Get-NotebookIndexUrl $Mirror),
+        '--disable-pip-version-check','--log',$LogPath)
+    if ($RequireHashes) { $arguments+='--require-hashes' } else { $arguments+='--only-binary=:all:' }
+    $arguments+@('-r',$Requirements)
+}
 function Get-DependencySelectedPaths([string]$Selection) {
     if (-not (Test-Path -LiteralPath $Selection -PathType Leaf)) { return }
     try {
@@ -169,7 +184,8 @@ function ConvertTo-DependencyArgumentString([string[]]$Arguments) {
     }) -join ' ')
 }
 function Invoke-DependencyProcess {
-    param([string]$Executable,[string[]]$Arguments,[string]$Name,[int]$TimeoutSeconds=1200,[string]$Directory=$script:DependencyRun)
+    param([string]$Executable,[string[]]$Arguments,[string]$Name,[int]$TimeoutSeconds=1200,[string]$Directory=$script:DependencyRun,
+        [hashtable]$EnvironmentOverrides=@{})
     Write-Host ('Installing / checking: '+$Name)
     Set-DependencyStatus 'running' $Name ('Installing / checking: '+$Name)
     $start=New-Object Diagnostics.ProcessStartInfo
@@ -177,6 +193,7 @@ function Invoke-DependencyProcess {
     # Console output is relayed through setup; GUI installers retain their UI.
     $start.UseShellExecute=$false; $start.CreateNoWindow=$true; $start.WorkingDirectory=$Directory
     $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
+    foreach ($key in $EnvironmentOverrides.Keys) { $start.EnvironmentVariables[$key]=[string]$EnvironmentOverrides[$key] }
     $process=New-Object Diagnostics.Process; $process.StartInfo=$start
     $stdout=$null; $stderr=$null
     $log=Join-Path $script:DependencyRun ($Name+'.log')

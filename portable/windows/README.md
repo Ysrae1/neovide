@@ -16,6 +16,8 @@
 
 ## 中英文引导
 
+[`2026.10.27.1` 双架构更新版](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261027-preview1)将 TinyTeX 用户目录短路径处理接入正式 Setup 流程；没有合格别名时，可在向导内指定其他安装目录，无需另打补丁。Notebook 新增独立的软件源选择和持续 pip 日志。两架构保留 `.6` 的配置入口与前端，v1.0 和旧版资产继续保留。Windows PowerShell 5.1 逻辑检查、11项原生向导交互及 x64 Python 3.12 的清华源 dry-run 通过；本轮未重跑新 EXE 完整安装或完整 Notebook／TinyTeX 安装。下载、来源与完整验收边界见新版发行页，下面的 `.6` 不包含这些向导修复。
+
 双架构 `2026.10.23.5` 已联合发布，均包含简体中文与英文引导，并在 Parallels 的 Windows 11 ARM64 中各完成14项安装／引导检查；x64 使用兼容运行，ARM64 使用匹配架构载荷。物理 x64 和完整可选依赖联网安装仍待验证，不同架构的验收不能混用。
 
 `2026.10.23.6` 两架构安装器已发布为 [`glow-windows-core-20261025-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261025-preview1)，补上 PDF 获得焦点后按 `q` 关闭的处理，沿用 `.5` 冻结安装逻辑与配置。两架构真实按键已在 PD＋OpenGL 验证；ARM64 完成隔离安装及配置保留检查，x64 按用户要求取消新安装循环。后续最高压缩重封仅核对来源、版本与导出完整性，没有新增功能／安装验收；7项公开资产的远端大小与SHA256均已匹配。
@@ -34,7 +36,15 @@ TinyTeX 下载完成后，x64 `2026.10.23.3` 引导会继续显示解压、联�
 
 LaTeX 的“TeX 下载源”可选自动、清华大学、中国科大或 Illinois。自动模式在中文 Windows 优先尝试国内镜像；安装前对每个候选进行最多15秒的元数据连接检查，选定后本次安装始终使用同一个源。手动选择只检查该源，失败后可回到引导另选。只读检测阶段不联网测试镜像，也不修改系统网络设置、已有 TeX 的全局软件源或签名验证规则。命令行入口可用 `-TeXMirror auto|tuna|ustc|illinois`。
 
+Notebook 的“Notebook 软件源”独立提供 PyPI（官方，默认）、清华大学和中国科大。该选项只控制 pip 软件包，基础工具仍可能从 GitHub 下载，缺少兼容 Python 时仍从 python.org 获取固定版本的安装程序；不能用切换 pip 源解决前两个阶段的连接失败。更改源后先“重新检查”，再“安装所选依赖”；复用完整已有 Notebook 环境时不会重新安装软件包。命令行入口可用 `-NotebookMirror pypi|tuna|ustc`。固定版本、wheel 要求与文本转换器哈希保持，TLS 验证保留；只为本次 pip 子进程关闭 pip 配置文件加载，不修改用户／系统配置或额外混用索引。[清华镜像说明](https://mirrors.tuna.tsinghua.edu.cn/help/pypi/)与[中科大镜像说明](https://mirrors.ustc.edu.cn/help/pypi.html)：中科大未缓存的软件包可能转向清华，并非完全独立的备用源。
+
+**Notebook 安装看似停住：** 先看向导显示的实际阶段。安装 Python 软件包时，可从“打开日志”查看本次运行目录中持续追加的 `notebook-pip.log` 与 `latex-converter-pip.log`；进程退出后的完整输出另存为 `install-Notebook-packages.log`、`install-LaTeX-text-converter.log`。无需等20分钟总时限才查看pip连接／下载状态。已有检查覆盖固定版本的Windows兼容包，但没有现场日志时，不能把基础包、Python本体、pip软件包或已有Python检测失败统称为镜像故障。
+
 **TinyTeX 自更新检查超时：** `verify-self-update-complete` 会联网读取 TeX 仓库的更新清单，当前时限为180秒；到时停止不代表下载的安装包损坏。`progress.log` 仅记录阶段，具体输出在本次运行目录的 `tex\install\logs\verify-self-update-complete.log`，命令状态在 `tex\install\receipt.json`。先查看对应阶段日志，不需要重装整个 Glow 或删除 TinyTeX；保留带拥有标记的目录，后续设置可以复用缓存并续接该目录，但仍须通过完整安装与编译检查。
+
+**TinyTeX 安装路径含空格或中文：** 旧版可能在 `Install-TinyTeX.ps1` 的路径预检处直接停止，提示非 ASCII，即使用户名只有英文和空格。新向导在下载前尝试读取同一用户目录已有的 Windows 8.3 短路径，保留实际存放位置及已下载文件；不改用户名、不启用系统短文件名设置，也不回退到 ProgramData／管理员安装。没有合格别名时，在“TeX 安装目录（可选）”选择当前用户可写、无空格的 ASCII 位置；“浏览”会在所选父目录下使用 `NeovideGlow-TinyTeX` 子目录。留空保留自动路径，修改后须重新检查计划；已有非 Glow 目录在下载前拒绝覆盖，自有未完成目录可续装。向导／依赖脚本参数为 `-TeXInstallRoot`，独立 TinyTeX 脚本参数仍为 `-InstallRoot`。中文文档路径与 TeX 自身安装根目录是不同限制。
+
+**Git Bash 加入 Windows Terminal：** 在 Terminal 的“设置 → 添加新配置文件 → 新建空配置文件”填写名称 `Git Bash`，命令行指向实际 Git 安装目录的 `bin\bash.exe`，例如 `"C:\Program Files\Git\bin\bash.exe" --login -i`，起始目录设为 `%USERPROFILE%`。保存后会出现在“＋”旁的菜单；使用 `bash.exe` 才会嵌入该标签页。Glow 安装的便携 Git 位于其依赖目录，不能套用上述标准安装路径；按实际 `git.exe` 所在的 `cmd` 目录向上一层找到 `bin\bash.exe`。[微软配置示例](https://learn.microsoft.com/en-us/windows/terminal/dynamic-profiles#git-bash)。
 
 ## 安装流程与维护边界
 
@@ -61,6 +71,14 @@ export integrity only, without repeating functional or installation acceptance.
 The `.6` installers are published as
 [`glow-windows-core-20261025-preview1`](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261025-preview1).
 All seven public asset sizes and SHA256 digests match the local publication inputs.
+
+The [2026.10.27.1 Windows update](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261027-preview1)
+adds TinyTeX short-path handling and an optional installation folder, plus a
+separate Notebook package-source selector and continuous pip logs. It retains
+the `.6` frontend and profile identifiers. Windows PowerShell 5.1 checks and
+11 native wizard checks passed; a TUNA dry-run resolved the Notebook packages
+with isolated x64 Python 3.12. Complete installation of the new EXE and optional
+dependencies was not repeated. The frozen v1.0 assets remain unchanged.
 
 Do not infer download sizes from older candidates. Physical x64 hardware,
 complete optional dependency downloads, clipboard behavior and external Copilot
@@ -242,8 +260,12 @@ If that fails, it preserves that distribution and prepares a separate owned
 TinyTeX from its official monthly release digest. TeX repository signatures
 remain mandatory, and its own GPG keyring is used. Common Chinese/math packages,
 PDF and SyncTeX are checked before selection. TeX installation roots must be
-ASCII without spaces, an upstream TeX Live limitation; Chinese document paths
-are tested separately. No system/user PATH or file association is rewritten.
+ASCII without spaces for compatibility with TeX Live's Windows tooling. Setup
+first tries an existing Windows 8.3 alias of the same user directory, before
+downloading; it never invents an alias, changes volume settings, or falls back
+to ProgramData/admin installation. If no safe alias exists, setup stops with
+the selected path and an explicit diagnostic. Chinese document paths are tested
+separately. No system/user PATH or file association is rewritten.
 See [TinyTeX](https://yihui.org/tinytex/) and [TeX Live's Windows path limits](https://tug.org/texlive/windows.html#nonascii).
 
 WebView2 detection reads Microsoft's documented Evergreen Runtime `pv`

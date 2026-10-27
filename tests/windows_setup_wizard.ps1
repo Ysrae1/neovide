@@ -15,6 +15,10 @@ using System.Runtime.InteropServices;
 public static class GlowWizardTestWindow {
     [DllImport("user32.dll", SetLastError=true)]
     public static extern bool PostMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetParent(IntPtr window);
+    [DllImport("user32.dll")]
+    public static extern int GetDlgCtrlID(IntPtr window);
     [DllImport("user32.dll", SetLastError=true)]
     public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr wParam, IntPtr lParam, uint flags, uint timeout, out UIntPtr result);
 }
@@ -23,10 +27,10 @@ $utf8=[Text.UTF8Encoding]::new($false)
 $fixture=Join-Path $WorkRoot 'fixture';$null=New-Item -ItemType Directory -Path $fixture
 foreach($file in @('Setup-Wizard.ps1','Setup-Locale.ps1')) { Copy-Item -LiteralPath (Join-Path $SourceRoot ('portable\windows\'+$file)) -Destination $fixture }
 $backend=@'
-param([switch]$InstallBase,[switch]$InstallNotebook,[switch]$InstallLatex,[switch]$PlanOnly,[switch]$Json,[string]$StatusPath,[string]$ReportPath,[ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror='auto')
+param([switch]$InstallBase,[switch]$InstallNotebook,[switch]$InstallLatex,[switch]$PlanOnly,[switch]$Json,[string]$StatusPath,[string]$ReportPath,[ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror='auto',[ValidateSet('pypi','tuna','ustc')][string]$NotebookMirror='pypi',[string]$TeXInstallRoot='')
 $u=[Text.UTF8Encoding]::new($false)
 $mode=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'mode.txt'))
-[IO.File]::AppendAllText((Join-Path $PSScriptRoot 'calls.txt'),("plan=$PlanOnly notebook=$InstallNotebook latex=$InstallLatex mirror=$TeXMirror"+[Environment]::NewLine),$u)
+[IO.File]::AppendAllText((Join-Path $PSScriptRoot 'calls.txt'),("plan=$PlanOnly notebook=$InstallNotebook latex=$InstallLatex mirror=$TeXMirror notebook_source=$NotebookMirror tex_root=$TeXInstallRoot"+[Environment]::NewLine),$u)
 if($PlanOnly){
  $state=if($mode -eq 'blocked'){'blocked'}else{'reuse'}
  @{status='planned';selection_saved=$false;plan=@{items=@(@{role='search';status=$state;reuse_path='C:\fixture\rg.exe';download_bytes=0;download_note='Existing compatible tool will be reused.'});known_download_bytes=0;dynamic_downloads=@('Python package size is resolved by pip.')}}|ConvertTo-Json -Depth 6|Set-Content -LiteralPath $ReportPath -Encoding UTF8
@@ -49,11 +53,13 @@ $receipt=[ordered]@{state='running';checks=@();processes=@();downloads=$false;us
 function Save{[IO.File]::WriteAllText((Join-Path $WorkRoot 'receipt.json'),($receipt|ConvertTo-Json -Depth 6),$utf8)}
 function Pass([string]$Name){$receipt.checks+=@($Name);Save}
 function Quote([string]$Value){'"'+[regex]::Replace([regex]::Replace($Value,'(\\*)"','$1$1\"'),'(\\+)$','$1$1')+'"'}
-function Start-Wizard([string]$Mode,[string]$Language='en',[string]$TeXMirror='auto'){
+function Start-Wizard([string]$Mode,[string]$Language='en',[string]$TeXMirror='auto',[string]$NotebookMirror='pypi',[string]$TeXInstallRoot=''){
  $script:UiLanguage=$Language
  [IO.File]::WriteAllText((Join-Path $fixture 'mode.txt'),$Mode,$utf8)
  $start=[Diagnostics.ProcessStartInfo]::new();$start.FileName=Join-Path $PSHOME 'powershell.exe'
- $start.Arguments=(@('-STA','-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $fixture 'Setup-Wizard.ps1'),'-InstallNotebook','-Language',$Language,'-TeXMirror',$TeXMirror)|ForEach-Object{Quote $_}) -join ' '
+ $arguments=@('-STA','-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $fixture 'Setup-Wizard.ps1'),'-InstallNotebook','-Language',$Language,'-TeXMirror',$TeXMirror,'-NotebookMirror',$NotebookMirror)
+ if($TeXInstallRoot){$arguments+=@('-TeXInstallRoot',$TeXInstallRoot)}
+ $start.Arguments=($arguments|ForEach-Object{Quote $_}) -join ' '
  $start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
  $script:process=[Diagnostics.Process]::new();$script:process.StartInfo=$start;$null=$script:process.Start()
  $script:stdout=$script:process.StandardOutput.ReadToEndAsync();$script:stderr=$script:process.StandardError.ReadToEndAsync()
@@ -66,6 +72,30 @@ function Start-Wizard([string]$Mode,[string]$Language='en',[string]$TeXMirror='a
 }
 function Find-Control([string]$Name){
  $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$Name))
+}
+function Find-ControlId([string]$Id){
+ $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty,$Id))
+}
+function Set-ComboIndex($Control,[int]$Index){
+ if(-not $Control -or -not $Control.Current.IsEnabled){throw 'Combo box is unavailable.'}
+ $handle=[IntPtr]$Control.Current.NativeWindowHandle
+ if($handle -eq [IntPtr]::Zero -or $Control.Current.ClassName -notlike 'WindowsForms10.COMBOBOX*'){throw 'Expected this test window native combo box.'}
+ $result=[UIntPtr]::Zero
+ if([GlowWizardTestWindow]::SendMessageTimeout($handle,0x014E,[UIntPtr]::new([uint32]$Index),[IntPtr]::Zero,2,2000,[ref]$result) -eq [IntPtr]::Zero){throw 'Test combo selection timed out.'}
+ $parent=[GlowWizardTestWindow]::GetParent($handle)
+ $notification=[UIntPtr]::new([uint32]((1 -shl 16) -bor ([GlowWizardTestWindow]::GetDlgCtrlID($handle) -band 0xffff)))
+ if([GlowWizardTestWindow]::SendMessageTimeout($parent,0x0111,$notification,$handle,2,2000,[ref]$result) -eq [IntPtr]::Zero){throw 'Test combo selection notification timed out.'}
+}
+function Set-Text($Control,[string]$Value){
+ if(-not $Control -or -not $Control.Current.IsEnabled){throw 'Text field is unavailable.'}
+ $pattern=$null
+ if($Control.TryGetCurrentPattern([Windows.Automation.ValuePattern]::Pattern,[ref]$pattern)){
+  ([Windows.Automation.ValuePattern]$pattern).SetValue($Value);return
+ }
+ if($Control.Current.ClassName -notlike 'WindowsForms10.EDIT*' -or $Control.Current.NativeWindowHandle -eq 0){throw 'Expected this test window native edit control.'}
+ $text=[Runtime.InteropServices.Marshal]::StringToHGlobalUni($Value);$result=[UIntPtr]::Zero
+ try{if([GlowWizardTestWindow]::SendMessageTimeout([IntPtr]$Control.Current.NativeWindowHandle,0x000C,[UIntPtr]::Zero,$text,2,2000,[ref]$result) -eq [IntPtr]::Zero){throw 'Test text change timed out.'}}
+ finally{[Runtime.InteropServices.Marshal]::FreeHGlobal($text)}
 }
 function Wait-For([scriptblock]$Condition,[string]$Label){
  $deadline=[DateTime]::UtcNow.AddSeconds(30)
@@ -105,6 +135,8 @@ function Get-ElementText($Element){
  if($Element.Current.ClassName -like 'WindowsForms10.EDIT*'){return $Element.Current.Name}
 }
 function Plan-Text {
+ $details=Find-ControlId 'SetupDetails'
+ if($details){$value=Get-ElementText $details;if(-not [string]::IsNullOrWhiteSpace($value)){return $value}}
  $name=if($script:UiLanguage -eq 'zh-CN'){'检测结果与下载计划'}else{'Detected dependencies and download plan'}
  $nodes=$script:window.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)
  foreach($node in $nodes){
@@ -149,6 +181,34 @@ try{
  Click 'Check again';Plan-Ready
  Click 'Install selected';Wait-For {$null -ne (Find-Control 'Finish')} 'passed installation next steps'
  Close-Wizard 0;Pass 'selection refresh and explicit install show next steps and return success'
+ Start-Wizard 'success' 'en' 'auto' 'tuna';Plan-Ready
+ $notebookSource=Find-ControlId 'SetupNotebookMirror'
+ $texFolder=Find-ControlId 'SetupTeXInstallRoot'
+ if(-not $notebookSource -or -not $notebookSource.Current.IsEnabled){throw 'Notebook source is not enabled for the selected Notebook feature.'}
+ if(-not $texFolder -or $texFolder.Current.IsEnabled){throw 'TeX folder should be disabled until LaTeX is selected.'}
+ if([IO.File]::ReadAllText((Join-Path $fixture 'calls.txt')) -notmatch 'notebook_source=tuna'){throw 'Initial Notebook source was not passed to detection.'}
+ Set-ComboIndex $notebookSource 2
+ Wait-For {-not (Find-Control 'Install selected').Current.IsEnabled} 'Notebook source invalidated stale plan'
+ Click 'Check again';Plan-Ready
+ if([IO.File]::ReadAllText((Join-Path $fixture 'calls.txt')) -notmatch 'notebook_source=ustc'){throw 'Changed Notebook source was not passed to detection.'}
+ $choice=Find-Control 'Notebook / Python';$toggle=$null
+ if($choice.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern,[ref]$toggle)){([Windows.Automation.TogglePattern]$toggle).Toggle()}else{Invoke-Control $choice}
+ Wait-For {-not (Find-ControlId 'SetupNotebookMirror').Current.IsEnabled} 'Notebook source follows feature deselection'
+ if($choice.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern,[ref]$toggle)){([Windows.Automation.TogglePattern]$toggle).Toggle()}else{Invoke-Control $choice}
+ $choice=Find-Control 'LaTeX / Chinese PDF';$toggle=$null
+ if($choice.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern,[ref]$toggle)){([Windows.Automation.TogglePattern]$toggle).Toggle()}else{Invoke-Control $choice}
+ Wait-For {(Find-ControlId 'SetupTeXInstallRoot').Current.IsEnabled} 'TeX folder enabled for LaTeX'
+ Click 'Check again';Plan-Ready
+ $customRoot="C:\fixture\User With Space\O'Connor\TinyTeX"
+ Set-Text (Find-ControlId 'SetupTeXInstallRoot') $customRoot
+ Wait-For {-not (Find-Control 'Install selected').Current.IsEnabled} 'TeX folder invalidated stale plan'
+ Click 'Check again';Plan-Ready
+ $calls=[IO.File]::ReadAllText((Join-Path $fixture 'calls.txt'))
+ if(-not $calls.Contains('plan=True notebook=True latex=True mirror=auto notebook_source=ustc tex_root='+$customRoot)){throw 'Custom TeX path or Notebook source changed during quoted argument forwarding.'}
+ Click 'Install selected';Wait-For {$null -ne (Find-Control 'Finish')} 'selected source/path installation'
+ $calls=[IO.File]::ReadAllText((Join-Path $fixture 'calls.txt'))
+ if(-not $calls.Contains('plan=False notebook=True latex=True mirror=auto notebook_source=ustc tex_root='+$customRoot)){throw 'Installation did not use the reviewed source and custom folder.'}
+ Close-Wizard 0;Pass 'Notebook source and custom TeX folder toggle, invalidate plans and reach detection/install unchanged'
  Start-Wizard 'success';Plan-Ready;Close-Wizard 2;Pass 'finish later returns deferred instead of acceptance'
  Start-Wizard 'failed';Plan-Ready;Click 'Install selected'
  Wait-For {$null -ne (Find-Control 'Setup did not finish. Your editor and existing environments are preserved.')} 'failure recovery'
@@ -161,6 +221,7 @@ try{
  if((Find-Control 'Install selected').Current.IsEnabled){throw 'An inconclusive detection allowed installation.'}
  Close-Wizard 2;Pass 'inconclusive detection blocks installation without touching the environment'
  Start-Wizard 'success' 'zh-CN' 'ustc';Plan-Ready
+ foreach($label in @('Notebook 软件源','TeX 安装目录（可选）')){if(-not (Find-Control $label)){throw ('Missing Chinese option label: '+$label)}}
  if([IO.File]::ReadAllText((Join-Path $fixture 'calls.txt')) -notmatch 'plan=True notebook=True latex=False mirror=ustc'){throw 'Wizard did not pass the mirror selection during read-only detection.'}
  $plan=Plan-Text
  foreach($text in @('文本搜索 (ripgrep)','复用已有环境','将复用本机已有的兼容工具。','已知官方来源下载量：','Python 软件包的下载量由 pip 确定。','C:\fixture\rg.exe')) {

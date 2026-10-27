@@ -135,6 +135,28 @@ class CorePackage(unittest.TestCase):
             self.build()
         self.assertFalse(self.destination.exists())
 
+    def test_current_tex_setup_is_included_and_sealed_for_both_architectures(self):
+        # Use the real updated scripts: a successful source-level path test is
+        # insufficient if a new installer still ships its old dependency code.
+        scripts = ("Setup-LaTeX.ps1", "tex/Install-TinyTeX.ps1", "Setup-Dependencies.ps1",
+                   "Dependency-Helpers.ps1", "Setup-Wizard.ps1", "Setup-Locale.ps1")
+        expected = {}
+        for relative in scripts:
+            data = (REPO / "portable/windows" / relative).read_bytes()
+            self.write(self.here / relative, data)
+            expected["dependencies/" + relative] = data
+        for architecture, machine in (("x64", 0x8664), ("arm64", 0xAA64)):
+            with self.subTest(architecture=architecture):
+                self.destination = self.root / ("tex-core-" + architecture)
+                self.declare_architecture(architecture)
+                frontend = self.frontend(machine=machine)
+                self.build("tex-core-" + architecture, architecture=architecture,
+                           frontend=frontend, frontend_sha256=core.digest(frontend))
+                seal = json.loads((self.destination / "bundle-sha256.json").read_text())
+                for relative, data in expected.items():
+                    self.assertEqual((self.destination / relative).read_bytes(), data)
+                    self.assertEqual(seal[relative], hashlib.sha256(data).hexdigest())
+
     def test_missing_frame_is_added_at_root_without_changing_font_settings(self):
         import tomllib
         config = self.source / "config/neovide.toml"

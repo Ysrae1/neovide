@@ -4,6 +4,7 @@
 > based on [Neovide](https://github.com/neovide/neovide).
 > [Live showcase](https://ysrae1.github.io/neovide-glow/) ·
 > [Download the frozen release](https://github.com/Ysrae1/neovide/releases/tag/v1.0) ·
+> [Windows installer update](https://github.com/Ysrae1/neovide/releases/tag/glow-windows-core-20261027-preview1) ·
 > [Deployment guide](https://github.com/Ysrae1/neovide/blob/glow-preview/portable/DEPLOY.md)
 
 > **Experimental glow branch:** this fork adds adjustable native bloom while preserving the

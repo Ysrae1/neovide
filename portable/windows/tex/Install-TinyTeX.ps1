@@ -7,16 +7,58 @@ param(
     [switch]$Resume,
     [switch]$NoUserPath,
     [switch]$AllowSeparateExistingTools,
+    [switch]$ResolveInstallRootOnly,
     [ValidateSet('auto','tuna','ustc','illinois')][string]$TeXMirror = 'auto',
     [scriptblock]$ProgressCallback
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$InstallRoot = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
-$RunRoot = [IO.Path]::GetFullPath($RunRoot)
-if ($InstallRoot -notmatch '^[A-Za-z]:\\[!-~]+$' -or $InstallRoot.Contains(';')) {
-    throw 'TeX Live does not support a non-ASCII installation root reliably. Choose a writable ASCII user-level path without spaces. Nothing was installed; no ProgramData/admin fallback was attempted.'
+function Test-TeXInstallRoot([string]$Path) {
+    return ($Path -match '^[A-Za-z]:\\[!-~]+$' -and $Path -notmatch '[";%!^&|<>\r\n]')
 }
+function Get-TeXShortPath([string]$Path) {
+    # Read an existing Windows alias; never enable 8.3 naming, create a junction,
+    # or move the user's installation into a shared/admin directory.
+    if (-not ('GlowTeXNativePath' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System.Runtime.InteropServices;
+using System.Text;
+public static class GlowTeXNativePath {
+ [DllImport("kernel32.dll", CharSet=CharSet.Unicode, ExactSpelling=true, SetLastError=true)]
+ public static extern uint GetShortPathNameW(string path, StringBuilder result, uint capacity);
+}
+'@
+    }
+    $buffer=New-Object Text.StringBuilder 32768
+    $length=[GlowTeXNativePath]::GetShortPathNameW($Path,$buffer,[uint32]$buffer.Capacity)
+    if ($length -gt 0 -and $length -lt $buffer.Capacity) { return $buffer.ToString() }
+    return $null
+}
+function Resolve-TeXInstallRoot([string]$Path) {
+    if (Test-TeXInstallRoot $Path) { return $Path }
+    if ($Path -notmatch '^[A-Za-z]:\\.+' -or $Path -match '[";%!^&|<>\r\n]') {
+        throw ('Unsupported TeX installation root: "'+$Path+'". Use -InstallRoot with a writable local ASCII path without spaces or batch metacharacters. No files were written.')
+    }
+    # The new TinyTeX directory need not exist yet. Resolve only its nearest
+    # existing ancestor, then append the unchanged, not-yet-created suffix.
+    $ancestor=$Path; $suffix=''
+    while (-not (Test-Path -LiteralPath $ancestor -PathType Container)) {
+        $separator=$ancestor.LastIndexOf('\')
+        if ($separator -lt 3) { break }
+        $suffix=$ancestor.Substring($separator)+$suffix
+        $ancestor=$ancestor.Substring(0,$separator)
+    }
+    $short=$null
+    try { $short=Get-TeXShortPath $ancestor } catch { $short=$null }
+    if ($short) {
+        $candidate=$short.TrimEnd('\')+$suffix
+        if (Test-TeXInstallRoot $candidate) { return $candidate }
+    }
+    throw ('TeX installation root contains spaces or non-ASCII characters and Windows has no usable ASCII 8.3 alias: "'+$Path+'". Choose a writable ASCII user-level path without spaces via -InstallRoot. Nothing was installed; no ProgramData/admin fallback was attempted.')
+}
+$InstallRoot = Resolve-TeXInstallRoot ([IO.Path]::GetFullPath($InstallRoot).TrimEnd('\'))
+if ($ResolveInstallRootOnly) { return $InstallRoot }
+$RunRoot = [IO.Path]::GetFullPath($RunRoot)
 function Assert-TeXUserContext([string]$IdentitySid,[string]$SelectedRoot,[string]$ProfilePath) {
     if ($IdentitySid -in @('S-1-5-18','S-1-5-19','S-1-5-20') -or
         $SelectedRoot -match '(?i)\\Windows\\(?:System32|SysWOW64)\\config\\(?:systemprofile|LocalService|NetworkService)(?:\\|$)' -or
