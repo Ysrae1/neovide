@@ -4,6 +4,25 @@
 
 ## 当前维护状态
 
+### 2026-10-27 Windows 安装向导更新公开发布（Codex）
+
+- 按用户“上线吧”授权，源码 `59a8698` 与标签 `glow-windows-core-20261027-preview1` 已推送，新预发布公开提供 `2026.10.27.1` x64／ARM64 安装器、两份精确安装源码、指南、来源记录与校验清单。7项资产的远端大小／SHA256均匹配本地，公开下载均HTTP200；旧v1.0及既有发行资产不变。发布收据与文件在 `target/glow-windows-publication-20261027-preview1/`。
+- 官网下载区已切换新版Windows入口，中英文同步；网站源码 `8442495`，Pages提交 `e2315d3f8cd9b96d53dd7d045219770ed5bdb92a` 已built，线上两改动文件HTTP200且字节／SHA一致，6个新资产链接匹配。Mac下载与旧v1.0标签保留；网站证据 `showcase/review/windows-setup-publication-20261027/online-verification.json`。GitHub插件写入受integration权限限制，使用既有GitHub命令行通道完成非强制发布，未更改权限。
+- 本轮复用下方已完成的原生向导／路径／Notebook源预检，不新增完整依赖安装或朋友电脑验收；未重编前端、替换本机程序或改用户配置。仅提交本任务安装源码、说明与本节相关记录，其他既有网站记录和复盘资料保留在原工作区。
+
+### 2026-10-27 Windows 向导路径与 Notebook 下载修复（Codex，本地安装包已完成）
+
+- 按用户要求，将 TinyTeX 已有8.3短路径解析直接接入正式向导；原生检查确认空格目录可解析，但中文目录未必有合格别名，因此新增可选 TeX 安装目录。自有未完成目录可续装，非 Glow 已有目录在下载前拒绝覆盖；不改用户名、短文件名设置或转管理员安装。六份正式依赖脚本共用于 x64／ARM64，旧公开 `.6` 与前日补丁保留。
+- Notebook 原流程固定使用 PyPI，且基础工具、Python本体、pip包分别经过 GitHub、python.org、PyPI；缺少朋友日志，未认定现场故障属于哪层。新向导独立提供 PyPI／清华／科大选择，持续写入两份pip日志；只为子进程禁用pip配置文件，保留TLS、版本／哈希约束和原超时，不改用户网络或Python配置。README 补分阶段排查与 Git Bash 加入 Windows Terminal 的方法。
+- 本地打包回归19项通过，扩展实际六脚本的双架构stage／SHA封印检查通过；Windows PowerShell 5.1 下路径、镜像、进度、依赖计划和Notebook源检查通过，登录会话内11项向导交互通过，192DPI中文截图无控件裁切。独立x64 Python 3.12经清华源dry-run解析53个Notebook包及1个哈希固定转换器包，未执行这些包的安装；未将其视为朋友电脑或ARM64完整安装通过。
+- 用户接回外接盘后，Windows VM已恢复，原两份stage逐文件SHA核对通过；`2026.10.27.1` 两架构EXE及对应精确安装源码包已生成，沿用 `ac0fe0d` 前端与原 `.6` stack_id，保留既有用户配置入口。x64为96,984,238字节，ARM64为95,237,557字节，版本与导出SHA均通过；产物、`Windows-SHA256SUMS.txt`及来源记录在 `target/glow-windows-installer-20261027-build/release-assets/`。自有测试窗口与打包进程已结束，VM保持运行。未发布或替换用户已安装程序，未重跑新EXE完整安装或实际TinyTeX安装。
+
+### 2026-10-26 Windows TinyTeX 空格用户名路径预检修复（Codex，本地补丁）
+
+- 朋友反馈在 `Install-TinyTeX.ps1:18` 安装前被路径正则拒绝；英文用户名含空格也会命中，旧提示只突出非 ASCII。核对 TinyTeX 上游空格／非 ASCII 路径报告后保留安装根限制，改为只读查询同一目录已有的 Windows 8.3 别名；没有合格别名则明确报实际路径，不改用户目录／磁盘设置或回退 ProgramData。`Setup-LaTeX.ps1` 在下载前预检，并把解析根用于安装及最终选择，保留原续装拥有标记。
+- 新增 `tests/windows_tex_install_path.ps1`：PowerShell 7.6.8 下空格／中文／缺失后缀、无别名拒绝、只读入口、完整父流程的路径传递／续装／失败零下载等11组通过；既有镜像、进度回归及diff检查通过。回执 `target/tex-install-path-check-20261026-2/receipt.json`；Windows 环境不可用，未执行原生短路径 API 或实际 TinyTeX 安装，不将逻辑测试作为朋友电脑安装通过。
+- 本地交付 `target/glow-tex-path-hotfix-20261026/Glow-TeX-Path-Fix-20261026.zip`（15,455字节，SHA256 `72e65de3ccf3daab6ba93d6ed4922282809eaf212df49b411ca3eb7eab32db80`）：仅更新两份设置脚本，旧版本哈希守卫、原文件备份、重复运行和拒绝用户修改保护已验证。源码／说明未提交，发行包未重建或发布；朋友应用补丁后仍需实际重试，缺少可用8.3别名时可先取消LaTeX继续其他依赖。
+
 ### 2026-10-25 发布后字母雨贴边与快捷键回切间距修正（Codex）
 
 - 用户指出 CMatrix 从下方入场后卡片下缘留缝。复现为雨区独立 +8px 位移被圆角兼容层写入裁切路径，动画结束归零后裁切仍短8px；按用户要求，`section-reveal.js/css` 将雨区作为整体仅渐显，普通卡片 part 和高卡片拆分 unit 均不独立平移，画布/角标不再二次拆分。保留卡片整体及文字入场，不改全局圆角实现。
